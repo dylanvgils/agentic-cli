@@ -192,6 +192,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Volumes:       []string{"/example.test/data:/data"},
+			Ports:         []sandbox.PortMapping{{Host: 8080, Guest: 80}},
 			Egress:        sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}},
 		}
 
@@ -207,6 +208,7 @@ func Test_buildRunArgs(t *testing.T) {
 			"--cpus=2",
 			"--mount-dir=/example.test/data:/data",
 			"--net-default-egress=deny",
+			"--port=127.0.0.1:8080:80",
 			"--runtime-conf=/example.test/env.yaml",
 		} {
 			assert.Contains(t, args, flag)
@@ -433,6 +435,39 @@ func Test_netRuleTarget(t *testing.T) {
 			assert.ErrorContains(t, err, fmt.Sprintf("msb can't allow %q", entry))
 		}
 	})
+}
+
+func Test_buildPortArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		ports []sandbox.PortMapping
+		want  []string
+	}{
+		{
+			name:  "no ports",
+			ports: nil,
+			want:  nil,
+		},
+		{
+			name: "binds each port to loopback",
+			ports: []sandbox.PortMapping{
+				{Host: 3000, Guest: 3000},
+				{Host: 8080, Guest: 80},
+			},
+			want: []string{
+				"--port=127.0.0.1:3000:3000",
+				"--port=127.0.0.1:8080:80",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args := buildPortArgs(sandbox.RunSpec{Ports: tc.ports})
+
+			// Assert
+			assert.Equal(t, tc.want, args)
+		})
+	}
 }
 
 func Test_buildCredentialArgs(t *testing.T) {

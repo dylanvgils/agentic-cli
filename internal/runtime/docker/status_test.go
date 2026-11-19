@@ -14,7 +14,7 @@ func TestListRunningContainers(t *testing.T) {
 	t.Run("parses containers and derives namespace/tool from image name", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, client,
-			`{"Names":"agentic-claude-ab12","Image":"agentic-claude","Status":"Up 5 minutes"}`+"\n"+
+			`{"Names":"agentic-claude-ab12","Image":"agentic-claude","Status":"Up 5 minutes","Ports":"127.0.0.1:3000->3000/tcp"}`+"\n"+
 				`{"Names":"myproject-copilot-cd34","Image":"myproject-copilot","Status":"Up 1 minute"}`,
 			nil)
 
@@ -25,8 +25,12 @@ func TestListRunningContainers(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, containers, 2)
 		assert.Equal(t, &ContainerInfo{
-			Name: "agentic-claude-ab12", Image: "agentic-claude",
-			Namespace: "agentic", Tool: "claude", Status: "Up 5 minutes",
+			Name:      "agentic-claude-ab12",
+			Image:     "agentic-claude",
+			Namespace: "agentic",
+			Tool:      "claude",
+			Status:    "Up 5 minutes",
+			Ports:     "127.0.0.1:3000->3000/tcp",
 		}, containers[0])
 		assert.Equal(t, &ContainerInfo{
 			Name: "myproject-copilot-cd34", Image: "myproject-copilot",

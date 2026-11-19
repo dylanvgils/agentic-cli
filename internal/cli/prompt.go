@@ -22,6 +22,7 @@ var settingEffects = map[string]string{
 	"build.custom_installs":   "shell commands run at build time, unsandboxed",
 	"run.mounts":              "host paths mounted into the container",
 	"run.env":                 "host environment passed into the container",
+	"run.ports":               "host ports that connect to the container",
 	"run.args":                "extra args passed to the tool",
 	"run.runtime":             "whether the tool runs in a Docker container or a microsandbox VM",
 	"run.proxy.enabled":       "whether egress is limited to the allowlist proxy",

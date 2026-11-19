@@ -15,6 +15,7 @@ type ContainerInfo struct {
 	Namespace string
 	Tool      string
 	Status    string
+	Ports     string
 }
 
 // containerListResult mirrors the fields `docker ps --format '{{json .}}'` emits per container.
@@ -22,6 +23,7 @@ type containerListResult struct {
 	Names  string `json:"Names"`
 	Image  string `json:"Image"`
 	Status string `json:"Status"`
+	Ports  string `json:"Ports"`
 }
 
 // ListRunningContainers returns all currently running agentic-managed containers.
@@ -49,6 +51,7 @@ func (c *Client) ListRunningContainers() ([]*ContainerInfo, error) {
 			Namespace: namespace,
 			Tool:      tool,
 			Status:    result.Status,
+			Ports:     result.Ports,
 		})
 	}
 

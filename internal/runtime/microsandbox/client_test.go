@@ -29,6 +29,7 @@ func TestClient_Capabilities(t *testing.T) {
 			Proxy:               true,
 			Dind:                true,
 			CredentialInjection: true,
+			PortsWithProxy:      true,
 		},
 		Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM},
 	}, caps)

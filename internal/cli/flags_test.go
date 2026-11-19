@@ -264,6 +264,7 @@ func Test_runtimeFlags(t *testing.T) {
 		addResourceLimitFlags(cmd)
 		addProxyFlags(cmd)
 		addDindFlags(cmd)
+		addPortFlag(cmd)
 		addRuntimeFlag(cmd)
 		return cmd
 	}
@@ -276,6 +277,7 @@ func Test_runtimeFlags(t *testing.T) {
 		require.NoError(t, cmd.Flags().Set("dind", "true"))
 		require.NoError(t, cmd.Flags().Set("cpus", "2"))
 		require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
+		require.NoError(t, cmd.Flags().Set("port", "3000"))
 		require.NoError(t, cmd.Flags().Set("runtime", "microsandbox"))
 
 		// Act
@@ -290,6 +292,7 @@ func Test_runtimeFlags(t *testing.T) {
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:    sandbox.RuntimeMicrosandbox,
+			Ports:      []string{"3000"},
 		}, flags)
 	})
 

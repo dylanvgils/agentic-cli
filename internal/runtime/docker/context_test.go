@@ -97,7 +97,7 @@ func TestListContexts(t *testing.T) {
 	})
 }
 
-func TestClient_requireLocalContext(t *testing.T) {
+func TestClient_RequireLocalContext(t *testing.T) {
 	stubHost := func(t *testing.T, host string) *Client {
 		t.Helper()
 		client := &Client{context: "example", runner: &fakeRunner{}}
@@ -111,7 +111,7 @@ func TestClient_requireLocalContext(t *testing.T) {
 			client := stubHost(t, host)
 
 			// Act
-			err := client.requireLocalContext()
+			err := client.RequireLocalContext("example breaks")
 
 			// Assert
 			assert.NoError(t, err, host)
@@ -124,10 +124,10 @@ func TestClient_requireLocalContext(t *testing.T) {
 			client := stubHost(t, host)
 
 			// Act
-			err := client.requireLocalContext()
+			err := client.RequireLocalContext("example breaks")
 
 			// Assert
-			assert.ErrorContains(t, err, `docker context "example" (`+host+`) isn't on this machine`)
+			assert.EqualError(t, err, `docker context "example" (`+host+`) isn't on this machine, so example breaks; switch to a local context`)
 		}
 	})
 }

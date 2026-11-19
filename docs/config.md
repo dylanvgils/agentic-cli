@@ -110,6 +110,7 @@ Applied by `agentic run`.
 | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------ | -------------- | ---------- |
 | `mounts`        | list   | Bind mounts or named volumes, with the same syntax as [`--volume`](usage.md#named-volumes)                         | `--volume`     | -          |
 | `env`           | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `--env`        | -          |
+| `ports`         | list   | `"PORT"` or `"HOST:GUEST"` to forward from `127.0.0.1`. See [Forwarding ports](usage.md#forwarding-ports).         | `--port`       | -          |
 | `runtime`       | string | `"docker"`, or `"microsandbox"` to run in a [microVM](microsandbox.md)                                             | `--runtime`    | `"docker"` |
 | `pids_limit`    | string | PID limit (ignored by microsandbox)                                                                                | `--pids-limit` | `1024`     |
 | `cpus`          | string | CPU limit, of the container or the [VM](microsandbox.md#whats-different-from-docker)                               | `--cpus`       | `4`        |
@@ -226,7 +227,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
-- `run.mounts`, `run.env`, `run.args`, `run.runtime`
+- `run.mounts`, `run.env`, `run.ports`, `run.args`, `run.runtime`
 - `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.backend`, `run.proxy.allowed_hosts`, `run.proxy.allowed_paths`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
@@ -235,7 +236,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 The file closest to the filesystem root is the _outermost_. The file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `env`, `args` per tool, `proxy.allowed_hosts`, `proxy.allowed_paths`, `proxy.credentials`, `proxy.integrations`, `marketplaces`) add up, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `env`, `ports`, `args` per tool, `proxy.allowed_hosts`, `proxy.allowed_paths`, `proxy.credentials`, `proxy.integrations`, `marketplaces`) add up, outermost first.
 - **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
 - **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`. An empty value counts as unset.
 - **`instructions.custom`** adds up like a list, joined by blank lines.
@@ -280,6 +281,7 @@ List settings combine instead:
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `bases`, `apt_packages`   | Files (outermost first), then `--base`/`--apt`. Duplicates removed.                 |
 | `mounts`                  | Files and `--volume` combined                                                       |
+| `ports`                   | `--port`, then files. A `--port` replaces a file's port with the same host port; otherwise a host port can only appear once. |
 | `env`                     | Files, then `--env`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
 | `args`                    | Files, then the args after the tool name                                            |
 

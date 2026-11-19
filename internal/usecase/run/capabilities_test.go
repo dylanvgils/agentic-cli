@@ -98,6 +98,21 @@ func Test_requiredFeatures(t *testing.T) {
 			flags: Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
 			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true},
 		},
+		{
+			name:  "ports without the proxy or credentials need nothing",
+			flags: Flags{Ports: []string{"3000"}},
+			want:  sandbox.Features{PidsLimit: true},
+		},
+		{
+			name:  "ports ask for ports with the proxy when it's on",
+			flags: Flags{Proxy: proxyFlag, Ports: []string{"3000"}},
+			want:  sandbox.Features{Proxy: true, PidsLimit: true, PortsWithProxy: true},
+		},
+		{
+			name: "config ports ask for ports with the proxy with credentials",
+			rc:   config.AgenticRC{Run: config.RCRun{Ports: []string{"3000"}, Proxy: config.RCProxy{Credentials: creds}}},
+			want: sandbox.Features{CredentialInjection: true, PidsLimit: true, PortsWithProxy: true},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
@@ -136,6 +151,19 @@ func Test_checkCapabilities(t *testing.T) {
 			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}}, nil),
 			offered: msb,
 			wantErr: "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker",
+		},
+		{
+			name:    "ports with the proxy flag are an error with the opt-out",
+			req:     dockerRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}, Ports: []string{"3000"}}, nil),
+			wantErr: "--port can't be used with the egress proxy (--proxy) on the docker runtime, as its run network has no route to the host; pass --no-proxy or use --runtime microsandbox",
+		},
+		{
+			name: "config ports with credentials name both layers",
+			req: dockerRequest(Flags{}, func(rc *config.AgenticRC) {
+				rc.Run.Ports = []string{"3000"}
+				rc.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
+			}),
+			wantErr: "[run] ports in /example.test/project/.agenticrc.toml can't be used with the egress proxy ([[run.proxy.credentials]] in /example.test/project/.agenticrc.toml) on the docker runtime, as its run network has no route to the host; use --runtime microsandbox",
 		},
 		{
 			name:    "a missing monitor mode asked for in config names the layer",
@@ -439,6 +467,18 @@ func Test_specFeatures(t *testing.T) {
 			want: sandbox.Features{Proxy: true, PathRules: true},
 		},
 		{
+			name: "ports without the proxy don't count",
+			rs:   sandbox.RunSpec{Ports: []sandbox.PortMapping{{Host: 3000, Guest: 3000}}},
+		},
+		{
+			name: "ports count with the proxy",
+			rs: sandbox.RunSpec{
+				Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+				Ports:  []sandbox.PortMapping{{Host: 3000, Guest: 3000}},
+			},
+			want: sandbox.Features{Proxy: true, PortsWithProxy: true},
+		},
+		{
 			name: "monitor mode counts too",
 			rs:   sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}},
 			want: sandbox.Features{Proxy: true, ProxyMonitor: true},
@@ -475,6 +515,20 @@ func Test_checkSpec(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or credential injection that the run asks for")
+	})
+
+	t.Run("refuses ports with the proxy", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+			Ports:  []sandbox.PortMapping{{Host: 3000, Guest: 3000}},
+		}
+
+		// Act
+		err := checkSpec(rs, sandbox.Features{Proxy: true})
+
+		// Assert
+		assert.EqualError(t, err, "the runtime can't enforce published ports with the egress proxy that the run asks for")
 	})
 
 	t.Run("refuses monitor mode on a runtime that only enforces", func(t *testing.T) {

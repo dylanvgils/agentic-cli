@@ -16,6 +16,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithUser(platform.User{UID: 1000, GID: 1000}).
 		WithTTY(true).
 		WithVolumes("/host:/container", "/a:/b").
+		WithPorts(PortMapping{Host: 8080, Guest: 80}).
 		WithSkipEntrypoint(true).
 		WithToolArgs("--example", "value").
 		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
@@ -30,6 +31,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, &platform.User{UID: 1000, GID: 1000}, result.User)
 	assert.True(t, result.TTY)
 	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
+	assert.Equal(t, []PortMapping{{Host: 8080, Guest: 80}}, result.Ports)
 	assert.True(t, result.SkipEntrypoint)
 	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
 	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)

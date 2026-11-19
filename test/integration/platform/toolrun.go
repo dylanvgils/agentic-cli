@@ -142,6 +142,12 @@ func (r *ToolRun) WithVolume(spec string) *ToolRun {
 	return r
 }
 
+// WithPort forwards a host port with --port.
+func (r *ToolRun) WithPort(spec string) *ToolRun {
+	r.flags = append(r.flags, "--port", spec)
+	return r
+}
+
 // WithIntegrationFlag routes the named tools through the proxy with --proxy-integration.
 func (r *ToolRun) WithIntegrationFlag(names ...string) *ToolRun {
 	r.flags = append(r.flags, "--proxy-integration", strings.Join(names, ","))

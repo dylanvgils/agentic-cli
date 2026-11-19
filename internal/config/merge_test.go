@@ -87,6 +87,7 @@ func TestMergeConfigs(t *testing.T) {
 			Run: RCRun{
 				Mounts: []string{"inner-vol:/mnt/i"},
 				Env:    []string{"inner-env=1"},
+				Ports:  []string{"3000"},
 				Args:   map[string][]string{"copilot": {"--inner"}},
 				Proxy: RCProxy{
 					AllowedHosts: []string{"inner.example.test"},
@@ -106,6 +107,7 @@ func TestMergeConfigs(t *testing.T) {
 			Run: RCRun{
 				Mounts: []string{"outer-vol:/mnt/o"},
 				Env:    []string{"outer-env=1"},
+				Ports:  []string{"8080:80"},
 				Args:   map[string][]string{"copilot": {"--outer"}, "claude": {"--other"}},
 				Proxy: RCProxy{
 					AllowedHosts: []string{"outer.example.test"},
@@ -132,6 +134,7 @@ func TestMergeConfigs(t *testing.T) {
 		}, result.Build)
 		assert.Equal(t, []string{"outer-vol:/mnt/o", "inner-vol:/mnt/i"}, result.Run.Mounts)
 		assert.Equal(t, []string{"outer-env=1", "inner-env=1"}, result.Run.Env)
+		assert.Equal(t, []string{"8080:80", "3000"}, result.Run.Ports)
 		assert.Equal(t, map[string][]string{"copilot": {"--outer", "--inner"}, "claude": {"--other"}}, result.Run.Args)
 		assert.Equal(t, RCProxy{
 			AllowedHosts: []string{"outer.example.test", "inner.example.test"},

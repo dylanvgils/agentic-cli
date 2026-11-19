@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -90,6 +91,21 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "agentic build claude")
+		assert.Empty(t, p.trustAsked)
+	})
+
+	t.Run("a port in use stops before any prompt", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Ports = []string{strconv.Itoa(int(busyPort(t)))}
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "is in use")
 		assert.Empty(t, p.trustAsked)
 	})
 
@@ -451,6 +467,7 @@ func Test_Service_resolveRun(t *testing.T) {
 				Dind:       resolve.DindInput{DindFlag: true},
 				Volumes:    []string{"/example.test/a:/a"},
 				Env:        []string{"FOO=bar"},
+				Ports:      []string{"3000"},
 				Limits:     sandbox.ResourceLimits{CPUs: "2"},
 				DindLimits: sandbox.ResourceLimits{Memory: "1g"},
 				Runtime:    sandbox.RuntimeMicrosandbox,
@@ -483,6 +500,7 @@ func Test_Service_resolveRun(t *testing.T) {
 			},
 			Mounts:   runMounts{Extra: []string{"/example.test/a:/a"}},
 			Env:      []string{"FOO=bar"},
+			Ports:    []sandbox.PortMapping{{Host: 3000, Guest: 3000}},
 			Registry: "registry.example.test",
 			DryRun:   true,
 		}, c)
@@ -546,6 +564,20 @@ func Test_Service_resolveRun(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
+	})
+
+	t.Run("an invalid port is an error", func(t *testing.T) {
+		// Arrange
+		req := Request{
+			Target: target,
+			Flags:  Flags{Ports: []string{"http"}},
+		}
+
+		// Act
+		_, err := newSvc(daemonCaps).resolveRun(req, &config.AgenticRC{})
+
+		// Assert
+		require.EqualError(t, err, `port "http": "http" must be a number from 1 to 65535`)
 	})
 
 	t.Run("an unknown proxy integration is an error", func(t *testing.T) {

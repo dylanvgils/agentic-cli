@@ -23,6 +23,7 @@ type psRow struct {
 	runtime   sandbox.Runtime `table:"RUNTIME"`
 	image     string          `table:"IMAGE"`
 	status    string          `table:"STATUS"`
+	ports     string          `table:"PORTS"`
 	name      string          `table:"NAME"`
 }
 
@@ -65,6 +66,7 @@ func writeRuns(namespace string, runs []toolruns.Run) error {
 			runtime:   r.Runtime,
 			image:     r.Image,
 			status:    r.Status,
+			ports:     r.Ports,
 			name:      r.Name,
 		}
 	}

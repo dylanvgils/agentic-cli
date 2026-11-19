@@ -84,6 +84,11 @@
           "items": { "type": "string" },
           "description": "Environment variables to set in the container. Format: KEY=VALUE, or bare KEY to forward the host's current value."
         },
+        "ports": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[0-9]+(:[0-9]+)?$" },
+          "description": "TCP ports to forward from the host's 127.0.0.1 to the tool. Format: PORT or HOST:GUEST."
+        },
         "args": {
           "type": "object",
           "additionalProperties": {

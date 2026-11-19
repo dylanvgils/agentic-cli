@@ -67,6 +67,7 @@ func appendLists(result, rc *AgenticRC) {
 
 	resRun.Mounts = append(resRun.Mounts, run.Mounts...)
 	resRun.Env = append(resRun.Env, run.Env...)
+	resRun.Ports = append(resRun.Ports, run.Ports...)
 	for tool, args := range run.Args {
 		resRun.Args[tool] = append(resRun.Args[tool], args...)
 	}

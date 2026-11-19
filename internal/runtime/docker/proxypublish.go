@@ -69,7 +69,7 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owne
 		return published, nil
 	}
 
-	if err := c.requireLocalContext(); err != nil {
+	if err := c.RequireLocalContext("microsandbox can't reach a proxy published on it"); err != nil {
 		return PublishedProxy{}, err
 	}
 	warnOnSweepError(c.sweepOrphanedSidecars(spec.ToolHome))

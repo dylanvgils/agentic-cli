@@ -55,6 +55,7 @@ type runConfig struct {
 
 	Mounts runMounts
 	Env    []string // extra env from the flags; resolve.Env merges the config's
+	Ports  []sandbox.PortMapping
 
 	Registry string
 	DryRun   bool
@@ -220,6 +221,7 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 		WithTTY(iostreams.IsTerminal()).
 		WithVolumes(mounts.volumes...).
 		WithEnv(env...).
+		WithPorts(c.Ports...).
 		WithSkipEntrypoint(c.Target.SkipEntrypoint).
 		WithToolArgs(resolve.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
 		WithEphemeralDirs(c.Tool.Runtime.EphemeralDirs()...).
