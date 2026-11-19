@@ -1,8 +1,10 @@
 package microsandbox
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 )
 
@@ -12,6 +14,19 @@ func (c *Client) LoadImage(r io.Reader, tag string) error {
 		return fmt.Errorf("load image into msb: %w", err)
 	}
 	return nil
+}
+
+// HasImage reports whether msb's image store resolves ref, the lookup `msb run` uses; msb exiting non-zero means it
+// doesn't, so a misread costs only a reload.
+func (c *Client) HasImage(ref string) (bool, error) {
+	_, err := c.runner.Run("image", "inspect", ref)
+	if exitErr := (*exec.ExitError)(nil); errors.As(err, &exitErr) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect msb image %s: %w", ref, err)
+	}
+	return true, nil
 }
 
 // ImageRefs lists the references of the images in msb's image store.

@@ -2,7 +2,9 @@ package microsandbox
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -43,6 +45,37 @@ func TestLoadImage(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "load image into msb: boom")
 	})
+}
+
+func TestHasImage(t *testing.T) {
+	notFound := exec.Command("false").Run()
+	for _, tc := range []struct {
+		name    string
+		err     error
+		want    bool
+		wantErr string
+	}{
+		{name: "msb resolves the ref", want: true},
+		{name: "msb exiting non-zero means missing", err: fmt.Errorf("msb inspect: %w", notFound)},
+		{name: "msb failing to start is an error", err: errors.New("boom"), wantErr: "inspect msb image agentic-claude:abc123: boom"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			client, args := stubRun("", tc.err)
+
+			// Act
+			have, err := client.HasImage("agentic-claude:abc123")
+
+			// Assert
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, have)
+			assert.Equal(t, []string{"image", "inspect", "agentic-claude:abc123"}, *args)
+		})
+	}
 }
 
 func TestImageRefs(t *testing.T) {
