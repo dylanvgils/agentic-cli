@@ -77,6 +77,7 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 			PathRules:           true,
 			ProxyIntegrations:   true,
 			PidsLimit:           true,
+			// No PortsWithProxy: Docker publishes no ports of a container only on an internal network
 		},
 		Isolation: sandbox.Isolation{
 			Boundary:            sandbox.BoundaryContainer,

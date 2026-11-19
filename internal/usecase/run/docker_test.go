@@ -90,6 +90,18 @@ func Test_dockerRunner_Check(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("refuses ports on a remote daemon", func(t *testing.T) {
+		// Arrange
+		req := Request{Flags: Flags{Ports: []string{"3000"}}, Project: config.Project{RC: &config.AgenticRC{}}}
+		d := &fakeDocker{requireLocalContext: func(reason string) error { return errors.New("remote: " + reason) }}
+
+		// Act
+		err := newTestDockerRunner(d).Check(req)
+
+		// Assert
+		assert.EqualError(t, err, "remote: --port would open the ports on that machine")
+	})
+
 	t.Run("refuses dind on an image without the docker layer, even on a dry run", func(t *testing.T) {
 		// Arrange
 		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: config.Project{RC: &config.AgenticRC{}}}

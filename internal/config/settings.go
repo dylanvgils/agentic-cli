@@ -49,6 +49,7 @@ func GuardedSettings(rc *AgenticRC) []GuardedSetting {
 		{"build.custom_installs", rc.Build.CustomInstalls},
 		{"run.mounts", rc.Run.Mounts},
 		{"run.env", rc.Run.Env},
+		{"run.ports", rc.Run.Ports},
 		{"run.args", rc.Run.Args},
 		{"run.runtime", rc.Run.Runtime},
 		{"run.proxy.enabled", rc.Run.Proxy.Enabled},

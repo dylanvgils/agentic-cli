@@ -27,8 +27,9 @@ func (c *Client) ListContexts() ([]string, error) {
 	return strings.Fields(out), nil
 }
 
-// requireLocalContext refuses a Docker context whose daemon isn't on this machine, where a published port isn't reachable.
-func (c *Client) requireLocalContext() error {
+// RequireLocalContext refuses a Docker context whose daemon isn't on this machine, where a published port isn't reachable;
+// reason says what that breaks.
+func (c *Client) RequireLocalContext(reason string) error {
 	name, err := c.CurrentContext()
 	if err != nil {
 		return err
@@ -43,5 +44,5 @@ func (c *Client) requireLocalContext() error {
 	if strings.HasPrefix(host, "unix://") || strings.HasPrefix(host, "npipe://") {
 		return nil
 	}
-	return fmt.Errorf("docker context %q (%s) isn't on this machine, so microsandbox can't reach a proxy published on it; switch to a local context", name, host)
+	return fmt.Errorf("docker context %q (%s) isn't on this machine, so %s; switch to a local context", name, host, reason)
 }

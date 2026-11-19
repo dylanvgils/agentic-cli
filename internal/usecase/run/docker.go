@@ -25,9 +25,9 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 	return r.docker.Capabilities()
 }
 
-// Check refuses a dind run on an image without the docker layer and a Docker Engine older than minDockerEngine, and warns
-// that other engines can't be checked and that the native proxy backend is ignored; a dry run starts nothing, so it skips
-// the engine check.
+// Check refuses a dind run on an image without the docker layer, ports on a remote daemon and a Docker Engine older than
+// minDockerEngine, and warns that other engines can't be checked and that the native proxy backend is ignored; a dry run
+// starts nothing, so it skips the daemon checks.
 func (r dockerRunner) Check(req Request) error {
 	needs := requiredFeatures(req.Flags, req.Project.RC)
 	if req.proxyBackend() == config.BackendNative && (needs.Proxy || needs.CredentialInjection) {
@@ -42,6 +42,12 @@ func (r dockerRunner) Check(req Request) error {
 
 	if req.Flags.DryRun {
 		return nil
+	}
+
+	if portsSet(req.Flags, req.Project.RC) {
+		if err := r.docker.RequireLocalContext(portsSource(req) + " would open the ports on that machine"); err != nil {
+			return err
+		}
 	}
 
 	engine, version, err := r.docker.ServerVersion()

@@ -55,6 +55,9 @@ func validateRun(run RCRun) error {
 	if err := validateLimits(run.RCLimits); err != nil {
 		return fmt.Errorf("[run] %w", err)
 	}
+	if _, err := sandbox.ParsePorts(run.Ports); err != nil {
+		return fmt.Errorf("[run] ports: %w", err)
+	}
 	if err := validateLimits(run.Dind.RCLimits); err != nil {
 		return fmt.Errorf("[run.dind] %w", err)
 	}

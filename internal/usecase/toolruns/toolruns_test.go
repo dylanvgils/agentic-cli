@@ -21,6 +21,7 @@ func Test_Service_List(t *testing.T) {
 				Namespace: "agentic",
 				Tool:      "claude",
 				Status:    "Up 5 minutes",
+				Ports:     "127.0.0.1:3000->3000/tcp",
 			},
 			{
 				Name:      "other-copilot-cd34",
@@ -46,6 +47,21 @@ func Test_Service_List(t *testing.T) {
 				Status:    "running",
 			},
 		}, nil
+	}, ports: func(string) ([]microsandbox.PublishedPort, error) {
+		return []microsandbox.PublishedPort{
+			{
+				HostBind:  "127.0.0.1",
+				HostPort:  3000,
+				GuestPort: 3000,
+				Protocol:  "tcp",
+			},
+			{
+				HostBind:  "127.0.0.1",
+				HostPort:  8080,
+				GuestPort: 80,
+				Protocol:  "tcp",
+			},
+		}, nil
 	}}
 	claude := Run{
 		Tool:      "claude",
@@ -54,6 +70,7 @@ func Test_Service_List(t *testing.T) {
 		Image:     "agentic-claude",
 		Status:    "Up 5 minutes",
 		Name:      "agentic-claude-ab12",
+		Ports:     "3000->3000/tcp",
 	}
 	copilot := Run{
 		Tool:      "copilot",
@@ -70,6 +87,7 @@ func Test_Service_List(t *testing.T) {
 		Image:     "agentic-opencode:latest",
 		Status:    "running",
 		Name:      "vm-1",
+		Ports:     "3000->3000/tcp, 8080->80/tcp",
 	}
 
 	t.Run("joins every runtime's runs in the namespace without sidecars", func(t *testing.T) {
@@ -217,4 +235,56 @@ func Test_Service_msbRuns(t *testing.T) {
 		assert.Empty(t, runs)
 		assert.Contains(t, logs.String(), "list msb sandboxes: boom")
 	})
+
+	t.Run("warns and lists a VM without ports when they can't be read", func(t *testing.T) {
+		// Arrange
+		logs := iostreamstest.StubErr(t)
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{
+			listRunning: func() ([]*microsandbox.Sandbox, error) {
+				return []*microsandbox.Sandbox{{Name: "vm-1"}}, nil
+			},
+			ports: func(string) ([]microsandbox.PublishedPort, error) {
+				return nil, errors.New("inspect msb sandbox vm-1: boom")
+			},
+		})
+
+		// Act
+		runs := svc.msbRuns()
+
+		// Assert
+		assert.Equal(t, []Run{{Runtime: sandbox.RuntimeMicrosandbox, Name: "vm-1"}}, runs)
+		assert.Contains(t, logs.String(), "inspect msb sandbox vm-1: boom")
+	})
+}
+
+func Test_shownPorts(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		entries []string
+		want    string
+	}{
+		{
+			name:    "drops the loopback address",
+			entries: []string{"127.0.0.1:3000->3000/tcp", "127.0.0.1:8080->80/tcp"},
+			want:    "3000->3000/tcp, 8080->80/tcp",
+		},
+		{
+			name:    "keeps another address",
+			entries: []string{"0.0.0.0:3000->3000/tcp"},
+			want:    "0.0.0.0:3000->3000/tcp",
+		},
+		{
+			name:    "no ports",
+			entries: nil,
+			want:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := shownPorts(tc.entries)
+
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }

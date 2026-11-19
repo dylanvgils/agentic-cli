@@ -75,6 +75,7 @@ func init() {
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
 	addDindFlags(runToolCmd)
+	addPortFlag(runToolCmd)
 	addRuntimeFlag(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)

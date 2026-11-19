@@ -31,6 +31,7 @@ func Test_Service_build(t *testing.T) {
 		flags := Flags{
 			ToolHome: t.TempDir(),
 			Volumes:  []string{"/host:/container:rw"},
+			Ports:    []string{"3000"},
 			DryRun:   true,
 		}
 		rc := &config.AgenticRC{Run: config.RCRun{
@@ -46,6 +47,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, rs.Volumes, "/host:/container:rw")
+		assert.Equal(t, []sandbox.PortMapping{{Host: 3000, Guest: 3000}}, rs.Ports)
 		assert.Equal(t, platform.HostUser(), *rs.User)
 		assert.Equal(t, iostreams.IsTerminal(), rs.TTY, "a TTY only when stdin is a terminal")
 		assert.Equal(t, flags.ToolHome, rs.ToolHome)

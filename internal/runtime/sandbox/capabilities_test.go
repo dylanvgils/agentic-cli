@@ -18,6 +18,7 @@ func TestFeatures_Missing(t *testing.T) {
 		PathRules:           true,
 		ProxyIntegrations:   true,
 		PidsLimit:           true,
+		PortsWithProxy:      true,
 	}
 
 	t.Run("lists what the need asks for and f lacks", func(t *testing.T) {
@@ -36,6 +37,7 @@ func TestFeatures_Missing(t *testing.T) {
 			PathRules:         true,
 			ProxyIntegrations: true,
 			PidsLimit:         true,
+			PortsWithProxy:    true,
 		}, missing)
 	})
 

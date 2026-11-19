@@ -37,6 +37,7 @@ func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
 type fakeMicrosandbox struct {
 	available   func() error
 	listRunning func() ([]*microsandbox.Sandbox, error)
+	ports       func(name string) ([]microsandbox.PublishedPort, error)
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -51,4 +52,11 @@ func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
 		return nil, nil
 	}
 	return f.listRunning()
+}
+
+func (f *fakeMicrosandbox) Ports(name string) ([]microsandbox.PublishedPort, error) {
+	if f.ports == nil {
+		return nil, nil
+	}
+	return f.ports(name)
 }
