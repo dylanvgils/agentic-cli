@@ -124,7 +124,13 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 		return nil, err
 	}
 
-	args := []string{"run", arg("label", projectLabel), arg("label", runLabel(rs.RunID))}
+	// --quiet hides msb's startup progress bars, not the tool's output
+	args := []string{
+		"run",
+		arg("quiet"),
+		arg("label", projectLabel),
+		arg("label", runLabel(rs.RunID)),
+	}
 	args = append(args, limitArgs...)
 	args = append(args, envArgs...)
 	args = append(args, volumeArgs...)

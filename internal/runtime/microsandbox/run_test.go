@@ -204,6 +204,7 @@ func Test_buildRunArgs(t *testing.T) {
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
 		for _, flag := range []string{
+			"--quiet",
 			"--label=project=agentic-cli",
 			"--cpus=2",
 			"--mount-dir=/example.test/data:/data",
