@@ -18,33 +18,57 @@ type Service struct {
 	home   string // agentic data dir, for the custom installs store and update check timestamps
 }
 
+// Target is one tool image to build.
+type Target struct {
+	Name  string
+	Image string
+}
+
+// Plan is what Apply builds, with options shared by every target.
+type Plan struct {
+	Targets []Target
+	Opts    tools.BuildOptions
+}
+
 // New returns a Service that talks to Docker through d and keeps custom installs under home.
 func New(d Docker, home string) *Service {
 	return &Service{docker: d, home: home}
 }
 
-// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each,
-// then prunes the dangling images and build cache the builds left behind. A fresh build has the latest tool, so it resets `agentic run`'s update check timer.
-func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
-	images := make([]string, len(names))
+// Resolve returns the plan to build names in namespace.
+func (s *Service) Resolve(names []string, namespace string, opts tools.BuildOptions) (Plan, error) {
+	targets := make([]Target, len(names))
 	for i, name := range names {
 		image, err := tools.ImageName(name, namespace)
 		if err != nil {
+			return Plan{}, err
+		}
+		targets[i] = Target{Name: name, Image: image}
+	}
+	return Plan{Targets: targets, Opts: opts}, nil
+}
+
+// DryRun prints each target's Dockerfile instead of building it; labels go to stderr so stdout stays buildable.
+func (s *Service) DryRun(plan Plan) error {
+	for _, t := range plan.Targets {
+		content, err := tools.GenerateDockerfile(t.Name, plan.Opts)
+		if err != nil {
 			return err
 		}
-		images[i] = image
+		sandbox.PrintDryRunText(t.Name+" Dockerfile", content)
 	}
+	return nil
+}
 
-	logging.Infof("building %d image(s): %s", len(images), strings.Join(images, ", "))
-
+// Apply builds each target, then prunes what the builds left behind; a build resets `agentic run`'s update check.
+func (s *Service) Apply(plan Plan) error {
+	opts := plan.Opts
 	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
 		return fmt.Errorf("saving custom installs: %w", err)
 	}
 
-	for i, name := range names {
-		image := images[i]
-
-		logging.Step(image)
+	for _, t := range plan.Targets {
+		logging.Step(t.Image)
 		if len(opts.BaseOverride) > 0 {
 			logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
 		} else if opts.BaseExact {
@@ -56,28 +80,16 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 			logging.Detail("apt: (none, exact)")
 		}
 
-		if err := s.docker.BuildTool(name, image, opts); err != nil {
+		if err := s.docker.BuildTool(t.Name, t.Image, opts); err != nil {
 			return err
 		}
 
-		if err := toolupdate.MarkChecked(s.home, name); err != nil {
-			logging.Warnf("could not record update check for %s: %v", name, err)
+		if err := toolupdate.MarkChecked(s.home, t.Name); err != nil {
+			logging.Warnf("could not record update check for %s: %v", t.Name, err)
 		}
 	}
 
 	// Best effort: a failed cleanup never fails the build
 	_, _ = s.docker.PruneImages()
-	return nil
-}
-
-// DryRun prints the generated Dockerfile for each tool in names instead of building it, labelled on stderr so stdout stays buildable.
-func (s *Service) DryRun(names []string, opts tools.BuildOptions) error {
-	for _, name := range names {
-		content, err := tools.GenerateDockerfile(name, opts)
-		if err != nil {
-			return err
-		}
-		sandbox.PrintDryRunText(name+" Dockerfile", content)
-	}
 	return nil
 }

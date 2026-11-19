@@ -3,7 +3,6 @@ package run
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -15,46 +14,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Service_Run(t *testing.T) {
-	t.Run("docker runs the container", func(t *testing.T) {
+func TestService_Apply(t *testing.T) {
+	t.Run("runs the spec on the run's runner", func(t *testing.T) {
 		// Arrange
 		var ranSpec sandbox.RunSpec
 		d := &fakeDocker{startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
 			ranSpec = rs
 			return docker.Sidecars{}, nil
 		}}
-		m := &fakeMicrosandbox{}
-		msbRan := stubRunImage(m)
+		svc := newTestService(d, nil)
+		plan := newPlan(t, svc, sandbox.RuntimeDocker, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Act
-		err := newTestService(d, m).Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+		err := svc.Apply(plan)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
-		assert.Empty(t, *msbRan)
-	})
-
-	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
-		// Arrange
-		dockerRan := false
-		d := &fakeDocker{
-			inspectImage: inspectImageID("abc123"),
-			runTool: func(docker.Sidecars) error {
-				dockerRan = true
-				return nil
-			},
-		}
-		m := &fakeMicrosandbox{}
-		ran := stubRunImage(m)
-
-		// Act
-		err := newTestService(d, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude:abc123", *ran)
-		assert.False(t, dockerRan)
 	})
 
 	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
@@ -62,55 +38,15 @@ func Test_Service_Run(t *testing.T) {
 		m := &fakeMicrosandbox{}
 		ran := stubRunImage(m)
 		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
+		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m)
+		plan := newPlan(t, svc, sandbox.RuntimeMicrosandbox, rs)
 
 		// Act
-		err := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
+		err := svc.Apply(plan)
 
 		// Assert
 		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
 		assert.Empty(t, *ran)
-	})
-
-	t.Run("mounts that changed since the spec was built never reach the runtime", func(t *testing.T) {
-		// Arrange
-		ws := chdirSymlinkWorkspace(t)
-		m := &fakeMicrosandbox{}
-		ran := stubRunImage(m)
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
-
-		// Act
-		err := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
-
-		// Assert
-		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
-		assert.Empty(t, *ran)
-	})
-
-	t.Run("unset runtime runs on docker", func(t *testing.T) {
-		// Arrange
-		dockerRan := false
-		svc := newTestService(&fakeDocker{runTool: func(docker.Sidecars) error {
-			dockerRan = true
-			return nil
-		}}, nil)
-
-		// Act
-		err := svc.Run(runtimeRequest(""), sandbox.RunSpec{Image: "agentic-claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, dockerRan)
-	})
-
-	t.Run("unknown runtime returns error", func(t *testing.T) {
-		// Arrange
-		svc := newTestService(&fakeDocker{}, nil)
-
-		// Act
-		err := svc.Run(runtimeRequest(sandbox.Runtime("podman")), sandbox.RunSpec{})
-
-		// Assert
-		assert.ErrorContains(t, err, `unknown runtime "podman"`)
 	})
 }
 
@@ -209,7 +145,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -217,7 +153,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 	t.Run("a missing capability stops before the msb checks", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.Proxy.MonitorFlag = true
 		checked := false
@@ -227,7 +163,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		}}
 
 		// Act
-		err := newTestService(&fakeDocker{}, m).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req)
 
 		// Assert
 		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
@@ -236,11 +172,11 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 	t.Run("an unknown runtime is an error", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.Runtime = "podman"
 
 		// Act
-		err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -248,12 +184,12 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 	t.Run("microsandbox runs its own checks", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		err := newTestService(&fakeDocker{}, m).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req)
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")
@@ -378,7 +314,7 @@ func Test_Service_Teardown(t *testing.T) {
 func Test_Service_startRun(t *testing.T) {
 	t.Run("spawns the run's watchdog before creating its temp dir", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		var dirAtSpawn bool
 		w := &fakeWatchdog{onSpawn: func(run sandbox.RunRef) {
 			_, err := os.Stat(sandbox.RunTempDir(run.ID))
@@ -404,7 +340,7 @@ func Test_Service_startRun(t *testing.T) {
 
 	t.Run("a dry run spawns none", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.DryRun = true
 		w := &fakeWatchdog{}
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
@@ -421,7 +357,7 @@ func Test_Service_startRun(t *testing.T) {
 	t.Run("a failed spawn only warns", func(t *testing.T) {
 		// Arrange
 		errOut := iostreamstest.StubErr(t)
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 

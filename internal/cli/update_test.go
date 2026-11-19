@@ -194,10 +194,13 @@ func Test_runUpdate(t *testing.T) {
 func Test_logUpdateSummary(t *testing.T) {
 	// Arrange
 	logBuf := iostreamstest.StubCombined(t)
-	targets := []update.Target{{Name: "claude", Image: "agentic-claude"}, {Name: "copilot", Image: "agentic-copilot"}}
+	plan := update.Plan{Targets: []update.Target{
+		{Name: "claude", Image: "agentic-claude"},
+		{Name: "copilot", Image: "agentic-copilot"},
+	}}
 
 	// Act
-	logUpdateSummary(targets)
+	logUpdateSummary(plan)
 
 	// Assert
 	assert.Contains(t, logBuf.String(), "updating 2 image(s): agentic-claude, agentic-copilot")

@@ -53,10 +53,10 @@ func (r microsandboxRunner) Check(req Request) error {
 	return requireVersion("msb", version, minMicrosandbox)
 }
 
-// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
-// the mounts again after the load; with dind it runs the image's dockerd image, built first when needed, and with
-// agenticProxy it goes through agentic-proxy. A dry run only prints.
-func (r microsandboxRunner) Run(req Request, rs sandbox.RunSpec) error {
+// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image; with dind
+// it runs the image's dockerd image, built first when needed, and with agenticProxy it goes through agentic-proxy. The
+// mounts are checked again right before the VM starts. A dry run only prints.
+func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
@@ -78,28 +78,26 @@ func (r microsandboxRunner) Run(req Request, rs sandbox.RunSpec) error {
 		}
 	}
 
+	rs.Image = ref
+	if r.agenticProxy && rs.Egress.Mode.Enabled() {
+		return r.runThroughProxy(rs, registry)
+	}
+
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-
-	rs.Image = ref
-	if !r.agenticProxy || !rs.Egress.Mode.Enabled() {
-		return r.microsandbox.Run(rs, nil)
-	}
-	return r.runThroughProxy(req, rs)
+	return r.microsandbox.Run(rs, nil)
 }
 
-// runThroughProxy runs rs through a published agentic-proxy, rechecking mounts after its start, then prints its summary.
-func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) error {
+// runThroughProxy runs rs through a published agentic-proxy, its image built from registry when missing, rechecking
+// mounts after its start, then prints its summary.
+func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {
 		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
 			return err
 		}
-		if err := r.sidecarImages.Ensure(true, false, req.Flags.Registry); err != nil {
-			return err
-		}
-		if err := recheckMounts(rs); err != nil {
+		if err := r.sidecarImages.Ensure(true, false, registry); err != nil {
 			return err
 		}
 	}

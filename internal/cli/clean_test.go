@@ -20,7 +20,7 @@ func Test_runClean(t *testing.T) {
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
 	t.Run("cleans images and global resources with all and no tool", func(t *testing.T) {
-		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply -> clean.GlobalResources
+		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply, shared resources included
 		// together for a bare --all; output formatting and per-target cleanup mechanics
 		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())

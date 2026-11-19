@@ -1,31 +1,67 @@
-# Run flow
+# Lifecycle
 
-What `agentic run` does, step by step, and where each step lives in the code. The entry point is `runTool` in `internal/cli/run.go`; `run.Service` in `internal/usecase/run` holds the steps, and each runtime has a runner. For what the run isolates and how, see [Security model](security-model.md).
+What a command does from start to exit, and where in the code. For what a run isolates, see [Security model](security-model.md).
 
-## Overview
+## Every command
+
+```mermaid
+flowchart LR
+    exec["cli.Execute"] --> pre["persistentPreRunE<br/>config, context, migrate, checks, upgrade"]
+    pre --> parse["command RunE<br/>parse flags and args"]
+    parse --> resolve["usecase<br/>Resolve"]
+    resolve --> apply["usecase<br/>DryRun or Apply"]
+    apply --> exit["cli.Execute<br/>prints a returned error once"]
+```
+
+`persistentPreRunE` in `internal/cli/root.go` runs before every subcommand:
+
+| Step | Code | Why |
+| --- | --- | --- |
+| Config | `withProject` | Loads `.agenticrc.toml` once for every later step. |
+| Docker context | `resolveContext` | Picks the context; one from a config file needs approval first. |
+| Migrate | `migrate.Run` | Updates the `$AGENTIC_HOME` layout. |
+| Docker | `checkDocker` | Fails early when the daemon is unreachable. |
+| git | `checkGit` | Only for `run`, when the tool syncs marketplaces. |
+| Upgrade | `upgradecheck` | Offers a due upgrade, then reruns on the new binary. |
+
+Commands like `completion` skip steps via `noDockerCmds`, `noMigrateCmds` and `noUpdateCmds`.
+
+Then every action command (`build`, `update`, `clean`, `run`) calls its usecase the same way:
+
+1. `Resolve` checks what to do and returns a `Plan`.
+2. `DryRun(plan)` prints it with `--dry-run`, else `Apply(plan)` does it.
+
+`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow, and `Apply` handles its dry run. Errors are returned, and `cli.Execute` prints them once.
+
+## agentic run
+
+`runTool` in `internal/cli/run.go` calls `run.Service` in `internal/usecase/run`; each runtime has a runner.
+
+### Overview
 
 ```mermaid
 flowchart LR
     start["persistentPreRunE<br/>config, context, migrate"] --> parse["parseInvocation<br/>runRequest"]
     parse --> checks["checkRuntime<br/>requireImage"]
-    checks --> approve["checkTrust<br/>checkSettings"]
-    approve --> startRun["startRun<br/>RunID, watchdog, temp dir"]
+    checks --> approve["checkTrust<br/>checkSettings<br/>checkTool"]
+    approve --> resolve["approvedRun<br/>config + image inspect"]
+    resolve --> startRun["startRun<br/>RunID, watchdog, temp dir"]
     startRun --> spec["buildWithInstructions<br/>RunSpec + snapshot"]
     spec --> runner{runtime}
     runner -->|docker| docker["dockerRunner.Run"]
     runner -->|microsandbox| msb["microsandboxRunner.Run"]
-    docker --> endRun["endRun<br/>save snapshot, remove temp dir"]
+    docker --> endRun["Service.End<br/>save snapshot, remove temp dir"]
     msb --> endRun
 ```
 
 How to read it:
 
-- **Before the runner**: everything up to `buildWithInstructions` is `run.Service.Prepare`, which returns the `sandbox.RunSpec` and a cleanup func. It's the same for every runtime.
+- **Resolve**: everything up to `buildWithInstructions`, the same for every runtime. Its `run.Plan` holds the checked runner and the `sandbox.RunSpec`.
 - **Checks before prompts**: a run the runtime can't do, a bad credential or a missing image fails before the user approves anything.
-- **The runner**: `run.Service.Run` picks a runner by runtime; only the runners talk to Docker or msb.
-- **The end**: the cli defers Prepare's cleanup, so `endRun` runs after the runner returns, also on an error.
+- **The runner**: `checkRuntime` picks it once; `Apply` runs on it. Only runners talk to Docker or msb.
+- **The end**: the cli defers `End` once Resolve succeeds; a Resolve that fails after `startRun` ends the run itself.
 
-## Docker run over time
+### Docker run over time
 
 ```mermaid
 sequenceDiagram
@@ -34,15 +70,16 @@ sequenceDiagram
     participant watch as agentic __watch
     participant dr as dockerRunner
     participant dc as docker.Client
-    cli->>svc: Prepare
+    cli->>svc: Resolve
     svc->>watch: Spawn(RunRef)
     watch-->>svc: ready
-    cli->>svc: Run
+    svc-->>cli: Plan
+    cli->>svc: Apply(Plan)
     svc->>dr: Run
     dr->>dc: StartSidecars (sweep, runGuard, network, proxy, dind)
     dr->>dc: RunTool (attachTool)
     dr->>dc: StopSidecars (runGuard.release)
-    cli->>svc: cleanup (endRun)
+    cli->>svc: End(Plan) (endRun)
     Note over watch: agentic exits
     watch->>svc: Teardown(RunRef) after 5 s
 ```
@@ -53,30 +90,30 @@ How to read it:
 - **Sidecars**: `StartSidecars` returns a `Sidecars` holding the run's `runGuard`, and `StopSidecars` releases it once the tool exits.
 - **After exit**: the watchdog's teardown finds nothing left after a normal run; it matters after a kill. See [Teardown](#teardown).
 
-## Steps
+### Steps
 
-### Startup and parse
+#### Startup and parse
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Root pre-run | `persistentPreRunE` in `internal/cli/root.go` | Loads the project config, resolves the Docker context, migrates `$AGENTIC_HOME`, checks Docker and git, and offers an upgrade. |
+| Root pre-run | `persistentPreRunE` in `internal/cli/root.go` | The shared steps in [Every command](#every-command); for `run` it also checks git when the tool syncs marketplaces. |
 | Project dir | `run.CheckProjectDir`, called by `parseInvocation` | Refuses a working dir Docker can't bind-mount, before its config is read. |
 | Tool and image | `parseInvocation` in `internal/cli/run.go` | Splits the args into the tool, its image in the namespace and the tool args. |
-| Request | `runRequest` in `internal/cli/run.go` | Collects the run flags into a `run.Request`; Prepare resolves them against the config. |
+| Request | `runRequest` in `internal/cli/run.go` | Collects the run flags into a `run.Request`; Resolve resolves them against the config. |
 
-### Prepare
+#### Resolve
 
-`run.Service.Prepare` in `internal/usecase/run/prepare.go` runs these in order.
+`run.Service.Resolve` in `internal/usecase/run/resolve.go` runs these in order.
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Runtime check | `checkRuntime` in `runtime.go` | Refuses a run the runtime can't do safely, then runs the runner's own `Check`. |
+| Runtime check | `checkRuntime` in `runtime.go` | Picks the runner, refuses a run it can't do safely, then runs its own `Check`. |
 | Credentials | `credentials.Check` in `internal/network/credentials` | Refuses a bad `[[run.proxy.credentials]]` entry before any prompt. |
 | Image | `requireImage` in `image.go` | Fails early when the tool image isn't built, hinting at `--namespace`. |
 | Trust | `checkTrust` in `trust.go` | Asks to trust the working dir, unless it already is or `--trust-dir` is set. |
 | Settings | `checkSettings` in `trust.go` | Asks to approve changed guarded settings; the `approvedConfig` it returns is the only config a run reads. |
-| Tool | `checkTool` in `prepare.go` | Offers a due tool update and creates the tool's host files. |
-| Config | `approvedRun` → `resolveRun` in `prepare.go` | Resolves the flags against the approved config into one `runConfig`, which every later step reads. |
+| Tool | `checkTool` in `resolve.go` | Offers a due tool update and creates the tool's host files. |
+| Config | `approvedRun` → `resolveRun` in `resolve.go` | Resolves the flags against the approved config and inspects the tool image once, after a possible update, into one `runConfig`, which every later step reads. |
 | Start | `startRun` in `runtime.go` | Creates the RunID, spawns the watchdog and creates the run temp dir, before anything the run can leave behind. |
 | RunSpec | `buildWithInstructions` in `runspec.go` | Writes the instructions snapshot, then builds the RunSpec with it mounted. |
 
@@ -90,17 +127,16 @@ How to read it:
 | Spec | `newRunSpec` | Assembles the `sandbox.RunSpec`, including the egress policy and the Docker daemon. |
 | Proxy CA | `checkProxyTrust` in `credentials.go` | When the proxy decrypts, refuses an image whose entrypoint can't trust its CA. |
 
-### Run
+#### Apply
 
-`run.Service.Run` in `internal/usecase/run/runtime.go`:
+`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked:
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Runner | `runner` in `runtime.go` | Picks the Docker or microsandbox runner. |
 | Spec check | `checkSpec` in `capabilities.go` | Refuses a RunSpec that needs a feature the runtime lacks, a backstop for `checkRuntime`. |
-| Mounts | `recheckMounts` in `mounts.go` | Checks the mounts again, see [why](#why-the-mounts-are-checked-again). |
+| Runner | `runner.Run` | Readies the runtime's host resources and runs the tool, see below. |
 
-### Docker runner
+#### Docker runner
 
 `dockerRunner.Run` in `internal/usecase/run/docker.go`, calling `docker.Client` in `internal/runtime/docker`:
 
@@ -116,7 +152,7 @@ How to read it:
 
 `recheckMounts` runs again before `StartSidecars` and before `RunTool`.
 
-### Microsandbox runner
+#### Microsandbox runner
 
 `microsandboxRunner.Run` in `internal/usecase/run/microsandbox.go`:
 
@@ -127,19 +163,21 @@ How to read it:
 | Tool | `microsandbox.Client.Run` in `internal/runtime/microsandbox` | Runs the tool VM, with msb enforcing the allowlist. |
 | Proxy | `runThroughProxy` → `StartPublishedProxy` in `proxypublish.go` | With `backend = "agentic"`, starts agentic-proxy on host loopback and routes the VM through it. |
 
-### End
+`recheckMounts` runs again right before the VM starts.
+
+#### End
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Cleanup | Prepare's cleanup, deferred in `runTool` | Calls `endRun`, also when Prepare or Run failed. |
+| Cleanup | `run.Service.End`, deferred in `runTool` | Calls `endRun`, also when Apply failed; a failed Resolve calls it itself. |
 | Instructions | `endRun` → `saveSnapshot` in `instructions.go` | Saves the instructions snapshot back to the tool's file. |
 | Temp dir | `endRun` → `sandbox.RemoveRunTempDir` | Removes `$TMPDIR/agentic-run-<id>/`. |
 
-## Why the mounts are checked again
+### Why the mounts are checked again
 
-`newMountSet` checks the mounts when Prepare builds the RunSpec, but building images and starting sidecars can take long enough for a path to change, for example into a symlink. So `recheckMounts` runs again right before each start: in `Run`, before the sidecars and before the tool.
+`newMountSet` checks the mounts when Resolve builds the RunSpec, but building and loading images and starting sidecars can take long enough for a path to change, for example into a symlink. So each runner runs `recheckMounts` again right before a process that mounts the paths starts: Docker before the sidecars (the dind sidecar mounts the workspace) and before the tool, msb before the VM.
 
-## Teardown
+### Teardown
 
 ```mermaid
 flowchart TD
@@ -150,7 +188,7 @@ flowchart TD
     watchdog -->|watchdog killed too| sweep["next run's orphan sweep after 5 min"]
 ```
 
-Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Prepare` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
+Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Resolve` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
 
 Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it. `run.Service.Teardown` adds the runtime-neutral part: it saves a leftover instructions snapshot back to the tool's file, then removes the run temp dir.
 

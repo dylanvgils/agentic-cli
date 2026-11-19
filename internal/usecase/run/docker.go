@@ -64,10 +64,10 @@ func (r dockerRunner) Check(req Request) error {
 // Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
 // prints.
-func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
+func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {
-		if err := r.prepareDockerHost(rs, req.Flags.Registry, proxyLog); err != nil {
+		if err := r.prepareDockerHost(rs, registry, proxyLog); err != nil {
 			return err
 		}
 	}

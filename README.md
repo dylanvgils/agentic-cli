@@ -103,4 +103,4 @@ Also published at [dylanvgils.github.io/agentic-cli](https://dylanvgils.github.i
 - [Microsandbox runtime](docs/microsandbox.md) - running a tool in a microVM instead of a container
 - [Recipes](docs/recipes.md) - Java, Maven through the proxy, per-project images, Copilot without telemetry
 - [Development](docs/development.md) - contributing, conventions, releasing
-- [Run flow](docs/run-flow.md) - what `agentic run` does, step by step, and where in the code
+- [Lifecycle](docs/lifecycle.md) - what every command and `agentic run` do, step by step, and where in the code

@@ -24,8 +24,8 @@ Only the tools above and the standard Debian utilities (coreutils, `grep`, `sed`
 ## Filesystem
 
 - `/workspace`: the project on the user's machine. Writable; changes are real.
-- `/.claude`: writable, persists across runs.
-- `/.claude.json`: writable, persists across runs.
+- `/root/.claude`: writable, persists across runs.
+- `/root/.claude.json`: writable, persists across runs.
 - `/tmp`: writable, cleared when the container exits.
 - Every other path is read-only.
 

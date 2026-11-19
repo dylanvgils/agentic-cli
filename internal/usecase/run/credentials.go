@@ -10,22 +10,19 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // checkProxyTrust makes sure the tool can trust the proxy CA its entrypoint adds: it warns when the entrypoint is
 // skipped and refuses an image whose entrypoint predates it, since TLS to the hosts the proxy decrypts would fail either
 // way.
-func (s *Service) checkProxyTrust(target Target) error {
+func checkProxyTrust(target Target, info *docker.ImageInfo) error {
 	if target.SkipEntrypoint {
 		logging.Warn("skipping the entrypoint: TLS to proxy credential and path rule hosts will fail, as the proxy CA is not trusted")
 		return nil
 	}
 
-	info, err := s.docker.InspectImage(target.ImageName)
-	if err != nil {
-		return fmt.Errorf("inspect %s: %w", target.ImageName, err)
-	}
 	if info == nil || info.ProxyTrust {
 		return nil
 	}

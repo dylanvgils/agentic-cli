@@ -19,6 +19,7 @@ type ImageInfo struct {
 	ID                 string // 12-char short ID
 	FullID             string // full image ID (e.g. "sha256:a1b2...")
 	User               string // the image's USER
+	ContainerHome      string // the image's TOOL_HOME env var, "/root" when unset
 	Version            string // agentic.tool.version label
 	Base               string // agentic.base label
 	VersionArgs        string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
@@ -59,6 +60,7 @@ func (c *Client) InspectImage(name string) (*ImageInfo, error) {
 		ID:                 extractShortID(result.ID),
 		FullID:             result.ID,
 		User:               result.Config.User,
+		ContainerHome:      containerHome(result.Config.Env),
 		Version:            result.Config.Labels[LabelToolVersion],
 		Base:               result.Config.Labels[LabelBase],
 		VersionArgs:        result.Config.Labels[LabelVersionArgs],

@@ -34,7 +34,7 @@ nav = [
   ] },
   { "Contributing" = [
     { "Development" = "development.md" },
-    { "Run flow" = "run-flow.md" },
+    { "Lifecycle" = "lifecycle.md" },
     { "Dockerfile DSL" = "dockerfile-dsl.md" },
   ] },
 ]

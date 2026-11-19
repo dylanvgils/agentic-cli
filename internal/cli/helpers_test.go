@@ -32,7 +32,6 @@ type fakeDocker struct {
 	cleanBaseImages       func() error
 	pruneImages           func() (string, error)
 	pruneBuildCache       func() (string, error)
-	resolveContainerHome  func(string) string
 	startSidecars         func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	runTool               func(sidecars docker.Sidecars) error
 	stopSidecars          func(sidecars docker.Sidecars)
@@ -155,13 +154,6 @@ func (f *fakeDocker) PruneBuildCache() (string, error) {
 		return "", nil
 	}
 	return f.pruneBuildCache()
-}
-
-func (f *fakeDocker) ResolveContainerHome(image string) string {
-	if f.resolveContainerHome == nil {
-		return ""
-	}
-	return f.resolveContainerHome(image)
 }
 
 func (f *fakeDocker) StartPublishedProxy(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
@@ -324,9 +316,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.pruneBuildCache != nil {
 		f.pruneBuildCache = o.pruneBuildCache
-	}
-	if o.resolveContainerHome != nil {
-		f.resolveContainerHome = o.resolveContainerHome
 	}
 	if o.startSidecars != nil {
 		f.startSidecars = o.startSidecars

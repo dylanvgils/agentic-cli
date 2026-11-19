@@ -70,7 +70,7 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: tc.m}.Check(newPrepareRequest(t))
+			err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: tc.m}.Check(newResolveRequest(t))
 
 			// Assert
 			assert.EqualError(t, err, tc.wantErr)
@@ -79,7 +79,7 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 	t.Run("dry run skips the msb check", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.DryRun = true
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
@@ -92,7 +92,7 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 	t.Run("accepts agentic-proxy for a proxy run", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendAgentic}
 
 		// Act
@@ -132,7 +132,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		buf := iostreamstest.StubErr(t)
 
 		// Act
-		err := r.Run(Request{}, newProxyRunSpec(t, sandbox.EgressEnforce))
+		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "")
 
 		// Assert
 		require.NoError(t, err)
@@ -156,7 +156,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: true}
 
 		// Act
-		err := r.Run(Request{}, newProxyRunSpec(t, sandbox.EgressEnforce))
+		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "")
 
 		// Assert
 		assert.EqualError(t, err, "stub: start failed")
@@ -174,7 +174,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		r := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, sidecarImages: images, agenticProxy: true}
 
 		// Act
-		err := r.Run(Request{}, rs)
+		err := r.Run(rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -203,7 +203,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: agentic}
 
 			// Act
-			err := r.Run(Request{}, rs)
+			err := r.Run(rs, "")
 
 			// Assert
 			require.NoError(t, err)
@@ -218,7 +218,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"})
+		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -235,14 +235,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"})
+		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
 		assert.Empty(t, *ran)
 	})
 
-	t.Run("mounts changed during the image load stop the run", func(t *testing.T) {
+	t.Run("mounts changed before the VM starts stop the run", func(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
 		m := &fakeMicrosandbox{}
@@ -251,7 +251,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := msb.Run(Request{}, rs)
+		err := msb.Run(rs, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -279,7 +279,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -298,7 +298,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		ran := stubRunImage(m)
 
 		// Act
-		err := microsandboxRunner{docker: d, microsandbox: m}.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}})
+		err := microsandboxRunner{docker: d, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -329,7 +329,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := microsandboxRunner{docker: d, microsandbox: m}.Run(Request{}, rs)
+		err := microsandboxRunner{docker: d, microsandbox: m}.Run(rs, "")
 
 		// Assert
 		require.NoError(t, err)

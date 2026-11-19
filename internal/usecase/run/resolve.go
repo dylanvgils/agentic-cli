@@ -20,7 +20,7 @@ type Request struct {
 	Flags   Flags
 }
 
-// Flags are a run's command-line settings, before Prepare resolves them against the project config.
+// Flags are a run's command-line settings, before Resolve resolves them against the project config.
 type Flags struct {
 	ToolHome   string
 	TrustDir   bool
@@ -37,6 +37,14 @@ type Flags struct {
 	Runtime sandbox.Runtime
 }
 
+// Plan is a run Resolve checked, approved and started; Apply runs it and End must follow.
+type Plan struct {
+	runner   runner
+	spec     sandbox.RunSpec
+	registry string
+	run      sandbox.RunRef
+}
+
 // runtime returns where r runs: --runtime, then the config, then Docker.
 func (r Request) runtime() sandbox.Runtime {
 	return resolve.Runtime(r.Flags.Runtime, r.Project.RC)
@@ -47,57 +55,61 @@ func (r Request) proxyBackend() string {
 	return resolve.ProxyBackend(r.Flags.Proxy, r.Project.RC)
 }
 
-// Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
-// the RunSpec plus a cleanup func that must always be deferred, even on error.
-func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func(), error) {
+// Resolve checks, approves and starts the run req asks for; on an error it ends what it started.
+func (s *Service) Resolve(req Request, prompter Prompter) (*Plan, error) {
 	home := req.Flags.ToolHome
 
 	// Before any prompt, so a run the runtime can't do doesn't waste the user's approvals
-	if err := s.checkRuntime(req); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+	r, err := s.checkRuntime(req)
+	if err != nil {
+		return nil, err
 	}
 	if err := checkPorts(req); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 	if err := credentials.Check(req.Project.RC.Run.Proxy.Credentials); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	// Before anything acts on the project config, which the agent can edit
 	if err := checkTrust(req.Project.WorkDir, home, req.Flags.TrustDir, prompter); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	approved, err := checkSettings(req.Project, home, prompter)
 	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	if err := s.checkTool(req, approved, prompter); err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	c, err := s.approvedRun(req, approved)
 	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
 	run, err := s.startRun(req)
 	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
+		return nil, err
 	}
 
-	cleanup := func() { warnOnEndRunError(endRun(run)) }
 	rs, err := s.buildWithInstructions(run.ID, c)
 	if err != nil {
-		cleanup()
-		return sandbox.RunSpec{}, noCleanup, err
+		warnOnEndRunError(endRun(run))
+		return nil, err
 	}
-	return rs, cleanup, nil
+	return &Plan{
+		runner:   r,
+		spec:     rs,
+		registry: c.Registry,
+		run:      run,
+	}, nil
 }
 
 // checkTool offers a due tool update, unless it's a dry run, and creates the tool's host files.
@@ -175,18 +187,29 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, erro
 		return runConfig{}, err
 	}
 
+	// After the tool update, which can rebuild the image
+	image, err := s.docker.InspectImage(req.Target.ImageName)
+	if err != nil {
+		return runConfig{}, fmt.Errorf("inspect %s: %w", req.Target.ImageName, err)
+	}
+	containerHome := "/root"
+	if image != nil {
+		containerHome = image.ContainerHome
+	}
+
 	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
 	return runConfig{
 		Target: req.Target,
 		Tool:   req.Tool,
 		RC:     rc,
+		Image:  image,
 		Runtime: runtimeConfig{
 			Name: runtime,
 			Caps: caps,
 		},
 		Homes: homes{
 			Tool:      flags.ToolHome,
-			Container: s.docker.ResolveContainerHome(req.Target.ImageName),
+			Container: containerHome,
 		},
 		Egress: egressConfig{
 			Mode:         proxyMode,
@@ -205,9 +228,4 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, erro
 		Registry: flags.Registry,
 		DryRun:   flags.DryRun,
 	}, nil
-}
-
-// noCleanup is the cleanup for paths that set nothing up.
-func noCleanup() {
-	// Nothing to undo
 }

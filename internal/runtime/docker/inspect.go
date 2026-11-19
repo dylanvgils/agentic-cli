@@ -9,29 +9,9 @@ type imageInspectResult struct {
 	ID     string `json:"Id"`
 	Config struct {
 		User   string            `json:"User"`
+		Env    []string          `json:"Env"`
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
-}
-
-// ResolveContainerHome reads image's TOOL_HOME env var, falling back to "/root" if unavailable.
-func (c *Client) ResolveContainerHome(image string) string {
-	out, err := c.run("inspect", arg("format", "{{json .Config.Env}}"), image)
-	if err != nil {
-		return "/root"
-	}
-
-	var envs []string
-	if err := json.Unmarshal([]byte(out), &envs); err != nil {
-		return "/root"
-	}
-
-	for _, env := range envs {
-		if after, ok := strings.CutPrefix(env, "TOOL_HOME="); ok {
-			return after
-		}
-	}
-
-	return "/root"
 }
 
 func (c *Client) inspectImage(name string) (*imageInspectResult, error) {
@@ -46,4 +26,14 @@ func (c *Client) inspectImage(name string) (*imageInspectResult, error) {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// containerHome returns the TOOL_HOME entry of env, the first one when several, else "/root".
+func containerHome(env []string) string {
+	for _, entry := range env {
+		if home, ok := strings.CutPrefix(entry, "TOOL_HOME="); ok {
+			return home
+		}
+	}
+	return "/root"
 }

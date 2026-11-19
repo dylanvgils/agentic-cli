@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/spf13/cobra"
 )
@@ -51,10 +54,24 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	warnSkipInstallChecksum(opts)
 
 	svc := build.New(dockerClient, toolHome)
-
-	if dryRun {
-		return svc.DryRun(names, opts)
+	plan, err := svc.Resolve(names, namespace, opts)
+	if err != nil {
+		return err
 	}
 
-	return svc.Apply(names, namespace, opts)
+	if dryRun {
+		return svc.DryRun(plan)
+	}
+
+	logBuildSummary(plan)
+	return svc.Apply(plan)
+}
+
+// logBuildSummary prints the summary line of the images about to be built.
+func logBuildSummary(plan build.Plan) {
+	images := make([]string, len(plan.Targets))
+	for i, t := range plan.Targets {
+		images[i] = t.Image
+	}
+	logging.Infof("building %d image(s): %s", len(images), strings.Join(images, ", "))
 }

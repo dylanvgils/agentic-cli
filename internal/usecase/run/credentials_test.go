@@ -1,7 +1,6 @@
 package run
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -316,72 +315,48 @@ func Test_checkCredentialPaths(t *testing.T) {
 func Test_checkProxyTrust(t *testing.T) {
 	target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 
-	t.Run("an image with proxy trust passes", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{ProxyTrust: true}, nil },
-		}
+	for _, tc := range []struct {
+		name    string
+		info    *docker.ImageInfo
+		wantErr string
+	}{
+		{
+			name: "an image with proxy trust passes",
+			info: &docker.ImageInfo{ProxyTrust: true},
+		},
+		{
+			name:    "an image without proxy trust is refused with the rebuild command",
+			info:    &docker.ImageInfo{},
+			wantErr: "agentic update claude",
+		},
+		{
+			name: "a missing image passes, as it is built fresh",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			err := checkProxyTrust(target, tc.info)
 
-		// Act
-		err := newTestService(d, nil).checkProxyTrust(target)
+			// Assert
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("an image without proxy trust is refused with the rebuild command", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil },
-		}
-
-		// Act
-		err := newTestService(d, nil).checkProxyTrust(target)
-
-		// Assert
-		assert.ErrorContains(t, err, `agentic update claude`)
-	})
-
-	t.Run("a missing image passes, as it is built fresh", func(t *testing.T) {
-		// Act
-		err := newTestService(&fakeDocker{}, nil).checkProxyTrust(target)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("an inspect error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage: func(string) (*docker.ImageInfo, error) { return nil, fmt.Errorf("stub: daemon down") },
-		}
-
-		// Act
-		err := newTestService(d, nil).checkProxyTrust(target)
-
-		// Assert
-		assert.ErrorContains(t, err, "daemon down")
-	})
-
-	t.Run("a skipped entrypoint warns without inspecting the image", func(t *testing.T) {
+	t.Run("a skipped entrypoint warns instead of refusing", func(t *testing.T) {
 		// Arrange
 		stderr := iostreamstest.StubErr(t)
-		inspected := false
-		d := &fakeDocker{
-			inspectImage: func(string) (*docker.ImageInfo, error) {
-				inspected = true
-				return &docker.ImageInfo{}, nil
-			},
-		}
 		skipped := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
 
 		// Act
-		err := newTestService(d, nil).checkProxyTrust(skipped)
+		err := checkProxyTrust(skipped, &docker.ImageInfo{})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, stderr.String(), "proxy CA is not trusted")
-		assert.False(t, inspected)
 	})
 }
 

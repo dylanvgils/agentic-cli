@@ -46,6 +46,7 @@ type runConfig struct {
 	Target Target
 	Tool   tools.ToolConfig
 	RC     *config.AgenticRC
+	Image  *docker.ImageInfo // the tool image, nil when it isn't built
 
 	Runtime runtimeConfig
 	Homes   homes
@@ -122,7 +123,7 @@ func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
 	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
 	spec := specFeatures(rs)
 	if (spec.CredentialInjection || spec.PathRules) && c.Runtime.Caps.CredentialsViaProxy {
-		if err := s.checkProxyTrust(c.Target); err != nil {
+		if err := checkProxyTrust(c.Target, c.Image); err != nil {
 			return sandbox.RunSpec{}, err
 		}
 	}

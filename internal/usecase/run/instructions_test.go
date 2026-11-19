@@ -1,7 +1,6 @@
 package run
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,24 +31,15 @@ func Test_Service_buildInstructions(t *testing.T) {
 		assert.Empty(t, content)
 	})
 
-	t.Run("image inspect error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage: func(string) (*docker.ImageInfo, error) { return nil, fmt.Errorf("docker daemon unreachable") },
-		}
-
-		// Act
-		_, err := newTestService(d, nil).buildInstructions(newTestRunConfig(t))
-
-		// Assert
-		assert.ErrorContains(t, err, "docker daemon unreachable")
-	})
-
 	built := &fakeDocker{
 		inspectImage: func(string) (*docker.ImageInfo, error) {
-			return &docker.ImageInfo{Base: "node@24.2.0,java@21.0.1", Apt: "make,gcc", CustomInstalls: "helm"}, nil
+			return &docker.ImageInfo{
+				Base:           "node@24.2.0,java@21.0.1",
+				Apt:            "make,gcc",
+				CustomInstalls: "helm",
+				ContainerHome:  "/home/agent",
+			}, nil
 		},
-		resolveContainerHome: func(string) string { return "/home/agent" },
 	}
 	noDaemon := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities {
 		return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}}
@@ -302,7 +292,7 @@ func Test_saveSnapshot(t *testing.T) {
 func TestPreviewInstructions(t *testing.T) {
 	t.Run("merges the persisted host file's content into the preview", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		require.NoError(t, req.Tool.Runtime.Setup(req.Flags.ToolHome))
 		hostPath := req.Tool.Runtime.InstructionsHostPath(req.Flags.ToolHome)
 		require.NoError(t, os.WriteFile(hostPath, []byte("my own global notes\n"), 0o640))
@@ -318,7 +308,7 @@ func TestPreviewInstructions(t *testing.T) {
 
 	t.Run("disabled via config returns empty string", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		disabled := false
 		req.Project.RC.Run.Instructions.Enabled = &disabled
 
@@ -332,7 +322,7 @@ func TestPreviewInstructions(t *testing.T) {
 
 	t.Run("proxy flags are resolved like a run", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true}
 
 		// Act
@@ -345,7 +335,7 @@ func TestPreviewInstructions(t *testing.T) {
 
 	t.Run("a proxy conflict errors like a run", func(t *testing.T) {
 		// Arrange
-		req := newPrepareRequest(t)
+		req := newResolveRequest(t)
 		req.Project.RC.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
 

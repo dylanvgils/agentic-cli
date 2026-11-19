@@ -13,7 +13,6 @@ import (
 type Docker interface {
 	InspectImage(name string) (*docker.ImageInfo, error)
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
-	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
 	BuildDockerdImage(image string, parent *docker.ImageInfo) error

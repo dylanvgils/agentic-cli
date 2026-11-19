@@ -13,71 +13,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDryRun(t *testing.T) {
-	t.Run("prints the labelled dockerfile without building", func(t *testing.T) {
+func TestService_DryRun(t *testing.T) {
+	t.Run("prints each target's labelled dockerfile with its options, without building", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{}
 		built := stubBuilds(d, nil)
 		errOut := iostreamstest.StubErr(t)
+		plan := Plan{Targets: []Target{
+			{Name: "claude", Image: "agentic-claude", Opts: tools.BuildOptions{BaseOverride: []string{"java"}}},
+		}}
 
 		// Act
 		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = newTestService(t, d, &fakeUpstream{}).DryRun("claude", "agentic", tools.BuildOptions{}) })
+		out := iostreamstest.CaptureOut(t, func() { err = newTestService(t, d, &fakeUpstream{}).DryRun(plan) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, out, "FROM")
+		assert.Contains(t, out, "temurin")
 		assert.Equal(t, "agentic: claude Dockerfile:\n\n", errOut.String())
 		assert.Empty(t, built.images)
 	})
 
-	t.Run("recovers build options from the built image", func(t *testing.T) {
+	t.Run("unknown tool returns an error", func(t *testing.T) {
 		// Arrange
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)}
+		plan := Plan{Targets: []Target{{Name: "nonexistent", Image: "agentic-nonexistent"}}}
 
 		// Act
-		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = newTestService(t, d, &fakeUpstream{}).DryRun("claude", "agentic", tools.BuildOptions{}) })
+		err := newTestService(t, &fakeDocker{}, &fakeUpstream{}).DryRun(plan)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, out, "temurin")
+		assert.ErrorContains(t, err, "unknown tool")
 	})
-
-	t.Run("inspect error falls back to the caller's options", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{inspectImage: inspectReturns(nil, errors.New("daemon not running"))}
-
-		// Act
-		var err error
-		out := iostreamstest.CaptureOut(t, func() {
-			err = newTestService(t, d, &fakeUpstream{}).DryRun("claude", "agentic", tools.BuildOptions{BaseOverride: []string{"java"}})
-		})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, out, "temurin")
-	})
-
-	for _, tc := range []struct {
-		name    string
-		tool    string
-		wantErr string
-	}{
-		{name: "without a tool", tool: "", wantErr: "--dry-run requires a tool argument"},
-		{name: "unknown tool", tool: "nonexistent", wantErr: "unknown tool"},
-	} {
-		t.Run(tc.name+" returns an error", func(t *testing.T) {
-			// Act
-			err := newTestService(t, &fakeDocker{}, &fakeUpstream{}).DryRun(tc.tool, "agentic", tools.BuildOptions{})
-
-			// Assert
-			assert.ErrorContains(t, err, tc.wantErr)
-		})
-	}
 }
 
-func TestResolve(t *testing.T) {
+func TestService_Resolve(t *testing.T) {
 	t.Run("all scope resolves every image of the tool", func(t *testing.T) {
 		// Arrange
 		var capturedFilters []docker.ImageFilter
@@ -89,22 +58,22 @@ func TestResolve(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := newTestService(t, d, &fakeUpstream{}).Resolve(Scope{All: true, Tool: "claude"}, tools.BuildOptions{}, true)
+		plan, err := newTestService(t, d, &fakeUpstream{}).Resolve(Scope{All: true, Tool: "claude"}, tools.BuildOptions{}, true)
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
+		require.Len(t, plan.Targets, 1)
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
 	})
 
 	t.Run("single tool scope resolves that tool", func(t *testing.T) {
 		// Act
-		targets, err := newTestService(t, &fakeDocker{}, &fakeUpstream{}).Resolve(Scope{Tool: "claude", Namespace: "agentic"}, tools.BuildOptions{}, true)
+		plan, err := newTestService(t, &fakeDocker{}, &fakeUpstream{}).Resolve(Scope{Tool: "claude", Namespace: "agentic"}, tools.BuildOptions{}, true)
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.Equal(t, "claude", targets[0].Name)
+		require.Len(t, plan.Targets, 1)
+		assert.Equal(t, "claude", plan.Targets[0].Name)
 	})
 }
 
@@ -210,11 +179,11 @@ func Test_resolveAll(t *testing.T) {
 	})
 }
 
-func TestApplyAll(t *testing.T) {
-	targets := []Target{
+func TestService_Apply(t *testing.T) {
+	plan := Plan{Targets: []Target{
 		{Name: "claude", Image: "agentic-claude"},
 		{Name: "claude", Image: "work-claude"},
-	}
+	}}
 
 	t.Run("every target builds with one cache bust, then prunes and records the check", func(t *testing.T) {
 		// Arrange
@@ -225,7 +194,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).Apply(plan) })
 
 		// Assert - one value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -247,7 +216,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).Apply(plan) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -259,7 +228,7 @@ func TestApplyAll(t *testing.T) {
 	})
 }
 
-func TestApply(t *testing.T) {
+func Test_Service_apply(t *testing.T) {
 	built := &docker.ImageInfo{Version: "1.0.0"}
 
 	for _, tc := range []struct {
@@ -307,7 +276,7 @@ func TestApply(t *testing.T) {
 
 			// Act
 			var err error
-			out := iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &tc.upstream).Apply("claude", "agentic-claude", tc.opts) })
+			out := iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &tc.upstream).apply("claude", "agentic-claude", tc.opts) })
 
 			// Assert
 			require.NoError(t, err)
@@ -354,7 +323,7 @@ func TestApply(t *testing.T) {
 
 			// Act
 			var err error
-			iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &tc.upstream).Apply("claude", "agentic-claude", tools.BuildOptions{}) })
+			iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &tc.upstream).apply("claude", "agentic-claude", tools.BuildOptions{}) })
 
 			// Assert
 			require.NoError(t, err)
@@ -371,14 +340,14 @@ func TestApply(t *testing.T) {
 
 		// Act
 		var err error
-		iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &fakeUpstream{}).Apply("claude", "agentic-claude", tools.BuildOptions{}) })
+		iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &fakeUpstream{}).apply("claude", "agentic-claude", tools.BuildOptions{}) })
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
 	})
 }
 
-func TestApplyRecovered(t *testing.T) {
+func TestService_ApplyRecovered(t *testing.T) {
 	rc := &config.AgenticRC{Build: config.RCBuild{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}}
 
 	t.Run("custom installs come from the built image, not rc", func(t *testing.T) {

@@ -42,7 +42,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
 - With the proxy enabled (`RunSpec.Egress.Mode` not off), the tool's network is `--internal`, so the proxy is its only way out.
 - A new `.agenticrc.toml` key goes in `GuardedSettings` if it reaches past the container, else in the unguarded list of `TestGuardedSettings`. A run reads config only through the `approvedConfig` that `checkSettings` returns.
-- Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`); never add mounts to the `RunSpec` around it. `Service.Run` rechecks mounts and refuses a `RunSpec` that needs a capability the runtime lacks; runners keep their own rechecks too.
+- Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`); never add mounts to the `RunSpec` around it. `run.Service.Apply` refuses a `RunSpec` that needs a capability the runtime lacks; each runner rechecks the mounts right before a process that mounts them starts, nowhere else.
 
 ## Architecture
 
@@ -60,6 +60,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - `deps.go` declares an interface per client with only the methods it uses; `deps_test.go` checks it with `var _`.
   - `type Service struct` holds them from `New`, plus `home string` if it touches the data dir.
   - Exported entry points are `Service` methods; unexported helpers only if they call a client.
+  - An action command's usecase has `Resolve(...) (Plan, error)`, then `DryRun(plan)` or `Apply(plan)`; the cli prints the summary between them.
 - Runners (`internal/usecase/run/<runtime>.go`, interface in `runtime.go`) hold a runtime's run steps:
   - `Check` refuses a request before any prompt, `Run` runs it.
   - A new runtime adds a runner and a case in `Service.runner`.

@@ -16,8 +16,8 @@ import (
 // errFake is a docker failure the tests expect to see returned.
 var errFake = errors.New("docker error")
 
-func TestResolve(t *testing.T) {
-	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
+func TestService_Resolve(t *testing.T) {
+	t.Run("all scope with a tool dispatches to resolveAll and keeps the shared resources", func(t *testing.T) {
 		// Arrange
 		var capturedFilters []docker.ImageFilter
 		d := &fakeDocker{
@@ -30,23 +30,31 @@ func TestResolve(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(t.TempDir(), d).Resolve(Scope{All: true, Tool: "claude"})
+		plan, err := New(t.TempDir(), d).Resolve(Scope{All: true, Tool: "claude"})
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
+		require.Len(t, plan.Targets, 1)
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+		assert.False(t, plan.Shared)
+	})
+
+	t.Run("bare all scope also removes the shared resources", func(t *testing.T) {
+		// Act
+		plan, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{All: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, plan.Shared)
 	})
 
 	t.Run("single tool resolves to its image in the namespace", func(t *testing.T) {
 		// Act
-		targets, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Tool: "claude", Namespace: "agentic"})
+		plan, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Tool: "claude", Namespace: "agentic"})
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.Equal(t, "agentic-claude", targets[0].Label)
-		assert.Equal(t, "agentic-claude", targets[0].Image)
+		assert.Equal(t, Plan{Targets: []Target{{Label: "agentic-claude", Image: "agentic-claude"}}}, plan)
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
@@ -60,7 +68,7 @@ func TestResolve(t *testing.T) {
 }
 
 func Test_resolveAll(t *testing.T) {
-	t.Run("skips the proxy image since GlobalResources handles it separately", func(t *testing.T) {
+	t.Run("skips the proxy image since the shared resources step handles it", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -95,10 +103,37 @@ func Test_resolveAll(t *testing.T) {
 	})
 }
 
-func TestApply(t *testing.T) {
-	targets := []Target{
+func TestService_Apply(t *testing.T) {
+	plan := Plan{Targets: []Target{
 		{Label: "agentic-claude", Image: "agentic-claude"},
 		{Label: "agentic-copilot", Image: "agentic-copilot"},
+	}}
+
+	for _, tc := range []struct {
+		name   string
+		shared bool
+	}{
+		{name: "keeps the shared resources without Shared", shared: false},
+		{name: "removes the shared resources with Shared", shared: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			networkRemoved := false
+			d := &fakeDocker{removeNetwork: func() error {
+				networkRemoved = true
+				return nil
+			}}
+			withShared := plan
+			withShared.Shared = tc.shared
+
+			// Act
+			var err error
+			iostreamstest.CaptureErr(t, func() { err = New(t.TempDir(), d).Apply(withShared) })
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.shared, networkRemoved)
+		})
 	}
 
 	t.Run("cleans each target after its dockerd image", func(t *testing.T) {
@@ -108,7 +143,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		var err error
-		out := iostreamstest.CaptureErr(t, func() { err = New(t.TempDir(), d).Apply(targets) })
+		out := iostreamstest.CaptureErr(t, func() { err = New(t.TempDir(), d).Apply(plan) })
 
 		// Assert
 		require.NoError(t, err)
@@ -123,7 +158,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
-			err := New(t.TempDir(), &fakeDocker{}, m).Apply(targets)
+			err := New(t.TempDir(), &fakeDocker{}, m).Apply(plan)
 			require.NoError(t, err)
 		})
 
@@ -143,7 +178,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(t.TempDir(), d, m).Apply(targets)
+		err := New(t.TempDir(), d, m).Apply(plan)
 
 		// Assert
 		require.NoError(t, err)
@@ -179,7 +214,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
-			err := New(home, d).Apply(targets)
+			err := New(home, d).Apply(plan)
 			require.NoError(t, err)
 		})
 
@@ -203,7 +238,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
-			err := New(home, d).Apply(targets)
+			err := New(home, d).Apply(plan)
 			require.NoError(t, err)
 		})
 
@@ -225,7 +260,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
-			err := New(t.TempDir(), d, m).Apply(targets)
+			err := New(t.TempDir(), d, m).Apply(plan)
 			require.NoError(t, err)
 		})
 
@@ -240,7 +275,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(t.TempDir(), d).Apply(targets)
+		err := New(t.TempDir(), d).Apply(plan)
 
 		// Assert
 		assert.ErrorContains(t, err, "docker error")
@@ -257,7 +292,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(t.TempDir(), d).Apply(targets)
+		err := New(t.TempDir(), d).Apply(plan)
 
 		// Assert
 		require.Error(t, err)
@@ -265,7 +300,7 @@ func TestApply(t *testing.T) {
 	})
 }
 
-func TestGlobalResources(t *testing.T) {
+func Test_Service_removeShared(t *testing.T) {
 	t.Run("cleans base, proxy image, sweeps, and removes network", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
@@ -299,7 +334,7 @@ func TestGlobalResources(t *testing.T) {
 		}
 
 		// Act
-		err := New("/agentic-home", d).GlobalResources()
+		err := New("/agentic-home", d).removeShared()
 
 		// Assert
 		require.NoError(t, err)
@@ -333,7 +368,7 @@ func TestGlobalResources(t *testing.T) {
 		t.Run(tc.name+" error propagates", func(t *testing.T) {
 			// Act
 			var err error
-			iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", tc.d).GlobalResources() })
+			iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", tc.d).removeShared() })
 
 			// Assert
 			assert.ErrorIs(t, err, errFake)
@@ -341,7 +376,7 @@ func TestGlobalResources(t *testing.T) {
 	}
 }
 
-func TestPrune(t *testing.T) {
+func TestService_Prune(t *testing.T) {
 	t.Run("sweeps runs, then prunes images and the confirmed cache", func(t *testing.T) {
 		// Arrange
 		var ran []string
