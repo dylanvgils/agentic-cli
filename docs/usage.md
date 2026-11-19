@@ -160,7 +160,7 @@ With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so age
 
 ```bash
 agentic run --port 3000 claude              # localhost:3000 -> 3000 in the tool
-agentic run --port 8080:80 --port 5173 claude
+agentic run --port 8080:5173 --port 4200 claude
 ```
 
 - Ports bind to `127.0.0.1` only, so nothing else on your network reaches them. TCP only.

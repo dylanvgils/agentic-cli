@@ -19,8 +19,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
-// relayScript forwards the port in its argument from the tool container to the same port on the DinD sidecar, using only
-// the base toolchain.
+// relayScript forwards its port argument to the same port on the DinD sidecar.
 const relayScript = `import asyncio, sys
 
 PORT = int(sys.argv[1])
@@ -132,7 +131,7 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 		proxyMode:     c.Egress.Mode,
 		dindEnabled:   c.Dind.Enabled,
 		ports:         c.Ports,
-		rules:        proxyRules(c),
+		rules:         proxyRules(c),
 		webSearchTool: c.Tool.Runtime.WebSearchTool,
 		custom:        c.RC.Run.Instructions.Custom,
 	}, nil
