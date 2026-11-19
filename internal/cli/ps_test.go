@@ -61,7 +61,7 @@ func Test_runPs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
-		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+127\.0\.0\.1:3000->3000/tcp\s+agentic-claude-ab12`, out)
+		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+3000->3000/tcp\s+agentic-claude-ab12`, out)
 		assert.Regexp(t, `opencode\s+agentic\s+microsandbox\s+agentic-opencode:latest\s+running\s+-\s+vm-1`, out)
 		assert.NotContains(t, out, "other-copilot-cd34")
 	})
@@ -77,7 +77,7 @@ func Test_runPs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
-		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+127\.0\.0\.1:3000->3000/tcp\s+agentic-claude-ab12`, out)
+		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+3000->3000/tcp\s+agentic-claude-ab12`, out)
 		assert.Regexp(t, `copilot\s+other\s+docker\s+other-copilot\s+Up 1 minute\s+-\s+other-copilot-cd34`, out)
 	})
 

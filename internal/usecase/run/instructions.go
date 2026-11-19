@@ -19,6 +19,35 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
+// relayScript forwards the port in its argument from the tool container to the same port on the DinD sidecar, using only
+// the base toolchain.
+const relayScript = `import asyncio, sys
+
+PORT = int(sys.argv[1])
+
+
+async def pipe(r, w):
+    try:
+        while data := await r.read(65536):
+            w.write(data)
+            await w.drain()
+    finally:
+        w.close()
+
+
+async def handle(cr, cw):
+    ur, uw = await asyncio.open_connection("agentic-docker", PORT)
+    await asyncio.gather(pipe(cr, uw), pipe(ur, cw))
+
+
+async def main():
+    server = await asyncio.start_server(handle, "0.0.0.0", PORT)
+    await server.serve_forever()
+
+
+asyncio.run(main())
+`
+
 // instructionsFacts is what the environment block describes, gathered up front so rendering touches no client.
 type instructionsFacts struct {
 	caps          sandbox.Capabilities
@@ -30,6 +59,7 @@ type instructionsFacts struct {
 	dindLimits    sandbox.ResourceLimits
 	proxyMode     sandbox.EgressMode
 	dindEnabled   bool
+	ports         []sandbox.PortMapping
 	rules         []sandbox.AllowRule
 	webSearchTool string
 	custom        string
@@ -101,7 +131,8 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 		dindLimits:    c.Dind.Limits,
 		proxyMode:     c.Egress.Mode,
 		dindEnabled:   c.Dind.Enabled,
-		rules:         proxyRules(c),
+		ports:         c.Ports,
+		rules:        proxyRules(c),
 		webSearchTool: c.Tool.Runtime.WebSearchTool,
 		custom:        c.RC.Run.Instructions.Custom,
 	}, nil
@@ -122,6 +153,7 @@ func renderInstructions(f instructionsFacts) string {
 	writeResourceLimitsSection(&b, f.limits, f.caps.Features)
 	writePrivilegeSection(&b, f.caps.Isolation)
 	writeNetworkSection(&b, f)
+	writePortsSection(&b, f)
 	writeDockerSection(&b, f)
 	writeCustomSection(&b, f.custom)
 
@@ -296,6 +328,49 @@ func writeNetworkSection(b *strings.Builder, f instructionsFacts) {
 	b.WriteString("\n")
 }
 
+// writePortsSection is only written when the run forwards ports; it tells the agent how to show a Docker container on one.
+func writePortsSection(b *strings.Builder, f instructionsFacts) {
+	if len(f.ports) == 0 {
+		return
+	}
+
+	b.WriteString("## Forwarded ports\n\n")
+	b.WriteString("- The user's machine reaches only these ports:\n")
+	for _, port := range f.ports {
+		fmt.Fprintf(b, "  - `localhost:%d` on the user's machine -> port %d here\n", port.Host, port.Guest)
+	}
+	b.WriteString("- A server must listen on `0.0.0.0`. On `127.0.0.1` the user gets an empty response.\n")
+	b.WriteString("- Once it serves, give the user the matching `localhost` URL from this list.\n")
+	b.WriteString("- If a task needs another port, tell the user its number, so they can add it with `--port` and rerun.\n")
+	if !f.dindEnabled || !f.caps.Dind {
+		b.WriteString("\n")
+		return
+	}
+
+	example := f.ports[0].Guest
+	if f.caps.Boundary == sandbox.BoundaryVM {
+		fmt.Fprintf(b, "- To show a Docker container, publish it on a forwarded port. For nginx, which listens on 80: `docker run --detach --publish %d:80 nginx`.\n\n", example)
+		return
+	}
+
+	b.WriteString("- To show a Docker container, publish it on the sidecar under a forwarded port's number, then relay that port from here to the sidecar:\n")
+	fmt.Fprintf(b, "  1. Publish it. For nginx, which listens on 80: `docker run --detach --publish %d:80 nginx`.\n", example)
+	b.WriteString("  2. Save this relay as `/tmp/relay.py`:\n\n")
+	b.WriteString("     ```python\n")
+	for line := range strings.Lines(relayScript) {
+		if line != "\n" {
+			b.WriteString("     ")
+		}
+		b.WriteString(line)
+	}
+	b.WriteString("     ```\n\n")
+	b.WriteString("  3. Start the relay for that port, in the background:\n")
+	for _, port := range f.ports {
+		fmt.Fprintf(b, "     - %d: `python3 /tmp/relay.py %d &`\n", port.Guest, port.Guest)
+	}
+	b.WriteString("\n")
+}
+
 // writeDockerSection is only written when the Docker daemon is enabled; a runtime without one only warns there's no daemon.
 func writeDockerSection(b *strings.Builder, f instructionsFacts) {
 	if !f.dindEnabled {
@@ -314,7 +389,7 @@ func writeDockerSection(b *strings.Builder, f instructionsFacts) {
 
 	b.WriteString("- `docker` uses a rootless daemon in a per-run sidecar. DOCKER_HOST and TLS certs are preset; don't change them.\n")
 	b.WriteString("- Bind mounts work only under `/workspace`, which has the same path in the daemon. Other paths, such as `/tmp` or your home, don't exist there.\n")
-	b.WriteString("- Published ports are on the sidecar: use `agentic-docker:<port>`, not `localhost`. The user's machine can't reach them.\n")
+	fmt.Fprintf(b, "- Published ports are on the sidecar: use `agentic-docker:<port>`, not `localhost`. %s\n", publishedReach(f.ports))
 	b.WriteString("- Images, containers and volumes are deleted when this session ends.\n")
 	fmt.Fprintf(b, "- Daemon limits, shared by all its containers: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or --dind-pids-limit/--dind-cpus/--dind-memory).\n", f.dindLimits.PidsLimit, f.dindLimits.CPUs, f.dindLimits.Memory)
 	writeDaemonAllowlistLine(b, f.proxyMode)
@@ -324,7 +399,7 @@ func writeDockerSection(b *strings.Builder, f instructionsFacts) {
 // writeVMDockerSection describes the daemon that runs as root inside the microsandbox VM.
 func writeVMDockerSection(b *strings.Builder, f instructionsFacts) {
 	b.WriteString("- `docker` uses a daemon that runs as root in this VM, with access to any path in it. No setup needed.\n")
-	b.WriteString("- Published ports are on `localhost` in the VM. The user's machine can't reach them.\n")
+	fmt.Fprintf(b, "- Published ports are on `localhost` in the VM. %s\n", publishedReach(f.ports))
 	fmt.Fprintf(b, "- Images, containers and volumes live on a %s disk and are deleted when this session ends.\n", microsandbox.DockerDisk)
 	b.WriteString("- The daemon shares the VM's CPUs and memory (see Resource limits).\n")
 	writeDaemonAllowlistLine(b, f.proxyMode)
@@ -332,6 +407,14 @@ func writeVMDockerSection(b *strings.Builder, f instructionsFacts) {
 		b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
 	}
 	b.WriteString("\n")
+}
+
+// publishedReach says whether the user's machine reaches the daemon's published ports, which only a forwarded port can.
+func publishedReach(ports []sandbox.PortMapping) string {
+	if len(ports) == 0 {
+		return "The user's machine can't reach them."
+	}
+	return "The user's machine reaches them only through a forwarded port (see Forwarded ports)."
 }
 
 // writeDaemonAllowlistLine notes that the daemon's traffic is filtered too, when the allowlist applies.

@@ -13,6 +13,7 @@ Each run writes a block into the tool's own global instructions file that tells 
 - **What's installed**: the base toolchain, runtimes, apt packages and custom installs, read from the built image. The base toolchain is listed even before the first build.
 - **What's restricted**: writable paths, resource limits and privileges. In a container that's a read-only root and dropped capabilities; with the [microsandbox runtime](microsandbox.md), a writable root that's discarded when the VM exits.
 - **Network**, with `--proxy`: no direct internet access, the allowlist, and a note to tell you about blocked hosts so you can allow them.
+- **Forwarded ports**, with [`--port`](usage.md#forwarding-ports): which ports you open on your machine, and how to show a `--dind` container on one.
 - **Docker**, with `--dind`: how to reach the daemon and its ports, which paths it can bind mount, and its limits.
 - **Your own text** from `custom`, appended last.
 

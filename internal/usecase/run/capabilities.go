@@ -14,7 +14,7 @@ import (
 func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
 	dind := resolve.DindEnabled(flags.Dind, rc)
-	ports := len(flags.Ports) > 0 || len(rc.Run.Ports) > 0
+	ports := portsSet(flags, rc)
 	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
 		ProxyMonitor:        proxyMode == sandbox.EgressMonitor,

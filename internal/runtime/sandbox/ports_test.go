@@ -2,6 +2,9 @@ package sandbox
 
 import (
 	"fmt"
+	"net"
+	"os"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,4 +84,31 @@ func TestCheckPortsFree(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, fmt.Sprintf("host port %d is in use", port))
 	})
+}
+
+func Test_addrInUse(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "an address in use",
+			err:  &net.OpError{Op: "listen", Err: os.NewSyscallError("bind", errAddrInUse)},
+			want: true,
+		},
+		{
+			name: "another listen error",
+			err:  &net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EACCES)},
+			want: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got := addrInUse(tc.err)
+
+			// Assert
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

@@ -3,6 +3,7 @@ package toolruns
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -24,7 +25,7 @@ type Run struct {
 	Image     string
 	Status    string
 	Name      string
-	// Empty on msb, whose list doesn't show them yet
+	// Ports are the forwarded ports like `docker ps` shows them, without the loopback address they all bind
 	Ports string
 }
 
@@ -83,13 +84,14 @@ func (s *Service) dockerRuns() []Run {
 			Image:     c.Image,
 			Status:    c.Status,
 			Name:      c.Name,
-			Ports:     c.Ports,
+			Ports:     shownPorts(strings.Split(c.Ports, ", ")),
 		}
 	}
 	return runs
 }
 
-// msbRuns returns what runs in microsandbox VMs, or nothing when msb isn't installed or, with a warning, can't list them.
+// msbRuns returns what runs in microsandbox VMs, or nothing when msb isn't installed or, with a warning, can't list them; a
+// VM whose ports can't be read is listed without them, with a warning.
 func (s *Service) msbRuns() []Run {
 	if s.msb.Available() != nil {
 		return nil
@@ -109,7 +111,32 @@ func (s *Service) msbRuns() []Run {
 			Image:     sb.Image,
 			Status:    sb.Status,
 			Name:      sb.Name,
+			Ports:     s.msbPorts(sb.Name),
 		}
 	}
 	return runs
+}
+
+// msbPorts returns VM name's forwarded ports as shownPorts does, or "" with a warning when msb can't read them.
+func (s *Service) msbPorts(name string) string {
+	ports, err := s.msb.Ports(name)
+	if err != nil {
+		logging.Warn(err.Error())
+		return ""
+	}
+
+	entries := make([]string, len(ports))
+	for i, port := range ports {
+		entries[i] = port.String()
+	}
+	return shownPorts(entries)
+}
+
+// shownPorts joins `docker ps` style port entries like docker does, dropping the loopback address every forward binds.
+func shownPorts(entries []string) string {
+	shown := make([]string, len(entries))
+	for i, entry := range entries {
+		shown[i] = strings.TrimPrefix(entry, sandbox.PortLoopback+":")
+	}
+	return strings.Join(shown, ", ")
 }

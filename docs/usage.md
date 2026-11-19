@@ -164,11 +164,12 @@ agentic run --port 8080:80 --port 5173 claude
 ```
 
 - Ports bind to `127.0.0.1` only, so nothing else on your network reaches them. TCP only.
-- The forward is one-way: it lets you into the tool, not the tool out to your machine.
-- A run refuses a host port that's already in use.
+- The server in the tool must listen on `0.0.0.0`, not `localhost`. For Vite, that's `vite --host`.
+- The forward lets you into the tool, not the tool out to your machine, but pages you open from it run in your browser. See [Leftover risk](security-model.md#leftover-risk).
+- A run refuses a host port that's already in use, and Docker refuses ports on a remote [Docker context](#docker-context).
 - Docker can't forward ports with [`--proxy`](egress-proxy.md), as the run network has no route to the host. Pass `--no-proxy` or use the [microsandbox runtime](microsandbox.md), which forwards them either way.
-- Ports that [`--dind`](docker-in-docker.md#how-it-stays-isolated) containers publish stay inside the run.
-- `agentic ps` lists the forwarded ports of Docker runs.
+- On Docker, ports that [`--dind`](docker-in-docker.md#how-it-stays-isolated) containers publish stay inside the run. To open one, the agent relays a forwarded port to it; the [environment instructions](environment-instructions.md) tell it how.
+- `agentic ps` lists each run's forwarded ports.
 
 ## Disk space
 

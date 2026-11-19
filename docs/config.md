@@ -227,7 +227,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
-- `run.mounts`, `run.env`, `run.args`, `run.runtime`
+- `run.mounts`, `run.env`, `run.ports`, `run.args`, `run.runtime`
 - `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.backend`, `run.proxy.allowed_hosts`, `run.proxy.allowed_paths`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.

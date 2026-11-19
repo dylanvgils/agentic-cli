@@ -99,6 +99,19 @@ func Test_Service_buildInstructions(t *testing.T) {
 			},
 		},
 		{
+			golden: "container-ports-dind",
+			docker: built,
+			tool:   "claude",
+			flags: Flags{
+				Proxy: resolve.ProxyInput{NoProxy: true},
+				Dind:  resolve.DindInput{DindFlag: true},
+				Ports: []string{
+					"3000",
+					"8080:5173",
+				},
+			},
+		},
+		{
 			golden: "container-monitor",
 			docker: built,
 			tool:   "copilot",
@@ -130,6 +143,17 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Dind:    resolve.DindInput{DindFlag: true},
 			},
 			rc: config.RCRun{Proxy: proxyRC},
+		},
+		{
+			golden: "vm-ports-dind",
+			docker: built,
+			msb:    &fakeMicrosandbox{},
+			tool:   "claude",
+			flags: Flags{
+				Runtime: sandbox.RuntimeMicrosandbox,
+				Dind:    resolve.DindInput{DindFlag: true},
+				Ports:   []string{"3000"},
+			},
 		},
 		{
 			golden: "vm-agentic-proxy-dind",

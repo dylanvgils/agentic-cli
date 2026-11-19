@@ -24,6 +24,7 @@ type Docker interface {
 	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
+	RequireLocalContext(reason string) error
 }
 
 // Microsandbox is the subset of *microsandbox.Client this package uses.

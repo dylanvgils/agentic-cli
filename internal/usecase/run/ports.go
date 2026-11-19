@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
@@ -12,4 +13,9 @@ func checkPorts(req Request) error {
 		return err
 	}
 	return sandbox.CheckPortsFree(ports)
+}
+
+// portsSet reports whether flags or rc forward ports.
+func portsSet(flags Flags, rc *config.AgenticRC) bool {
+	return len(flags.Ports) > 0 || len(rc.Run.Ports) > 0
 }

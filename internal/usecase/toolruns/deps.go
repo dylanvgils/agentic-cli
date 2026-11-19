@@ -16,4 +16,5 @@ type Docker interface {
 type Microsandbox interface {
 	Available() error
 	ListRunning() ([]*microsandbox.Sandbox, error)
+	Ports(name string) ([]microsandbox.PublishedPort, error)
 }

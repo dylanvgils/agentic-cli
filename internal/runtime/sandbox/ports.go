@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -39,12 +40,17 @@ func ParsePorts(specs []string) ([]PortMapping, error) {
 	return ports, nil
 }
 
-// CheckPortsFree refuses a host port already in use on the host's loopback.
+// CheckPortsFree refuses a host port already in use on the host's loopback. Other listen errors, like a privileged port,
+// pass: the runtime may still bind it and reports its own failure. It misses a port held on another address where the OS
+// lets both bind (macOS, IPv6), and one taken between the check and the run.
 func CheckPortsFree(ports []PortMapping) error {
 	for _, port := range ports {
 		listener, err := net.Listen("tcp", net.JoinHostPort(PortLoopback, strconv.Itoa(int(port.Host))))
 		if err != nil {
-			return fmt.Errorf("host port %d is in use", port.Host)
+			if addrInUse(err) {
+				return fmt.Errorf("host port %d is in use", port.Host)
+			}
+			continue
 		}
 		_ = listener.Close()
 	}
@@ -81,4 +87,9 @@ func parsePortNumber(spec, value string) (uint16, error) {
 		return 0, fmt.Errorf("port %q: %q must be a number from 1 to 65535", spec, value)
 	}
 	return uint16(n), nil
+}
+
+// addrInUse reports whether err is a listen failing on an address already in use.
+func addrInUse(err error) bool {
+	return errors.Is(err, errAddrInUse)
 }

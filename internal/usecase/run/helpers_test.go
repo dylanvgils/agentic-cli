@@ -41,6 +41,7 @@ type fakeDocker struct {
 	stopSidecars         func(sidecars docker.Sidecars)
 	teardown             func(toolHome string, id sandbox.RunID) error
 	serverVersion        func() (engine, version string, err error)
+	requireLocalContext  func(reason string) error
 }
 
 func (f *fakeDocker) Capabilities() sandbox.Capabilities {
@@ -56,6 +57,13 @@ func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
 		return dockerEngineName, minDockerEngine, nil
 	}
 	return f.serverVersion()
+}
+
+func (f *fakeDocker) RequireLocalContext(reason string) error {
+	if f.requireLocalContext == nil {
+		return nil
+	}
+	return f.requireLocalContext(reason)
 }
 
 func (f *fakeDocker) BuildDockerdImage(image string, parent *docker.ImageInfo) error {

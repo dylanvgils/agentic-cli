@@ -50,6 +50,7 @@ type fakeDocker struct {
 	currentContext        func() (string, error)
 	version               func() (string, error)
 	serverVersion         func() (engine, version string, err error)
+	requireLocalContext   func(reason string) error
 }
 
 func (f *fakeDocker) Context() string { return f.context }
@@ -279,6 +280,13 @@ func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
 	return f.serverVersion()
 }
 
+func (f *fakeDocker) RequireLocalContext(reason string) error {
+	if f.requireLocalContext == nil {
+		return nil
+	}
+	return f.requireLocalContext(reason)
+}
+
 // overlay copies o's set fields onto f.
 func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.context != "" {
@@ -368,6 +376,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.serverVersion != nil {
 		f.serverVersion = o.serverVersion
 	}
+	if o.requireLocalContext != nil {
+		f.requireLocalContext = o.requireLocalContext
+	}
 }
 
 // stubDocker installs a fakeDocker as dockerClient if the test has none yet, and overlays d's set fields on it until the test ends.
@@ -421,6 +432,7 @@ type fakeMicrosandbox struct {
 	run             func(rs sandbox.RunSpec) error
 	cleanImage      func(image string) error
 	listRunning     func() ([]*microsandbox.Sandbox, error)
+	ports           func(name string) ([]microsandbox.PublishedPort, error)
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
 	version         func() (string, error)
@@ -486,6 +498,13 @@ func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
 		return nil, nil
 	}
 	return f.listRunning()
+}
+
+func (f *fakeMicrosandbox) Ports(name string) ([]microsandbox.PublishedPort, error) {
+	if f.ports == nil {
+		return nil, nil
+	}
+	return f.ports(name)
 }
 
 // Version reports a recent msb unless stubbed.
