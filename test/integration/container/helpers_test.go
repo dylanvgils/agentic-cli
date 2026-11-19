@@ -3,17 +3,18 @@
 package container
 
 import (
+	"io"
 	"net"
-	"os/exec"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 )
 
-// freePort returns a host port that's free on the loopback now; ports need a local daemon, so that's the daemon host.
+// freePort returns a port that's free on this machine's loopback now.
 func freePort(t *testing.T) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -32,22 +33,35 @@ func skipWithoutCgroups(t *testing.T) {
 	}
 }
 
+// skipWithRemoteDaemon skips when the docker context isn't on this machine (e.g. a DinD sidecar), where --port is refused.
+func skipWithRemoteDaemon(t *testing.T) {
+	t.Helper()
+	host := platform.Docker(t, "context", "inspect", "--format", "{{.Endpoints.docker.Host}}")
+	if !strings.HasPrefix(host, "unix://") && !strings.HasPrefix(host, "npipe://") {
+		t.Skipf("docker daemon at %s isn't on this machine, so ports can't be forwarded", host)
+	}
+}
+
 // writableScript prints <label>=rw when path can be created (and removes it again), <label>=ro otherwise.
 func writableScript(label, path string) string {
 	return "touch " + path + " 2>/dev/null && rm " + path + " && echo " + label + "=rw || echo " + label + "=ro"
 }
 
-// fetchOnDaemonHost returns the body at port on the daemon host's loopback, or "" when nothing answers; the daemon may be a
-// sidecar, so it fetches from a container on the host network.
-func fetchOnDaemonHost(port string) string {
-	out, err := exec.Command("docker", "run", "--rm", "--network", "host",
-		"--env", "http_proxy=",
-		"--env", "HTTP_PROXY=",
-		tools.BusyboxImageFor(""),
-		"wget", "-qO-", "-T", "2", "http://127.0.0.1:"+port,
-	).Output()
+// fetchLocal returns the body at port on this machine's loopback, or "" when nothing answers; it bypasses any proxy.
+func fetchLocal(port string) string {
+	client := &http.Client{
+		Transport: &http.Transport{Proxy: nil},
+		Timeout:   2 * time.Second,
+	}
+	resp, err := client.Get("http://127.0.0.1:" + port)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(body))
 }
