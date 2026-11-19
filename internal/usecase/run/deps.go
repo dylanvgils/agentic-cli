@@ -32,6 +32,7 @@ type Microsandbox interface {
 	Capabilities() sandbox.Capabilities
 	Available() error
 	Version() (string, error)
+	HasImage(ref string) (bool, error)
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error

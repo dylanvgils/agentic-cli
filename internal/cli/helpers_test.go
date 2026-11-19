@@ -426,6 +426,7 @@ func captureToolRun(t *testing.T) func() sandbox.RunSpec {
 // fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
 type fakeMicrosandbox struct {
 	available       func() error
+	hasImage        func(ref string) (bool, error)
 	loadImage       func(r io.Reader, tag string) error
 	imageRefs       func() ([]string, error)
 	removeImage     func(ref string) error
@@ -449,6 +450,14 @@ func (f *fakeMicrosandbox) Available() error {
 		return nil
 	}
 	return f.available()
+}
+
+// HasImage reports ref missing unless stubbed.
+func (f *fakeMicrosandbox) HasImage(ref string) (bool, error) {
+	if f.hasImage == nil {
+		return false, nil
+	}
+	return f.hasImage(ref)
 }
 
 func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -174,13 +173,14 @@ func (r microsandboxRunner) ensureDockerdImage(image, dockerd string) error {
 	return r.docker.BuildDockerdImage(dockerd, parent)
 }
 
-// ensureMicrosandboxImage loads image into msb as ref unless msb already holds ref, then removes image's older refs.
+// ensureMicrosandboxImage loads image into msb as ref unless msb already holds ref, then removes image's older refs; a
+// failed listing only skips that cleanup.
 func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
-	refs, err := r.microsandbox.ImageRefs()
+	have, err := r.microsandbox.HasImage(ref)
 	if err != nil {
 		return err
 	}
-	if slices.ContainsFunc(refs, func(have string) bool { return microsandbox.SameRef(have, ref) }) {
+	if have {
 		return nil
 	}
 
@@ -188,6 +188,11 @@ func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
 		return err
 	}
 
+	refs, err := r.microsandbox.ImageRefs()
+	if err != nil {
+		logging.Warnf("kept old microsandbox images of %s: %v", image, err)
+		return nil
+	}
 	r.removeStaleRefs(refs, image, ref)
 	return nil
 }

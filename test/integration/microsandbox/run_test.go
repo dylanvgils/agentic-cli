@@ -35,6 +35,18 @@ func TestMicrosandboxRun(t *testing.T) {
 		assert.NotContains(t, out, "kernel="+strings.TrimSpace(string(host)))
 	})
 
+	t.Run("reuses the loaded image", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		out := platform.NewToolRun(t).
+			InMicrosandbox().
+			Run("true")
+
+		// Assert
+		assert.NotContains(t, out, "into microsandbox")
+	})
+
 	t.Run("workspace is writable", func(t *testing.T) {
 		t.Parallel()
 

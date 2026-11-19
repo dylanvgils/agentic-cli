@@ -241,6 +241,7 @@ type fakeMicrosandbox struct {
 	capabilities func() sandbox.Capabilities
 	available    func() error
 	version      func() (string, error)
+	hasImage     func(ref string) (bool, error)
 	loadImage    func(r io.Reader, tag string) error
 	imageRefs    func() ([]string, error)
 	removeImage  func(ref string) error
@@ -268,6 +269,14 @@ func (f *fakeMicrosandbox) Version() (string, error) {
 		return minMicrosandbox, nil
 	}
 	return f.version()
+}
+
+// HasImage reports ref missing unless stubbed.
+func (f *fakeMicrosandbox) HasImage(ref string) (bool, error) {
+	if f.hasImage == nil {
+		return false, nil
+	}
+	return f.hasImage(ref)
 }
 
 func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {

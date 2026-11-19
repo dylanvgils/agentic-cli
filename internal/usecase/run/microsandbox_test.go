@@ -260,8 +260,12 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 
 	t.Run("dry run makes no msb image calls", func(t *testing.T) {
 		// Arrange
-		listed, loaded := false, false
+		checked, listed, loaded := false, false, false
 		m := &fakeMicrosandbox{
+			hasImage: func(string) (bool, error) {
+				checked = true
+				return false, nil
+			},
 			imageRefs: func() ([]string, error) {
 				listed = true
 				return nil, nil
@@ -279,6 +283,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.False(t, checked)
 		assert.False(t, listed)
 		assert.False(t, loaded)
 		assert.Equal(t, "agentic-claude:abc123", *ran)
@@ -484,8 +489,12 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 			saved = true
 			return nil
 		}}
+		var checkedRef string
 		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{
-			imageRefs: func() ([]string, error) { return []string{"docker.io/library/agentic-claude:abc123"}, nil },
+			hasImage: func(ref string) (bool, error) {
+				checkedRef = ref
+				return true, nil
+			},
 			loadImage: func(io.Reader, string) error {
 				loaded = true
 				return nil
@@ -497,6 +506,7 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude:abc123", checkedRef)
 		assert.False(t, saved)
 		assert.False(t, loaded)
 	})
@@ -521,11 +531,11 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 		assert.Equal(t, "agentic-claude:abc123", gotTag)
 	})
 
-	t.Run("listing error returns before loading", func(t *testing.T) {
+	t.Run("check error returns before loading", func(t *testing.T) {
 		// Arrange
 		loaded := false
 		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{
-			imageRefs: func() ([]string, error) { return nil, errors.New("msb down") },
+			hasImage: func(string) (bool, error) { return false, errors.New("msb down") },
 			loadImage: func(io.Reader, string) error {
 				loaded = true
 				return nil
@@ -536,8 +546,27 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 		err := msb.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
-		assert.ErrorContains(t, err, "msb down")
+		require.EqualError(t, err, "msb down")
 		assert.False(t, loaded)
+	})
+
+	t.Run("listing error after the load only warns", func(t *testing.T) {
+		// Arrange
+		stderr := iostreamstest.StubErr(t)
+		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{
+			imageRefs: func() ([]string, error) { return nil, errors.New("msb down") },
+			loadImage: func(r io.Reader, _ string) error {
+				_, err := io.ReadAll(r)
+				return err
+			},
+		}}
+
+		// Act
+		err := msb.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, stderr.String(), "kept old microsandbox images of agentic-claude: msb down")
 	})
 
 	t.Run("failed load keeps the old refs", func(t *testing.T) {
