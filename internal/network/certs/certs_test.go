@@ -67,13 +67,22 @@ func TestNewScopedCA(t *testing.T) {
 		})
 	}
 
-	t.Run("constraints are critical", func(t *testing.T) {
-		// Act
+	t.Run("constraints are critical and survive a reload", func(t *testing.T) {
+		// Arrange
 		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
+		require.NoError(t, err)
+		keyPEM, err := ca.KeyPEM()
+		require.NoError(t, err)
+
+		// Act
+		loaded, err := LoadCA(ca.CertPEM(), keyPEM)
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, ca.cert.PermittedDNSDomainsCritical)
+		assert.True(t, loaded.cert.PermittedDNSDomainsCritical)
+		assert.Equal(t, []string{"api.example.test"}, loaded.cert.PermittedDNSDomains)
+		assert.True(t, loaded.cert.IsCA)
+		assert.True(t, loaded.cert.MaxPathLenZero)
 	})
 
 	t.Run("no names is an error", func(t *testing.T) {
@@ -165,6 +174,19 @@ func TestKeyPairPEM(t *testing.T) {
 	assert.Equal(t, leaf.cert.Raw, pair.Certificate[0])
 }
 
+func TestKeyPairTLSCertificate(t *testing.T) {
+	// Arrange
+	leaf := issueTestLeaf(t, newTestCA(t), x509.ExtKeyUsageServerAuth, "example.test")
+
+	// Act
+	cert := leaf.TLSCertificate()
+
+	// Assert
+	assert.Equal(t, [][]byte{leaf.cert.Raw}, cert.Certificate)
+	assert.Equal(t, leaf.key, cert.PrivateKey)
+	assert.Same(t, leaf.cert, cert.Leaf)
+}
+
 func TestLoadCA(t *testing.T) {
 	ca := newTestCA(t)
 	caKeyPEM, err := ca.KeyPEM()
@@ -204,6 +226,14 @@ func TestLoadCA(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "does not match")
+	})
+
+	t.Run("rejects non-pem input", func(t *testing.T) {
+		// Act
+		_, err := LoadCA([]byte("garbage"), caKeyPEM)
+
+		// Assert
+		assert.ErrorContains(t, err, "no CERTIFICATE PEM block")
 	})
 }
 

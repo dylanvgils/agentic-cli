@@ -35,15 +35,28 @@ func TestDefault(t *testing.T) {
 	})
 }
 
-// Test_packageMessages covers the package funcs forwarding to Default; TestLogger_messages covers each message.
+// Test_packageMessages covers each package func writing through Default.
 func Test_packageMessages(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		write func()
 		want  string
 	}{
+		{name: "Step", write: func() { Step("building image") }, want: "=> building image\n"},
+		{name: "Stepf", write: func() { Stepf("building %s image", "claude") }, want: "=> building claude image\n"},
+		{name: "Detail", write: func() { Detail("base: java") }, want: "   base: java\n"},
+		{name: "Detailf", write: func() { Detailf("version: %s", "1.0.0") }, want: "   version: 1.0.0\n"},
 		{name: "Info", write: func() { Info("starting proxy...") }, want: "agentic: starting proxy...\n"},
 		{name: "Infof", write: func() { Infof("starting %s...", "proxy") }, want: "agentic: starting proxy...\n"},
+		{name: "Error", write: func() { Error("no docker") }, want: "agentic: error: no docker\n"},
+		{name: "Errorf", write: func() { Errorf("no %s", "docker") }, want: "agentic: error: no docker\n"},
+		{name: "Warn", write: func() { Warn("could not sweep") }, want: "agentic: warning: could not sweep\n"},
+		{name: "Warnf", write: func() { Warnf("could not %s", "sweep") }, want: "agentic: warning: could not sweep\n"},
+		{name: "Blank", write: Blank, want: "\n"},
+		{name: "Separate after output", write: func() { Info("starting proxy..."); Separate() }, want: "agentic: starting proxy...\n\n"},
+		{name: "Separate without output", write: Separate, want: ""},
+		{name: "Prompt", write: func() { Prompt("update now? [y/N] ") }, want: "agentic: update now? [y/N] "},
+		{name: "Promptf", write: func() { Promptf("update %s? [y/N] ", "now") }, want: "agentic: update now? [y/N] "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange

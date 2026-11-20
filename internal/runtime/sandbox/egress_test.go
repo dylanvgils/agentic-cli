@@ -86,3 +86,11 @@ func TestCheckEgressIntegrations(t *testing.T) {
 		assert.EqualError(t, err, `unknown integration "example": must be one of gradle, maven`)
 	})
 }
+
+func TestEgressIntegrations(t *testing.T) {
+	// Act
+	names := EgressIntegrations()
+
+	// Assert
+	assert.Equal(t, []string{"gradle", "maven"}, names)
+}

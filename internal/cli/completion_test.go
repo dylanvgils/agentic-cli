@@ -179,3 +179,21 @@ func Test_runtimesFunc(t *testing.T) {
 	assert.Equal(t, []string{"docker", "microsandbox"}, names)
 	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 }
+
+func Test_proxyIntegrationsFunc(t *testing.T) {
+	// Act
+	names, directive := proxyIntegrationsFunc(nil, nil, "")
+
+	// Assert
+	assert.Equal(t, []string{"gradle", "maven"}, names)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
+func Test_proxyBackendsFunc(t *testing.T) {
+	// Act
+	names, directive := proxyBackendsFunc(nil, nil, "")
+
+	// Assert
+	assert.Equal(t, []string{"native", "agentic"}, names)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}

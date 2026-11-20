@@ -240,3 +240,37 @@ func Test_layerFlagDescCoversAllLayers(t *testing.T) {
 		assert.NotEmpty(t, LayerFlagDesc[name], "LayerFlagDesc missing entry for %q", name)
 	}
 }
+
+func TestDebianImageFor(t *testing.T) {
+	// Act
+	result := DebianImageFor("")
+
+	// Assert
+	assert.Equal(t, "debian:"+DefaultVersions.Debian, result)
+}
+
+func TestBusyboxImageFor(t *testing.T) {
+	// Act
+	result := BusyboxImageFor("")
+
+	// Assert
+	assert.Equal(t, "busybox:"+DefaultVersions.Busybox, result)
+}
+
+func TestBuildLayers(t *testing.T) {
+	t.Run("base layer is always first", func(t *testing.T) {
+		// Act
+		result := BuildLayers(nil)
+
+		// Assert
+		assert.Equal(t, []string{BaseLayer}, result)
+	})
+
+	t.Run("extras follow the base layer", func(t *testing.T) {
+		// Act
+		result := BuildLayers([]string{"dotnet", "java"})
+
+		// Assert
+		assert.Equal(t, []string{BaseLayer, "dotnet", "java"}, result)
+	})
+}

@@ -26,6 +26,14 @@ func Test_writeTo(t *testing.T) {
 		assertFileContent(t, dest, "hello")
 	})
 
+	t.Run("returns error when dest path is invalid", func(t *testing.T) {
+		// Act
+		err := writeTo(strings.NewReader("x"), "/no/such/dir/out")
+
+		// Assert
+		assert.Error(t, err)
+	})
+
 	t.Run("returns error when reader fails", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()

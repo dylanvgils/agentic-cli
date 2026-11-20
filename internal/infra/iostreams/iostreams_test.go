@@ -84,16 +84,28 @@ func TestSetDefault(t *testing.T) {
 	assert.Same(t, s, got)
 }
 
-// Test_packagePrint covers the package print funcs forwarding to Default; TestStreams_print covers each method.
+// Test_packagePrint covers each package print func writing through Default.
 func Test_packagePrint(t *testing.T) {
-	// Arrange
-	out := stubDefault(t)
+	for _, tc := range []struct {
+		name  string
+		write func()
+		want  string
+	}{
+		{name: "Print", write: func() { Print("FROM scratch") }, want: "FROM scratch"},
+		{name: "Printf", write: func() { Printf("version: %s", "1.0.0") }, want: "version: 1.0.0"},
+		{name: "Println", write: func() { Println("alias agt=agentic") }, want: "alias agt=agentic\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			out := stubDefault(t)
 
-	// Act
-	Println("alias agt=agentic")
+			// Act
+			tc.write()
 
-	// Assert
-	assert.Equal(t, "alias agt=agentic\n", out.String())
+			// Assert
+			assert.Equal(t, tc.want, out.String())
+		})
+	}
 }
 
 func TestIsTerminal(t *testing.T) {
