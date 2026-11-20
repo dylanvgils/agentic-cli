@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -188,4 +189,16 @@ func serveUpstream(t *testing.T, status int, body string) string {
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL
+}
+
+func Test_marketplaceMount(t *testing.T) {
+	// Arrange
+	url := "git@example.com:acme/marketplace.git"
+	dirName := marketplace.CloneDirName(url)
+
+	// Act
+	spec := marketplaceMount("acme", url)
+
+	// Assert
+	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }

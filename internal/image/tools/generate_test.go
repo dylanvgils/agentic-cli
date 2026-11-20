@@ -9,6 +9,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildOptions_Overrides(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts BuildOptions
+		want []string
+	}{
+		{name: "nothing without overrides"},
+		{
+			name: "base and apt lists",
+			opts: BuildOptions{BaseOverride: []string{"java", "dotnet"}, AptPackages: []string{"curl", "jq"}},
+			want: []string{"base: java, dotnet", "apt: curl, jq"},
+		},
+		{
+			name: "empty exact base and apt",
+			opts: BuildOptions{BaseExact: true, AptExact: true},
+			want: []string{"base: (none, exact)", "apt: (none, exact)"},
+		},
+		{
+			name: "a list wins over exact",
+			opts: BuildOptions{BaseOverride: []string{"java"}, BaseExact: true},
+			want: []string{"base: java"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := tc.opts.Overrides()
+
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
+}
+
 func TestGenerateDockerfile(t *testing.T) {
 	// Act
 	content, err := GenerateDockerfile("claude", BuildOptions{})

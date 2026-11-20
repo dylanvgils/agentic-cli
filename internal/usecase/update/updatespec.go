@@ -110,15 +110,8 @@ func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error
 // apply rebuilds image for tool, reporting base/apt/version before the build starts.
 func (s *Service) apply(name, image string, opts tools.BuildOptions) error {
 	logging.Step(image)
-	if len(opts.BaseOverride) > 0 {
-		logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
-	} else if opts.BaseExact {
-		logging.Detail("base: (none, exact)")
-	}
-	if len(opts.AptPackages) > 0 {
-		logging.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
-	} else if opts.AptExact {
-		logging.Detail("apt: (none, exact)")
+	for _, line := range opts.Overrides() {
+		logging.Detail(line)
 	}
 
 	info, err := s.docker.InspectImage(image)

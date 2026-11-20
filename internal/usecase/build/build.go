@@ -3,7 +3,6 @@ package build
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -69,15 +68,8 @@ func (s *Service) Apply(plan Plan) error {
 
 	for _, t := range plan.Targets {
 		logging.Step(t.Image)
-		if len(opts.BaseOverride) > 0 {
-			logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
-		} else if opts.BaseExact {
-			logging.Detail("base: (none, exact)")
-		}
-		if len(opts.AptPackages) > 0 {
-			logging.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
-		} else if opts.AptExact {
-			logging.Detail("apt: (none, exact)")
+		for _, line := range opts.Overrides() {
+			logging.Detail(line)
 		}
 
 		if err := s.docker.BuildTool(t.Name, t.Image, opts); err != nil {

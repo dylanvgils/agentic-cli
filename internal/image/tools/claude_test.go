@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,18 +28,6 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 		"$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude",
 		"$TOOL_HOME/tools/claude/.claude.json:$CONTAINER_HOME/.claude.json",
 	}, mounts)
-}
-
-func TestClaudeMarketplaceMount_returnsExpected(t *testing.T) {
-	// Arrange
-	url := "git@example.com:acme/marketplace.git"
-	dirName := marketplace.CloneDirName(url)
-
-	// Act
-	spec := claudeMarketplaceMount("acme", url)
-
-	// Assert
-	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
 
 func TestSetupClaude(t *testing.T) {

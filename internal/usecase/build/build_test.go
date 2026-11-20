@@ -119,11 +119,6 @@ func TestService_Apply(t *testing.T) {
 			opts: tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, AptPackages: []string{"curl", "jq"}},
 			want: "=> agentic-claude\n   base: java, dotnet\n   apt: curl, jq\n",
 		},
-		{
-			name: "empty exact base and apt",
-			opts: tools.BuildOptions{BaseExact: true, AptExact: true},
-			want: "=> agentic-claude\n   base: (none, exact)\n   apt: (none, exact)\n",
-		},
 	} {
 		t.Run("reports "+tc.name, func(t *testing.T) {
 			// Act
