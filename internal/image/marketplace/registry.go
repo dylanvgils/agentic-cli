@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // registryFileName holds the usage registry inside a marketplace baseDir.
@@ -47,7 +49,7 @@ func LoadRegistry(baseDir string) (*Registry, error) {
 
 // SaveRegistry writes reg to baseDir, creating baseDir if needed.
 func SaveRegistry(baseDir string, reg *Registry) error {
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := hostfs.Data.MkdirAll(baseDir); err != nil {
 		return err
 	}
 
@@ -56,7 +58,7 @@ func SaveRegistry(baseDir string, reg *Registry) error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(baseDir, registryFileName), data, 0o644)
+	return hostfs.Data.WriteFile(filepath.Join(baseDir, registryFileName), data)
 }
 
 // RecordUsage loads baseDir's registry, records projectDir against each result, and saves it back.

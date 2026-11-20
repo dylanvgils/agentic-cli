@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // relocatedToolDirs is a historical snapshot, not tools.Names() - it must not track future tool changes.
@@ -21,7 +22,7 @@ func MoveToolAndProxyDirs(toolHome string) error {
 
 func moveToolDirs(toolHome string) error {
 	toolsDir := filepath.Join(toolHome, tools.ToolsDirName)
-	if err := os.MkdirAll(toolsDir, 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(toolsDir); err != nil {
 		return fmt.Errorf("create %s: %w", toolsDir, err)
 	}
 
@@ -35,7 +36,7 @@ func moveToolDirs(toolHome string) error {
 
 func moveProxyLogs(toolHome string) error {
 	logsDir := filepath.Join(toolHome, "logs")
-	if err := os.MkdirAll(logsDir, 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(logsDir); err != nil {
 		return fmt.Errorf("create %s: %w", logsDir, err)
 	}
 

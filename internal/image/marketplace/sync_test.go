@@ -19,7 +19,7 @@ func TestSyncer_Sync(t *testing.T) {
 	t.Run("clones when missing", func(t *testing.T) {
 		// Arrange
 		var clonedURL, clonedDir string
-		base := t.TempDir()
+		base := filepath.Join(t.TempDir(), "marketplaces")
 		entries := []Entry{{Name: "acme", URL: "git@example.com:acme/marketplace.git"}}
 		g := &fakeGit{
 			clone: func(url, dir string) error {
@@ -38,6 +38,9 @@ func TestSyncer_Sync(t *testing.T) {
 		assert.False(t, results[0].Stale)
 		assert.Equal(t, "git@example.com:acme/marketplace.git", clonedURL)
 		assert.Equal(t, filepath.Join(base, "acme"), clonedDir)
+		info, err := os.Stat(base)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o750), info.Mode().Perm())
 	})
 
 	t.Run("fetches and resets when present", func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
@@ -73,7 +74,7 @@ func applyPending(toolHome string, pending []Migration, current state) ([]Migrat
 
 // baseline creates a fresh toolHome already at the latest schema version - a new directory can't be in a legacy shape.
 func baseline(toolHome string, pending []Migration) error {
-	if err := os.MkdirAll(toolHome, 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(toolHome); err != nil {
 		return err
 	}
 	return saveState(toolHome, state{Version: latestVersion(pending)})

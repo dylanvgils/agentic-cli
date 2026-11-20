@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/dind"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -248,7 +249,7 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 		return dindHandle{}, err
 	}
 
-	if err := os.MkdirAll(h.runDir, 0o700); err != nil {
+	if err := hostfs.Private.MkdirAll(h.runDir); err != nil {
 		return dindHandle{}, fmt.Errorf("create dind run dir: %w", err)
 	}
 	if err := dind.WriteCerts(h.runDir, []string{dindHostAlias, "localhost", "127.0.0.1", "::1"}); err != nil {
@@ -315,7 +316,7 @@ func workspaceVolumes(rs sandbox.RunSpec) []string {
 
 // writeDindClientConfig creates the tool's DOCKER_CONFIG dir; in proxy mode it sets "proxies" so inner containers and builds use the proxy.
 func writeDindClientConfig(dir string, proxyEnabled bool) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := hostfs.Private.MkdirAll(dir); err != nil {
 		return fmt.Errorf("create docker config dir: %w", err)
 	}
 	if !proxyEnabled {
@@ -336,7 +337,7 @@ func writeDindClientConfig(dir string, proxyEnabled bool) error {
 	if err != nil {
 		return fmt.Errorf("encode docker config: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), content, 0o600); err != nil {
+	if err := hostfs.Private.WriteFile(filepath.Join(dir, "config.json"), content); err != nil {
 		return fmt.Errorf("write docker config: %w", err)
 	}
 

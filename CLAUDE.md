@@ -31,7 +31,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - `usecase/run` gets other usecases injected and imports only `usecase/resolve`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
-  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config`, `infra/iostreams` and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
+  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
   - All settings, listen address included, come from `AGENTIC_PROXY_*` env vars.
   - `cmd/proxy/main_test.go` keeps the CLI's packages out transitively.
 - `depguard` in `.golangci.yml` enforces all of the above except `network/certs`: `layer-*` rules for the layers, one rule per package rule, strict allowlists for the proxy. A new layer or package rule needs a rule there too.
@@ -99,6 +99,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Before adding a helper, grep for one that already computes it and reuse it; no second variant (sorted, filtered) beside it.
 - Loop over a collection once: two loops over the same input that each skip what the other handles become one loop with a branch.
 - When a format changes (e.g. a comma list becomes JSON), drop the checks and comments that only guarded the old one.
+- Host files and dirs come from an `infra/hostfs` class (`Data`, `Private`, `Shared`), never `os.Mkdir*`/`os.WriteFile`; `OpenFile` and `os.Root` modes use its `Dir()`/`File()`. `forbidigo` and `gosec` enforce it.
 - Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere.
 - Run `make lint` and `shellcheck` (fix, or disable inline with a reason) before committing.
 - Use `-`, never em or en dashes, in all files.

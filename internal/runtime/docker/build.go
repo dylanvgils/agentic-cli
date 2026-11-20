@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -161,7 +162,7 @@ func writeTempDockerfile(content string) (tmpDir string, err error) {
 	}
 
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err = os.WriteFile(dockerfilePath, []byte(content), 0o600); err != nil {
+	if err = hostfs.Private.WriteFile(dockerfilePath, []byte(content)); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		return "", fmt.Errorf("write Dockerfile: %w", err)
 	}

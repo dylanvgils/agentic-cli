@@ -14,6 +14,7 @@ agentic-cli/
 │   │   ├── buildinfo/           # Build-time version/commit metadata and dev-build classification
 │   │   ├── cleanup/             # Capture helper for propagating deferred cleanup errors without masking an earlier error
 │   │   ├── git/                 # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
+│   │   ├── hostfs/              # Creates host files and dirs with a permission class's mode (Data, Private, Shared)
 │   │   ├── iostreams/           # Process streams (In, Out, Err) and data writes (Print, Println); the mains set the default
 │   │   ├── logging/             # Messages to the user on Err (Info, Warn, Step, ...)
 │   │   ├── platform/            # Platform-specific paths and utilities

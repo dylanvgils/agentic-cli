@@ -8,11 +8,13 @@ linters:
   enable:
     - depguard
     - forbidigo
+    - gosec
   settings:
     depguard:
       rules:
         # ---- Proxy service ----
-        # The proxy is a standalone service: only the stdlib, x/sys/unix (socket options) and these packages; logs go through log/slog
+        # The proxy is a standalone service: only the stdlib, x/sys/unix (socket options), the shared infra layer and these
+        # packages; logs go through log/slog
         proxy:
           list-mode: strict
           files:
@@ -21,9 +23,14 @@ linters:
           allow:
             - $gostd
             - github.com/dylanvgils/agentic-cli/internal/config
-            - github.com/dylanvgils/agentic-cli/internal/infra/iostreams
+            - github.com/dylanvgils/agentic-cli/internal/infra
             - github.com/dylanvgils/agentic-cli/internal/network/certs
             - golang.org/x/sys/unix
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/infra/logging
+              desc: the proxy logs through log/slog
+            - pkg: github.com/dylanvgils/agentic-cli/internal/infra/selfupdate
+              desc: CLI-only, and pulls in logging
         # Its binary only wires the streams and starts it
         proxy-main:
           list-mode: strict
@@ -199,6 +206,19 @@ linters:
         - pattern: ^fmt\.Print(f|ln)?$
         - pattern: ^print(ln)?$
         - pattern: ^log\.(Print|Fatal|Panic)(f|ln)?$
+        # host files and dirs get their mode from a permission class
+        - pattern: ^os\.(Mkdir|MkdirAll|WriteFile)$
+          msg: use internal/infra/hostfs
+    gosec:
+      # only the permission checks; hostfs sets the modes, these catch literal ones (OpenFile, os.Root)
+      includes:
+        - G301
+        - G302
+        - G306
+      config:
+        G301: "0750"
+        G302: "0640"
+        G306: "0640"
     staticcheck:
       checks:
         - all
@@ -216,6 +236,12 @@ linters:
       - path: (_test\.go$|^test/integration/)
         linters:
           - forbidigo
+          - gosec
+      # hostfs is where the modes live
+      - path: ^internal/infra/hostfs/
+        linters:
+          - forbidigo
+          - gosec
 
 issues:
   max-issues-per-linter: 0

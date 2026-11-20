@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // runTempDirPrefix starts every run temp dir's name.
@@ -19,7 +21,7 @@ func CreateRunTempDir(id RunID) error {
 	if _, err := ParseRunID(id.String()); err != nil {
 		return err
 	}
-	if err := os.Mkdir(RunTempDir(id), 0o700); err != nil {
+	if err := hostfs.Private.Mkdir(RunTempDir(id)); err != nil {
 		return fmt.Errorf("create run temp dir: %w", err)
 	}
 	return nil
@@ -27,7 +29,7 @@ func CreateRunTempDir(id RunID) error {
 
 // CreateRunFile creates name in run id's temp dir, readable only by this user and failing if it exists.
 func CreateRunFile(id RunID, name string) (*os.File, error) {
-	return os.OpenFile(filepath.Join(RunTempDir(id), name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	return os.OpenFile(filepath.Join(RunTempDir(id), name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, hostfs.Private.File())
 }
 
 // RemoveRunTempDir removes run id's temp dir with its files; a missing one is fine.

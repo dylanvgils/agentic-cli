@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // CustomInstallsDirName is the subdirectory under $AGENTIC_HOME holding custom installs by content hash.
@@ -45,10 +47,10 @@ func SaveCustomInstalls(toolHome string, installs []RCCustomInstall) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(filepath.Dir(path)); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o640)
+	return hostfs.Data.WriteFile(path, data)
 }
 
 // LoadCustomInstalls returns the installs stored under hash; ok is false when the file is missing or its content doesn't match hash.

@@ -4,8 +4,9 @@ import (
 	_ "embed" // for go:embed
 	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // SeccompFileName is the per-run profile's name inside the run dir.
@@ -44,7 +45,7 @@ func WriteSeccompProfile(path string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, content, 0o600); err != nil {
+	if err := hostfs.Private.WriteFile(path, content); err != nil {
 		return fmt.Errorf("write seccomp profile: %w", err)
 	}
 	return nil

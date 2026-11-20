@@ -3,9 +3,9 @@ package dind
 import (
 	"crypto/x509"
 	"fmt"
-	"os"
 	"path/filepath"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
 
@@ -41,7 +41,7 @@ func WriteCerts(dir string, serverNames []string) error {
 // writeCertDir writes ca.pem, cert.pem and key.pem. Files are world-readable for the sidecar's
 // user; the 0700 run dir keeps other host users out.
 func writeCertDir(dir string, ca certs.CA, leaf certs.KeyPair) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := hostfs.Shared.MkdirAll(dir); err != nil {
 		return fmt.Errorf("create cert dir: %w", err)
 	}
 
@@ -56,7 +56,7 @@ func writeCertDir(dir string, ca certs.CA, leaf certs.KeyPair) error {
 		"key.pem":  keyPEM,
 	}
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
+		if err := hostfs.Shared.WriteFile(filepath.Join(dir, name), content); err != nil {
 			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}

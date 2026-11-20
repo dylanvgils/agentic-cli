@@ -7,6 +7,7 @@ import (
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -110,13 +111,13 @@ func claudeLatestVersion() (string, error) {
 }
 
 func setupClaude(toolHome string) error {
-	if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "claude", "data"), 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(filepath.Join(toolHome, ToolsDirName, "claude", "data")); err != nil {
 		return err
 	}
 
 	jsonPath := filepath.Join(toolHome, ToolsDirName, "claude", ".claude.json")
 	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
-		return os.WriteFile(jsonPath, []byte("{}"), 0o640)
+		return hostfs.Data.WriteFile(jsonPath, []byte("{}"))
 	}
 
 	return nil
