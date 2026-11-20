@@ -50,6 +50,43 @@ func TestService_Apply(t *testing.T) {
 	})
 }
 
+func TestService_DryRun(t *testing.T) {
+	t.Run("prints the spec through the run's runner", func(t *testing.T) {
+		// Arrange
+		var printed sandbox.RunSpec
+		d := &fakeDocker{dryRun: func(rs sandbox.RunSpec, _ string) error {
+			printed = rs
+			return nil
+		}}
+		svc := newTestService(d, nil)
+		plan := newPlan(t, svc, sandbox.RuntimeDocker, sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Act
+		err := svc.DryRun(plan)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude", printed.Image)
+	})
+
+	t.Run("a spec relying on a feature the runtime lacks is refused", func(t *testing.T) {
+		// Arrange
+		m := &fakeMicrosandbox{dryRun: func(sandbox.RunSpec) error {
+			t.Fatal("printed the spec")
+			return nil
+		}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
+		svc := newTestService(&fakeDocker{}, m)
+		plan := newPlan(t, svc, sandbox.RuntimeMicrosandbox, rs)
+
+		// Act
+		err := svc.DryRun(plan)
+
+		// Assert
+		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
+	})
+}
+
 func Test_Service_runner(t *testing.T) {
 	svc := newTestService(&fakeDocker{}, &fakeMicrosandbox{})
 

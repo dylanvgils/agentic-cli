@@ -64,10 +64,8 @@ func (r dockerRunner) Check(req Request) error {
 // Run readies the host, starts the sidecars and runs the tool, rechecking the mounts right before each starts.
 func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
-	if !rs.DryRun {
-		if err := r.prepareDockerHost(rs, registry, proxyLog); err != nil {
-			return err
-		}
+	if err := r.prepareDockerHost(rs, registry, proxyLog); err != nil {
+		return err
 	}
 
 	// The dind sidecar mounts the workspace too, and building sidecar images can take a while
@@ -82,7 +80,7 @@ func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 	defer func() {
 		// Stop first, so requests the proxy logs while stopping make the summary
 		r.docker.StopSidecars(sidecars)
-		if !rs.DryRun && rs.Egress.Mode.Enabled() {
+		if rs.Egress.Mode.Enabled() {
 			printProxySummary(proxyLog, rs.Egress.Mode)
 		}
 	}()
@@ -91,6 +89,11 @@ func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 		return err
 	}
 	return r.docker.RunTool(sidecars)
+}
+
+// DryRun prints the network, sidecar and tool commands Run would run.
+func (r dockerRunner) DryRun(rs sandbox.RunSpec) error {
+	return r.docker.DryRun(rs, proxyLogFile(rs))
 }
 
 // Teardown removes run id's containers, network and host files.

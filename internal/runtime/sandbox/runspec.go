@@ -18,7 +18,6 @@ type RunSpec struct {
 	ToolArgs       []string // passed to the entrypoint, or run as the command when it's skipped
 	EphemeralDirs  []EphemeralDir
 	Limits         ResourceLimits
-	DryRun         bool
 	// Credentials are secrets the runtime keeps out of the tool, substituting each for its placeholder on requests to its
 	// hosts; never print them
 	Credentials []Credential
@@ -48,7 +47,6 @@ type RunSpecBuilder struct {
 	toolArgs       []string
 	ephemeralDirs  []EphemeralDir
 	limits         ResourceLimits
-	dryRun         bool
 	credentials    []Credential
 	egress         EgressPolicy
 	dind           DindSpec
@@ -125,12 +123,6 @@ func (b *RunSpecBuilder) WithLimits(limits ResourceLimits) *RunSpecBuilder {
 	return b
 }
 
-// WithDryRun sets whether to print the runtime command without running it.
-func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
-	b.dryRun = dryRun
-	return b
-}
-
 // WithCredentials appends secrets the runtime keeps out of the tool, substituting each for its placeholder.
 func (b *RunSpecBuilder) WithCredentials(creds ...Credential) *RunSpecBuilder {
 	b.credentials = append(b.credentials, creds...)
@@ -164,7 +156,6 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ToolArgs:       b.toolArgs,
 		EphemeralDirs:  b.ephemeralDirs,
 		Limits:         b.limits,
-		DryRun:         b.dryRun,
 		Credentials:    b.credentials,
 		Egress:         b.egress,
 		Dind:           b.dind,

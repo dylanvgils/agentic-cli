@@ -289,9 +289,6 @@ func (c *Client) setupDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []s
 		return nil, nil
 	}
 
-	if rs.DryRun {
-		return c.dryRunDind(rs)
-	}
 	return c.launchDind(rs, interrupt)
 }
 

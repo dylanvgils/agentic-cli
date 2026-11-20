@@ -167,24 +167,6 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		assert.Empty(t, *ran)
 	})
 
-	t.Run("agentic-proxy dry run builds nothing", func(t *testing.T) {
-		// Arrange
-		images := &fakeSidecarImages{ensure: func(bool, bool, string) error {
-			t.Fatal("dry run built a sidecar image")
-			return nil
-		}}
-		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
-		rs.DryRun = true
-		r := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, sidecarImages: images, agenticProxy: true}
-
-		// Act
-		err := r.Run(rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, filepath.Join(rs.ToolHome, "logs"))
-	})
-
 	for _, tc := range []struct {
 		name    string
 		agentic bool
@@ -225,6 +207,19 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			assert.False(t, proxied)
 		})
 	}
+
+	t.Run("a missing image is an error", func(t *testing.T) {
+		// Arrange
+		m := &fakeMicrosandbox{}
+		ran := stubRunImage(m)
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+
+		// Assert
+		require.EqualError(t, err, "image agentic-claude not found")
+		assert.Empty(t, *ran)
+	})
 
 	t.Run("runs the image pinned to its Docker ID", func(t *testing.T) {
 		// Arrange
@@ -273,37 +268,6 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		assert.Empty(t, *ran)
 	})
 
-	t.Run("dry run makes no msb image calls", func(t *testing.T) {
-		// Arrange
-		checked, listed, loaded := false, false, false
-		m := &fakeMicrosandbox{
-			hasImage: func(string) (bool, error) {
-				checked = true
-				return false, nil
-			},
-			imageRefs: func() ([]string, error) {
-				listed = true
-				return nil, nil
-			},
-			loadImage: func(io.Reader, string) error {
-				loaded = true
-				return nil
-			},
-		}
-		ran := stubRunImage(m)
-		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
-
-		// Act
-		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, checked)
-		assert.False(t, listed)
-		assert.False(t, loaded)
-		assert.Equal(t, "agentic-claude:abc123", *ran)
-	})
-
 	t.Run("dind runs the dockerd image", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
@@ -319,66 +283,105 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude-dockerd:def456", *ran)
 	})
+}
 
-	t.Run("dind dry run builds nothing", func(t *testing.T) {
+func Test_microsandboxRunner_DryRun(t *testing.T) {
+	t.Run("prints msb with the pinned image, loading nothing", func(t *testing.T) {
 		// Arrange
-		built := false
-		d := &fakeDocker{
-			inspectImage: func(name string) (*docker.ImageInfo, error) {
-				if name == "agentic-claude" {
-					return &docker.ImageInfo{Image: name, ID: "abc123"}, nil
-				}
-				return nil, nil
+		var printed string
+		m := &fakeMicrosandbox{
+			loadImage: func(io.Reader, string) error {
+				t.Fatal("loaded the image")
+				return nil
 			},
-			buildDockerdImage: func(string, *docker.ImageInfo) error {
-				built = true
+			dryRun: func(rs sandbox.RunSpec) error {
+				printed = rs.Image
 				return nil
 			},
 		}
-		m := &fakeMicrosandbox{}
-		ran := stubRunImage(m)
-		rs := sandbox.RunSpec{
-			Image:  "agentic-claude",
-			DryRun: true,
-			Dind:   sandbox.DindSpec{Enabled: true},
-		}
+		r := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := microsandboxRunner{docker: d, microsandbox: m}.Run(rs, "")
+		err := r.DryRun(sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, built)
-		assert.Equal(t, "agentic-claude-dockerd", *ran)
+		assert.Equal(t, "agentic-claude:abc123", printed)
+	})
+
+	t.Run("dind names a missing dockerd image untagged and builds nothing", func(t *testing.T) {
+		// Arrange
+		var printed string
+		d := &fakeDocker{
+			buildDockerdImage: func(string, *docker.ImageInfo) error {
+				t.Fatal("built the dockerd image")
+				return nil
+			},
+		}
+		m := &fakeMicrosandbox{dryRun: func(rs sandbox.RunSpec) error {
+			printed = rs.Image
+			return nil
+		}}
+
+		// Act
+		err := microsandboxRunner{docker: d, microsandbox: m}.DryRun(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude-dockerd", printed)
+	})
+
+	t.Run("agentic-proxy prints the proxy, then msb through it, building nothing", func(t *testing.T) {
+		// Arrange
+		var route microsandbox.ProxyRoute
+		d := &fakeDocker{
+			inspectImage: inspectImageID("abc123"),
+			dryRunPublished: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
+				return docker.PublishedProxy{Port: "<published port>"}, nil
+			},
+		}
+		m := &fakeMicrosandbox{dryRunThrough: func(_ sandbox.RunSpec, got microsandbox.ProxyRoute) error {
+			route = got
+			return nil
+		}}
+		images := &fakeSidecarImages{ensure: func(bool, bool, string) error {
+			t.Fatal("built a sidecar image")
+			return nil
+		}}
+		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
+		r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: images, agenticProxy: true}
+
+		// Act
+		err := r.DryRun(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "<published port>", route.Port)
+		assert.NoDirExists(t, filepath.Join(rs.ToolHome, "logs"))
 	})
 }
 
 func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		inspect func(string) (*docker.ImageInfo, error)
-		dryRun  bool
-		wantRef string
-		wantErr string
+		name      string
+		inspect   func(string) (*docker.ImageInfo, error)
+		wantRef   string
+		wantFound bool
+		wantErr   string
 	}{
 		{
-			name:    "tags the image with its Docker ID",
-			inspect: inspectImageID("abc123"),
-			wantRef: "agentic-claude:abc123",
+			name:      "tags the image with its Docker ID",
+			inspect:   inspectImageID("abc123"),
+			wantRef:   "agentic-claude:abc123",
+			wantFound: true,
 		},
 		{
-			name:    "missing image returns error",
-			wantErr: "image agentic-claude not found",
+			name: "a missing image is not found",
 		},
 		{
 			name:    "inspect error is wrapped",
 			inspect: func(string) (*docker.ImageInfo, error) { return nil, errors.New("daemon down") },
 			wantErr: "inspect agentic-claude: daemon down",
-		},
-		{
-			name:    "dry run names a missing image untagged",
-			dryRun:  true,
-			wantRef: "agentic-claude",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -386,7 +389,7 @@ func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 			msb := microsandboxRunner{docker: &fakeDocker{inspectImage: tc.inspect}, microsandbox: &fakeMicrosandbox{}}
 
 			// Act
-			ref, err := msb.microsandboxRef("agentic-claude", tc.dryRun)
+			ref, found, err := msb.microsandboxRef("agentic-claude")
 
 			// Assert
 			if tc.wantErr != "" {
@@ -395,6 +398,7 @@ func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantRef, ref)
+			assert.Equal(t, tc.wantFound, found)
 		})
 	}
 }

@@ -31,7 +31,7 @@ Then every action command (`build`, `update`, `clean`, `run`) calls its usecase 
 1. `Resolve` checks what to do and returns a `Plan`.
 2. `DryRun(plan)` prints it with `--dry-run`, else `Apply(plan)` does it.
 
-`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow, and `Apply` handles its dry run. Errors are returned, and `cli.Execute` prints them once.
+`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow. Errors are returned, and `cli.Execute` prints them once.
 
 ## agentic run
 
@@ -129,7 +129,7 @@ How to read it:
 
 #### Apply
 
-`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked:
+`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked; `DryRun` does the same checks, then the runner's `DryRun` prints the docker or msb commands, starting nothing:
 
 | Step | Code | Why |
 | --- | --- | --- |

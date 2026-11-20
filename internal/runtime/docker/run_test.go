@@ -4,12 +4,38 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestClient_DryRun(t *testing.T) {
+	// Arrange
+	client := newTestClient()
+	calls := stubDockerRunCapture(t, client)
+	spec := sandbox.RunSpec{
+		RunID:  testRunID,
+		User:   &testUser,
+		Image:  "agentic-claude",
+		Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+	}
+
+	// Act
+	var err error
+	out := iostreamstest.CaptureOut(t, func() { err = client.DryRun(spec, filepath.Join(t.TempDir(), "proxy.jsonl")) })
+
+	// Assert
+	require.NoError(t, err)
+	head, tool, _ := strings.Cut(out, "docker run")
+	assert.True(t, strings.HasPrefix(head, "docker network"), "the network comes first, as the sidecars join it")
+	assert.Contains(t, head, "docker create", "the proxy comes before the tool")
+	assert.NotContains(t, tool, "--label="+LabelOwner+"=", "a printed command isn't swept")
+	assert.Empty(t, calls())
+}
 
 func TestClient_StartSidecars(t *testing.T) {
 	client := newTestClient()

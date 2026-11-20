@@ -34,6 +34,8 @@ type fakeDocker struct {
 	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	saveImage           func(image string, w io.Writer) error
 	buildDockerdImage   func(image string, parent *docker.ImageInfo) error
+	dryRun              func(rs sandbox.RunSpec, proxyLog string) error
+	dryRunPublished     func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	startSidecars       func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	startPublishedProxy func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	runTool             func(sidecars docker.Sidecars) error
@@ -98,6 +100,20 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 		return nil
 	}
 	return f.saveImage(image, w)
+}
+
+func (f *fakeDocker) DryRun(rs sandbox.RunSpec, proxyLog string) error {
+	if f.dryRun == nil {
+		return nil
+	}
+	return f.dryRun(rs, proxyLog)
+}
+
+func (f *fakeDocker) DryRunPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error) {
+	if f.dryRunPublished == nil {
+		return docker.PublishedProxy{}, nil
+	}
+	return f.dryRunPublished(rs, proxyLog, owner)
 }
 
 func (f *fakeDocker) StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error) {
@@ -261,6 +277,8 @@ type fakeMicrosandbox struct {
 	removeImage     func(ref string) error
 	run             func(rs sandbox.RunSpec) error
 	runThroughProxy func(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
+	dryRun          func(rs sandbox.RunSpec) error
+	dryRunThrough   func(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	teardown        func(id sandbox.RunID) error
 }
 
@@ -320,6 +338,20 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 		return nil
 	}
 	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) DryRun(rs sandbox.RunSpec) error {
+	if f.dryRun == nil {
+		return nil
+	}
+	return f.dryRun(rs)
+}
+
+func (f *fakeMicrosandbox) DryRunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error {
+	if f.dryRunThrough == nil {
+		return nil
+	}
+	return f.dryRunThrough(rs, route)
 }
 
 func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error {

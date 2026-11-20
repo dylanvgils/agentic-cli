@@ -129,14 +129,13 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		// Arrange
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		spec := newSpec(t)
-		spec.DryRun = true
 		spec.Credentials = testCredentials
 
 		// Act
 		var published PublishedProxy
 		out := iostreamstest.CaptureOut(t, func() {
 			var err error
-			published, err = client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
+			published, err = client.DryRunPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 			require.NoError(t, err)
 		})
 

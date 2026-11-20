@@ -18,6 +18,8 @@ type runner interface {
 	// Run readies the runtime's host resources for rs, building missing sidecar images from registry, then runs it,
 	// rechecking the mounts right before each process that mounts them starts.
 	Run(rs sandbox.RunSpec, registry string) error
+	// DryRun prints the commands Run would run, starting nothing.
+	DryRun(rs sandbox.RunSpec) error
 	// Teardown removes everything run id left on the runtime; best-effort and idempotent.
 	Teardown(toolHome string, id sandbox.RunID) error
 }
@@ -28,6 +30,14 @@ func (s *Service) Apply(plan *Plan) error {
 		return err
 	}
 	return plan.runner.Run(plan.spec, plan.registry)
+}
+
+// DryRun prints the commands Apply would run, after refusing a spec that needs a feature the runner lacks.
+func (s *Service) DryRun(plan *Plan) error {
+	if err := checkSpec(plan.spec, plan.runner.Capabilities().Features); err != nil {
+		return err
+	}
+	return plan.runner.DryRun(plan.spec)
 }
 
 // End saves plan's instructions snapshot back and removes its temp dir, warning on a failure.

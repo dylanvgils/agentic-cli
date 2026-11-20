@@ -62,7 +62,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - Exported entry points are `Service` methods; unexported helpers only if they call a client.
   - An action command's usecase has `Resolve(...) (Plan, error)`, then `DryRun(plan)` or `Apply(plan)`; the cli prints the summary between them.
 - Runners (`internal/usecase/run/<runtime>.go`, interface in `runtime.go`) hold a runtime's run steps:
-  - `Check` refuses a request before any prompt, `Run` runs it.
+  - `Check` refuses a request before any prompt, `Run` runs it, `DryRun` prints what `Run` would run.
   - A new runtime adds a runner and a case in `Service.runner`.
   - Read `Capabilities()` instead of comparing runtime names: `Features` are what a run can need, `Isolation` how the runtime isolates (VM wording uses `Boundary`).
 - Docker runs in phases (`StartSidecars`, `RunTool`, `StopSidecars`) so the runner can recheck mounts between them.
@@ -113,7 +113,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - Data goes to stdout through `iostreams.Print`/`Printf`/`Println`, never through `logging`, so a future level or quiet mode can't touch piped or `eval`ed output (aliases, dry-run, tables).
   - Use the raw `iostreams.Default().Out` only where a writer is needed (tables, subprocesses, Cobra), and `iostreams.Default().Err` for raw stderr (subprocess progress, Cobra).
   - Messages (`Step`, `Detail`, `Info`, `Warn`, `Error`, `Prompt`) go to stderr through the `logging` funcs.
-  - Dry-run output uses `sandbox.PrintDryRun`/`PrintDryRunText`.
+  - Dry-run output uses `sandbox.PrintDryRun`/`PrintDryRunText`, from one `DryRun` path per client, never an `if dryRun` in a real one.
 - The proxy is a service, not a CLI, and never uses `logging`. Everything it logs (requests, warnings, errors, net/http `ErrorLog`) goes through one `log/slog` logger, `proxy.NewLogHandler` on `iostreams` Out, which its main makes the slog default.
 - Every print and message func has a plain and an `f` form: plain for a fixed string, `f` only when formatting. No `\n` in the text: a blank line is `iostreams.Println()` on stdout, `logging.Blank()` on stderr.
 - Which message:

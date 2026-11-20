@@ -65,6 +65,16 @@ func (c *Client) RunThroughProxy(rs sandbox.RunSpec, route ProxyRoute) error {
 	return c.run(rs, &route)
 }
 
+// DryRun prints the `msb run` command Run would run, starting nothing.
+func (c *Client) DryRun(rs sandbox.RunSpec) error {
+	return dryRun(rs, nil)
+}
+
+// DryRunThroughProxy prints the `msb run` command RunThroughProxy would run, starting nothing.
+func (c *Client) DryRunThroughProxy(rs sandbox.RunSpec, route ProxyRoute) error {
+	return dryRun(rs, &route)
+}
+
 // run runs rs, through route when set.
 func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 	if _, err := sandbox.ParseRunID(rs.RunID.String()); err != nil {
@@ -72,20 +82,19 @@ func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 	}
 
 	hidden := route.hiddenEnv()
-	envArgs, err := buildEnvArgs(rs, hidden)
-	if err != nil {
-		return err
+	envArgs, refs := buildEnvArgs(rs, hidden)
+	if len(refs) > 0 {
+		path, err := writeEnvConf(rs.RunID, refs)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = removeEnvConf(rs.RunID) }()
+		envArgs = append(envArgs, arg("runtime-conf", path))
 	}
-	defer func() { _ = removeEnvConf(rs.RunID) }()
 
 	args, err := buildRunArgs(rs, envArgs, route)
 	if err != nil {
 		return err
-	}
-
-	if rs.DryRun {
-		sandbox.PrintDryRun("tool VM", "msb", args)
-		return nil
 	}
 
 	processEnv := credentialEnv(rs)
@@ -110,6 +119,25 @@ func (r *ProxyRoute) hiddenEnv() []string {
 		env = append(env, tools.ProxyCAEnvName+"="+string(r.CAPEM))
 	}
 	return env
+}
+
+// dryRun prints rs's `msb run` command, through route when set, with a placeholder for the env file.
+func dryRun(rs sandbox.RunSpec, route *ProxyRoute) error {
+	if _, err := sandbox.ParseRunID(rs.RunID.String()); err != nil {
+		return err
+	}
+
+	envArgs, refs := buildEnvArgs(rs, route.hiddenEnv())
+	if len(refs) > 0 {
+		envArgs = append(envArgs, arg("runtime-conf", dryRunEnvConfPlaceholder))
+	}
+
+	args, err := buildRunArgs(rs, envArgs, route)
+	if err != nil {
+		return err
+	}
+	sandbox.PrintDryRun("tool VM", "msb", args)
+	return nil
 }
 
 // buildRunArgs assembles the `msb run` args for rs with its envArgs and route.

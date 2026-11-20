@@ -40,6 +40,7 @@ func init() {
 	updateCmd.Flags().Bool("pull", true, "pull the latest base images, at most once every 24h per image (--pull=false to skip, e.g. offline; --pull to force a check now)")
 
 	addBuildFlags(updateCmd)
+	addDryRunFlag(updateCmd, "print the generated Dockerfile instead of building")
 	addNamespaceFlag(updateCmd)
 	addAllFlag(updateCmd, "update every image in every namespace, or the tool's image in every namespace")
 }

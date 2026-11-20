@@ -272,33 +272,9 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.False(t, ran)
 	})
 
-	t.Run("dry run skips the host setup", func(t *testing.T) {
-		// Arrange
-		setUp, ran := false, false
-		d := &fakeDocker{
-			ensureNamedVolumes: func(sandbox.RunSpec, string) error {
-				setUp = true
-				return nil
-			},
-			runTool: func(docker.Sidecars) error {
-				ran = true
-				return nil
-			},
-		}
-
-		// Act
-		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, setUp)
-		assert.True(t, ran)
-	})
-
 	t.Run("starts the proxy logging to a new file in the tool home's logs dir", func(t *testing.T) {
 		// Arrange
 		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
-		rs.DryRun = true
 		var proxyLog string
 		d := &fakeDocker{startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
 			proxyLog = log
@@ -338,24 +314,6 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.Contains(t, logs.String(), "agentic: proxy blocked 1 request(s) to: evil.example.test")
 	})
 
-	t.Run("dry run prints no proxy summary", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
-		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
-		rs.DryRun = true
-		d := &fakeDocker{startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
-			require.NoError(t, os.MkdirAll(filepath.Dir(log), 0o750))
-			require.NoError(t, os.WriteFile(log, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
-			return docker.Sidecars{}, nil
-		}}
-
-		// Act
-		err := newTestDockerRunner(d).Run(rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, logs.String(), "proxy blocked")
-	})
 }
 
 func Test_dockerRunner_prepareDockerHost(t *testing.T) {
@@ -424,4 +382,31 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")
 	})
+}
+
+func Test_dockerRunner_DryRun(t *testing.T) {
+	// Arrange
+	rs := newProxyRunSpec(t, sandbox.EgressEnforce)
+	var proxyLog string
+	d := &fakeDocker{
+		dryRun: func(_ sandbox.RunSpec, log string) error {
+			proxyLog = log
+			return nil
+		},
+		ensureNamedVolumes: func(sandbox.RunSpec, string) error {
+			t.Fatal("readied the host")
+			return nil
+		},
+		startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
+			t.Fatal("started the sidecars")
+			return docker.Sidecars{}, nil
+		},
+	}
+
+	// Act
+	err := newTestDockerRunner(d).DryRun(rs)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(rs.ToolHome, config.LogsDirName), filepath.Dir(proxyLog))
 }

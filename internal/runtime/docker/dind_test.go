@@ -115,30 +115,6 @@ func Test_setupDind(t *testing.T) {
 
 	stubDindReadyTimeout(t, client)
 
-	t.Run("dry run makes no docker calls or files", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		toolHome := t.TempDir()
-		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: toolHome,
-				DryRun:   true,
-				Dind:     sandbox.DindSpec{Enabled: true},
-			},
-		}
-
-		// Act
-		args, err := client.setupDind(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, args)
-		assert.Empty(t, calls(), "dry run must not invoke docker")
-		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
-	})
-
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
@@ -369,4 +345,31 @@ func Test_newDindHandle(t *testing.T) {
 	assert.Equal(t, "agentic-docker-"+string(testRunID), handle.container)
 	assert.Equal(t, filepath.Join(toolHome, dindDirName, string(testRunID)), handle.runDir)
 	assert.Equal(t, dryRunAddressPoolPlaceholder, handle.addressPool, "only startDind knows the run network's subnets")
+}
+
+func Test_Client_dryRunDind(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("prints the sidecar and makes no docker calls or files", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+		toolHome := t.TempDir()
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: toolHome,
+				Dind:     sandbox.DindSpec{Enabled: true},
+			},
+		}
+
+		// Act
+		args, err := client.dryRunDind(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, args)
+		assert.Empty(t, calls(), "a dry run must not invoke docker")
+		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "a dry run must not write certs")
+	})
 }

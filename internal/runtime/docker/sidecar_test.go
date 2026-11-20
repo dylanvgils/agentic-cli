@@ -1,10 +1,8 @@
 package docker
 
 import (
-	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,33 +69,6 @@ func Test_setupSidecars(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "create run network")
 		assert.Nil(t, findCall(calls(), "create"))
-	})
-
-	t.Run("dry run prints the run network and makes no docker calls", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:  testRunID,
-				User:   &testUser,
-				Image:  "agentic-claude",
-				DryRun: true,
-				Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-			},
-			network: network,
-		}
-
-		// Act
-		var err error
-		out := iostreamstest.CaptureOut(t, func() { _, _, err = client.setupSidecars(rs) })
-
-		// Assert
-		require.NoError(t, err)
-		head, _, _ := strings.Cut(out, "docker create")
-		assert.True(t, strings.HasPrefix(head, "docker network"), "the network comes first, as the sidecars join it")
-		assert.Contains(t, head, "--internal")
-		assert.Contains(t, head, network)
-		assert.Empty(t, calls())
 	})
 
 	t.Run("tears the proxy, network and run dir down when dind fails to start", func(t *testing.T) {

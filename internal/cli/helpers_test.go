@@ -156,6 +156,14 @@ func (f *fakeDocker) PruneBuildCache() (string, error) {
 	return f.pruneBuildCache()
 }
 
+func (f *fakeDocker) DryRun(sandbox.RunSpec, string) error {
+	return nil
+}
+
+func (f *fakeDocker) DryRunPublishedProxy(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
+	return docker.PublishedProxy{}, nil
+}
+
 func (f *fakeDocker) StartPublishedProxy(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 	return docker.PublishedProxy{}, nil
 }
@@ -475,6 +483,14 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 		return nil
 	}
 	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) DryRun(sandbox.RunSpec) error {
+	return nil
+}
+
+func (f *fakeMicrosandbox) DryRunThroughProxy(sandbox.RunSpec, microsandbox.ProxyRoute) error {
+	return nil
 }
 
 func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, _ microsandbox.ProxyRoute) error {

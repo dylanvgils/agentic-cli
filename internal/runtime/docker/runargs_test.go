@@ -12,7 +12,7 @@ import (
 func TestBuildRunArgs(t *testing.T) {
 	t.Run("refuses without a host user", func(t *testing.T) {
 		// Act
-		_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil)
+		_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "no host user", "without --user the tool would run as the image's user")
@@ -24,7 +24,7 @@ func TestBuildRunArgs(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser, Env: []string{"AGENTIC_TEST_TOKEN"}}}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestBuildRunArgs(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser, Ports: []sandbox.PortMapping{{Host: 8080, Guest: 80}}}}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestBuildRunArgs(t *testing.T) {
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}}, nil)
 
 		// Assert
 		assert.Contains(t, args, "run")
@@ -68,7 +68,7 @@ func TestBuildBaseArgs(t *testing.T) {
 		}, container: "agentic-claude-0123456789ab"}
 
 		// Act
-		args := buildBaseArgs(rs)
+		args := buildBaseArgs(rs, nil)
 
 		// Assert
 		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
@@ -78,19 +78,15 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--memory=2g")
 	})
 
-	t.Run("a dry run prints no owner, so a copied command isn't swept", func(t *testing.T) {
+	t.Run("labels the owner it's given", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{
-			Image:  "agentic-claude",
-			User:   &testUser,
-			DryRun: true,
-		}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}}
 
 		// Act
-		args := buildBaseArgs(rs)
+		args := buildBaseArgs(rs, []string{"--label=example=owner"})
 
 		// Assert
-		assert.False(t, hasArgWithPrefix(args, "--label="+LabelOwner+"="))
+		assert.Contains(t, args, "--label=example=owner")
 	})
 }
 

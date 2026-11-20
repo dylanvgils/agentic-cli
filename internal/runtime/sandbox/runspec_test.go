@@ -21,7 +21,6 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithToolArgs("--example", "value").
 		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
 		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
-		WithDryRun(true).
 		Build()
 
 	// Assert
@@ -36,7 +35,6 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
 	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
 	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
-	assert.True(t, result.DryRun)
 }
 
 func TestRunSpecBuilder_WithEgress(t *testing.T) {

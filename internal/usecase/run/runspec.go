@@ -227,7 +227,6 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 		WithToolArgs(resolve.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
 		WithEphemeralDirs(c.Tool.Runtime.EphemeralDirs()...).
 		WithLimits(c.Limits).
-		WithDryRun(c.DryRun).
 		WithCredentials(sandboxCredentials(c.Egress.Credentials)...).
 		WithEgress(sandbox.EgressPolicy{
 			Mode:         c.Egress.Mode,

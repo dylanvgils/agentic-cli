@@ -334,24 +334,6 @@ func Test_proxyEnvArgs(t *testing.T) {
 func Test_setupProxy(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("dry run makes no docker calls", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		rs := newProxyRun(t, sandbox.RunSpec{
-			Image:  "agentic-claude",
-			DryRun: true,
-			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-		})
-
-		// Act
-		env, err := client.setupProxy(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, env)
-		assert.Empty(t, calls(), "dry run must not invoke docker")
-	})
-
 	t.Run("propagates startProxy error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect", "network create")
@@ -536,12 +518,28 @@ func Test_proxyHandle_checkStarted(t *testing.T) {
 func Test_dryRunProxy(t *testing.T) {
 	client := newTestClient()
 
+	t.Run("returns the tool env and makes no docker calls", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+		rs := newProxyRun(t, sandbox.RunSpec{
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		})
+
+		// Act
+		env, err := client.dryRunProxy(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, env)
+		assert.Empty(t, calls(), "dry run must not invoke docker")
+	})
+
 	t.Run("credentials print no secret and touch nothing", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		rs := newProxyRun(t, sandbox.RunSpec{
-			DryRun:      true,
 			Credentials: testCredentials,
 			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 		})

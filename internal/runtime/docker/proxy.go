@@ -192,9 +192,6 @@ func (c *Client) setupProxy(rs toolRun, interrupt <-chan os.Signal) (proxyEnv []
 		return nil, nil
 	}
 
-	if rs.DryRun {
-		return c.dryRunProxy(rs)
-	}
 	return c.launchProxy(rs, interrupt)
 }
 
