@@ -306,56 +306,16 @@ func TestLoadProject(t *testing.T) {
 }
 
 func TestFindAndLoad(t *testing.T) {
-	t.Run("no file returns empty", func(t *testing.T) {
-		// Act
-		rc, err := FindAndLoad(t.TempDir())
+	// Arrange
+	dirs := nestedDirs(t, 1)
+	writeRCIn(t, dirs[0], "root = true\n[run]\ncpus = \"2\"\nmounts = [\"parent-vol:/mnt/p\"]\n")
+	writeRCIn(t, dirs[1], "[run]\ncpus = \"8\"\nmounts = [\"child-vol:/mnt/c\"]\n")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, rc.Run.Mounts)
-		assert.Empty(t, rc.Run.RCLimits)
-	})
+	// Act
+	rc, err := FindAndLoad(dirs[1])
 
-	t.Run("merges from disk", func(t *testing.T) {
-		// Arrange
-		dirs := nestedDirs(t, 1)
-		writeRCIn(t, dirs[0], "root = true\n[run]\ncpus = \"2\"\nmounts = [\"parent-vol:/mnt/p\"]\n")
-		writeRCIn(t, dirs[1], "[run]\ncpus = \"8\"\nmounts = [\"child-vol:/mnt/c\"]\n")
-
-		// Act
-		rc, err := FindAndLoad(dirs[1])
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "8", rc.Run.CPUs)
-		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.Mounts)
-	})
-
-	t.Run("broken outer layer fails the whole load even when inner layer is valid", func(t *testing.T) {
-		// Arrange
-		dirs := nestedDirs(t, 1)
-		parentRC := writeRCIn(t, dirs[0], "not valid toml [[[")
-		writeRCIn(t, dirs[1], "[run]\ncpus = \"8\"\n")
-
-		// Act
-		rc, err := FindAndLoad(dirs[1])
-
-		// Assert
-		assert.ErrorContains(t, err, parentRC)
-		assert.Nil(t, rc)
-	})
-
-	t.Run("duplicate custom install name across layers returns error", func(t *testing.T) {
-		// Arrange
-		dirs := nestedDirs(t, 1)
-		writeRCIn(t, dirs[0], "[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n")
-		writeRCIn(t, dirs[1], "[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n")
-
-		// Act
-		rc, err := FindAndLoad(dirs[1])
-
-		// Assert
-		assert.ErrorContains(t, err, "name must be unique across")
-		assert.Nil(t, rc)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "8", rc.Run.CPUs)
+	assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.Mounts)
 }

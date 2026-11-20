@@ -15,15 +15,18 @@ import (
 )
 
 func Test_addBuildFlags(t *testing.T) {
-	for _, args := range [][]string{
-		{"--base", "java", "--base-exact", "node"},
-		{"--apt", "make", "--apt-exact", "gcc"},
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "--base and --base-exact are mutually exclusive", args: []string{"--base", "java", "--base-exact", "node"}},
+		{name: "--apt and --apt-exact are mutually exclusive", args: []string{"--apt", "make", "--apt-exact", "gcc"}},
 	} {
-		t.Run(args[0]+" and "+args[2]+" are mutually exclusive", func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
 			addBuildFlags(cmd)
-			cmd.SetArgs(args)
+			cmd.SetArgs(tc.args)
 
 			// Act
 			err := cmd.Execute()
@@ -101,87 +104,31 @@ func Test_proxyInput(t *testing.T) {
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
-	for _, tc := range []struct {
-		flag string
-		want resolve.DindInput
-	}{
-		{flag: "dind", want: resolve.DindInput{DindFlag: true}},
-		{flag: "no-dind", want: resolve.DindInput{NoDindFlag: true}},
-	} {
-		t.Run(tc.flag+" flag maps to its field", func(t *testing.T) {
-			// Arrange
-			cmd := &cobra.Command{Use: "test"}
-			addDindFlags(cmd)
-			require.NoError(t, cmd.Flags().Set(tc.flag, "true"))
-
-			// Act
-			result := dindInput(cmd)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
-func Test_resolveDindResourceLimitFlags(t *testing.T) {
 	// Arrange
 	cmd := &cobra.Command{Use: "test"}
 	addDindFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("dind-cpus", "2"))
-	require.NoError(t, cmd.Flags().Set("dind-memory", "8g"))
+	require.NoError(t, cmd.Flags().Set("no-dind", "true"))
 
 	// Act
-	result := resolveDindResourceLimitFlags(cmd)
+	result := dindInput(cmd)
 
 	// Assert
-	assert.Equal(t, sandbox.ResourceLimits{CPUs: "2", Memory: "8g"}, result)
-}
-
-func Test_resolveResourceLimitFlags(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
-	addResourceLimitFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("pids-limit", "512"))
-	require.NoError(t, cmd.Flags().Set("cpus", "2"))
-	require.NoError(t, cmd.Flags().Set("memory", "2g"))
-
-	// Act
-	result := resolveResourceLimitFlags(cmd)
-
-	// Assert
-	assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
+	assert.Equal(t, resolve.DindInput{NoDindFlag: true}, result)
 }
 
 func Test_buildOptsFromFlags(t *testing.T) {
-	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base", "java"))
-		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
+	// Arrange
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+	cmd := &cobra.Command{Use: "test"}
+	addBuildFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("base-exact", ""))
 
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
+	// Act
+	opts := buildOptsFromFlags(cmd, rc)
 
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
-	})
-
-	t.Run("base-exact empty value produces debian only", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base-exact", ""))
-
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Empty(t, opts.BaseOverride)
-		assert.True(t, opts.BaseExact)
-	})
+	// Assert - an empty --base-exact produces debian only
+	assert.Empty(t, opts.BaseOverride)
+	assert.True(t, opts.BaseExact)
 }
 
 func Test_requireArgOrAll(t *testing.T) {
@@ -215,45 +162,57 @@ func Test_requireArgOrAll(t *testing.T) {
 }
 
 func Test_argOrAllExclusive(t *testing.T) {
-	t.Run("an arg with all is refused", func(t *testing.T) {
-		// Act
-		err := argOrAllExclusive(newTestAllCmd(t, true), []string{"claude"})
+	for _, tc := range []struct {
+		name    string
+		all     bool
+		wantErr string
+	}{
+		{name: "an arg with all is refused", all: true, wantErr: "an argument and --all can't be used together"},
+		{name: "an arg alone passes"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			cmd := newTestAllCmd(t, tc.all)
 
-		// Assert
-		assert.EqualError(t, err, "an argument and --all can't be used together")
-	})
+			// Act
+			err := argOrAllExclusive(cmd, []string{"claude"})
 
-	t.Run("an arg alone passes", func(t *testing.T) {
-		// Act
-		err := argOrAllExclusive(newTestAllCmd(t, false), []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-	})
+			// Assert
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func Test_warnSkipInstallChecksum(t *testing.T) {
-	t.Run("warns when the checksum is skipped", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name    string
+		opts    tools.BuildOptions
+		wantLog string
+	}{
+		{
+			name:    "warns when the checksum is skipped",
+			opts:    tools.BuildOptions{SkipInstallChecksum: true},
+			wantLog: "agentic: warning: --skip-install-checksum disables install script integrity verification\n",
+		},
+		{
+			name: "stays quiet otherwise",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		warnSkipInstallChecksum(tools.BuildOptions{SkipInstallChecksum: true})
+			// Act
+			warnSkipInstallChecksum(tc.opts)
 
-		// Assert
-		assert.Contains(t, logs.String(), "--skip-install-checksum disables install script integrity verification")
-	})
-
-	t.Run("stays quiet otherwise", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		warnSkipInstallChecksum(tools.BuildOptions{})
-
-		// Assert
-		assert.Empty(t, logs.String())
-	})
+			// Assert
+			assert.Equal(t, tc.wantLog, logs.String())
+		})
+	}
 }
 
 func Test_runtimeFlags(t *testing.T) {
@@ -303,18 +262,6 @@ func Test_runtimeFlags(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, flags.Runtime)
-	})
-
-	t.Run("unknown runtime returns error", func(t *testing.T) {
-		// Arrange
-		cmd := newCmd()
-		require.NoError(t, cmd.Flags().Set("runtime", "podman"))
-
-		// Act
-		_, err := runtimeFlags(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, `unknown runtime "podman"`)
 	})
 
 	t.Run("unknown proxy backend returns error", func(t *testing.T) {

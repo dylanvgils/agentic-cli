@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
@@ -27,9 +26,11 @@ func Test_runImageList(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("without --all shows the namespace's images", func(t *testing.T) {
+	t.Run("without --all lists the project's namespace", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+		var got []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			got = filters
 			return []*docker.ImageInfo{builtInfo}, nil
 		})
 
@@ -40,53 +41,37 @@ func Test_runImageList(t *testing.T) {
 		})
 
 		// Assert
+		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, got)
 		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3`, out)
 	})
 
 	for _, cmd := range []*cobra.Command{imageListCmd, imagesCmd} {
-		t.Run(cmd.Name()+" with --all shows all namespaces", func(t *testing.T) {
+		t.Run(cmd.Name()+" with --all lists every namespace", func(t *testing.T) {
 			// Arrange
-			workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
-			stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{builtInfo, workInfo}, nil
+			got := []docker.ImageFilter{"unset"}
+			stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				got = filters
+				return nil, nil
 			})
 			stubFlag(t, cmd, "all", "true")
 
 			// Act
-			var err error
-			out := iostreamstest.CaptureOut(t, func() { err = runImageList(cmd, []string{}) })
+			err := runImageList(cmd, []string{})
 
 			// Assert
 			require.NoError(t, err)
-			assert.Regexp(t, `claude\s+agentic`, out)
-			assert.Regexp(t, `claude\s+work`, out)
+			assert.Empty(t, got)
 		})
 	}
 }
 
 func Test_runImageTable(t *testing.T) {
-	t.Run("with namespace shows namespace images only", func(t *testing.T) {
-		// Arrange - stub returns only the agentic image (as Docker would after label filtering)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo}, nil
-		})
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runImageTable("agentic")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "claude")
-		assert.NotContains(t, out, "work")
-	})
-
-	t.Run("results are sorted by tool name", func(t *testing.T) {
+	t.Run("results are sorted by tool, then namespace", func(t *testing.T) {
 		// Arrange
 		opencode := &docker.ImageInfo{Image: "agentic-opencode", Namespace: "agentic", Tool: "opencode", Version: "0.1.0"}
+		workClaude := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{opencode, builtInfo}, nil
+			return []*docker.ImageInfo{opencode, workClaude, builtInfo}, nil
 		})
 
 		// Act
@@ -96,7 +81,7 @@ func Test_runImageTable(t *testing.T) {
 		})
 
 		// Assert
-		assert.Less(t, strings.Index(out, "claude"), strings.Index(out, "opencode"))
+		assert.Regexp(t, `(?s)claude\s+agentic.*claude\s+work.*opencode`, out)
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {

@@ -114,47 +114,38 @@ func Test_Service_List(t *testing.T) {
 }
 
 func Test_Service_Images(t *testing.T) {
-	t.Run("keeps tool images and leaves out sidecar images", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Tool: "claude"},
-				{Image: "agentic-proxy", Tool: "proxy"},
-			}, nil
-		}}
-		svc := New(d, &fakeMicrosandbox{})
-
-		// Act
-		images, err := svc.Images("")
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, images, 1)
-		assert.Equal(t, "agentic-claude", images[0].Image)
-	})
+	claude := &docker.ImageInfo{Image: "agentic-claude", Tool: "claude"}
+	sidecar := &docker.ImageInfo{Image: "agentic-proxy", Tool: "proxy"}
 
 	for _, tc := range []struct {
 		name      string
 		namespace string
 		want      []docker.ImageFilter
 	}{
-		{name: "namespace narrows the listing", namespace: "work", want: []docker.ImageFilter{docker.NamespaceFilter("work")}},
-		{name: "empty namespace lists every namespace"},
+		{
+			name:      "namespace narrows the listing",
+			namespace: "work",
+			want:      []docker.ImageFilter{docker.NamespaceFilter("work")},
+		},
+		{
+			name: "empty namespace lists every namespace",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			var filters []docker.ImageFilter
 			d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				filters = f
-				return nil, nil
+				return []*docker.ImageInfo{claude, sidecar}, nil
 			}}
 
 			// Act
-			_, err := New(d, &fakeMicrosandbox{}).Images(tc.namespace)
+			images, err := New(d, &fakeMicrosandbox{}).Images(tc.namespace)
 
 			// Assert
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, filters)
+			assert.Equal(t, []*docker.ImageInfo{claude}, images, "keeps tool images and leaves out sidecar images")
 		})
 	}
 

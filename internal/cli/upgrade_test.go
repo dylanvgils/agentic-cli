@@ -46,27 +46,33 @@ func Test_runUpgrade(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "updated to v1.1.0")
 	})
 
-	t.Run("returns error when fetch fails", func(t *testing.T) {
-		// Arrange
-		stubReleases(t, &fakeReleases{latestErr: errors.New("network error")})
+	for _, tc := range []struct {
+		name     string
+		releases *fakeReleases
+		wantErr  string
+	}{
+		{
+			name:     "returns error when fetch fails",
+			releases: &fakeReleases{latestErr: errors.New("network error")},
+			wantErr:  "network error",
+		},
+		{
+			name:     "returns error when update fails",
+			releases: &fakeReleases{latest: "v1.1.0", updateErr: errors.New("permission denied")},
+			wantErr:  "permission denied",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubReleases(t, tc.releases)
 
-		// Act
-		err := runUpgrade(upgradeCmd, nil)
+			// Act
+			err := runUpgrade(upgradeCmd, nil)
 
-		// Assert
-		assert.ErrorContains(t, err, "network error")
-	})
-
-	t.Run("returns error when update fails", func(t *testing.T) {
-		// Arrange
-		stubReleases(t, &fakeReleases{latest: "v1.1.0", updateErr: errors.New("permission denied")})
-
-		// Act
-		err := runUpgrade(upgradeCmd, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "permission denied")
-	})
+			// Assert
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 
 	t.Run("force skips up-to-date check", func(t *testing.T) {
 		// Arrange

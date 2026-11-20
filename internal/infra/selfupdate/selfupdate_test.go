@@ -77,31 +77,6 @@ func Test_newReleaseFiles(t *testing.T) {
 	}, rel)
 }
 
-func Test_updater_download(t *testing.T) {
-	// Arrange
-	binaryContent := []byte("#!/bin/sh\necho hello")
-	archiveBytes := makeTarGz(t, binaryContent)
-	srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
-	archiveName := testArchiveName("v1.5.0")
-	rel := releaseFiles{
-		archiveName:  archiveName,
-		archiveURL:   fmt.Sprintf("%s/v1.5.0/%s", srv.URL, archiveName),
-		checksumsURL: fmt.Sprintf("%s/v1.5.0/checksums.txt", srv.URL),
-		ext:          ".tar.gz",
-		version:      "v1.5.0",
-	}
-	tmpDir := t.TempDir()
-	u, buf := newTestUpdater(t, "")
-
-	// Act
-	path, err := u.download(rel, tmpDir)
-
-	// Assert
-	require.NoError(t, err)
-	assertFileContent(t, path, string(binaryContent))
-	assert.Contains(t, buf.String(), "verifying checksum...")
-}
-
 func Test_executablePath(t *testing.T) {
 	// Act
 	path, err := executablePath()

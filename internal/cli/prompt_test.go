@@ -121,131 +121,148 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 }
 
 func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
-	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name     string
+		terminal bool
+		want     bool
+		wantLog  string
+	}{
+		{
+			name:    "no tty prints one-liner and declines",
+			wantLog: "agentic: claude update available: 1.3.0 (current: 1.2.3) - run: agentic update claude\n",
+		},
+		{
+			name:     "tty answers y accepts",
+			terminal: true,
+			want:     true,
+			wantLog:  "agentic: claude update available: 1.3.0 (current: 1.2.3) - update now? [y/N] ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			iostreamstest.StubIn(t, "y\n")
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		result := ttyPrompter{}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
+			// Act
+			result := ttyPrompter{terminal: tc.terminal}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
 
-		// Assert
-		assert.False(t, result)
-		assert.Contains(t, logs.String(), "agentic: claude update available: 1.3.0 (current: 1.2.3) - run: agentic update claude")
-	})
-
-	t.Run("tty answers y accepts", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "y\n")
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.True(t, result)
-		assert.Contains(t, logs.String(), "claude update available: 1.3.0 (current: 1.2.3) - update now? [y/N]")
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+			assert.Equal(t, tc.wantLog, logs.String())
+		})
+	}
 }
 
 func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
-	t.Run("no tty keeps the cache and suggests force", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name     string
+		terminal bool
+		want     bool
+		wantLog  string
+	}{
+		{
+			name:    "no tty keeps the cache and suggests force",
+			wantLog: "agentic: kept the build cache - run: agentic prune --force to clear it\n",
+		},
+		{
+			name:     "tty answers y accepts",
+			terminal: true,
+			want:     true,
+			wantLog:  "agentic: clear Docker's unused build cache, including builds outside agentic? [y/N] ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			iostreamstest.StubIn(t, "y\n")
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		result := ttyPrompter{}.ConfirmCachePrune()
+			// Act
+			result := ttyPrompter{terminal: tc.terminal}.ConfirmCachePrune()
 
-		// Assert
-		assert.False(t, result)
-		assert.Contains(t, logs.String(), "agentic: kept the build cache - run: agentic prune --force to clear it")
-	})
-
-	t.Run("tty answers y accepts", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "y\n")
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
-
-		// Assert
-		assert.True(t, result)
-		assert.Contains(t, logs.String(), "including builds outside agentic? [y/N]")
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+			assert.Equal(t, tc.wantLog, logs.String())
+		})
+	}
 }
 
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
-	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name     string
+		terminal bool
+		want     bool
+		wantLog  string
+	}{
+		{
+			name:    "no tty prints one-liner and declines",
+			wantLog: "agentic: new release available: v1.1.0 (current: v1.0.0) - run: agentic upgrade\n",
+		},
+		{
+			name:     "tty answers y accepts",
+			terminal: true,
+			want:     true,
+			wantLog:  "agentic: new release available: v1.1.0 (current: v1.0.0) - update now? [y/N] ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			iostreamstest.StubIn(t, "y\n")
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+			// Act
+			result := ttyPrompter{terminal: tc.terminal}.OfferUpgrade("v1.0.0", "v1.1.0")
 
-		// Assert
-		assert.False(t, result)
-		assert.Equal(t, "agentic: new release available: v1.1.0 (current: v1.0.0) - run: agentic upgrade\n", logs.String())
-	})
-
-	t.Run("tty answers y accepts", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "y\n")
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
-
-		// Assert
-		assert.True(t, result)
-		assert.Equal(t, "agentic: new release available: v1.1.0 (current: v1.0.0) - update now? [y/N] ", logs.String())
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+			assert.Equal(t, tc.wantLog, logs.String())
+		})
+	}
 }
 
 func Test_describeCredential(t *testing.T) {
-	t.Run("preset", func(t *testing.T) {
-		// Arrange
-		cred := config.RCCredential{Preset: "github", Secret: "~/.secrets/gh"}
+	for _, tc := range []struct {
+		name        string
+		cred        config.RCCredential
+		wantTarget  string
+		wantDetails []string
+	}{
+		{
+			name:        "preset",
+			cred:        config.RCCredential{Preset: "github", Secret: "~/.secrets/gh"},
+			wantTarget:  `preset "github"`,
+			wantDetails: []string{`secret "~/.secrets/gh"`},
+		},
+		{
+			name: "custom hosts with env",
+			cred: config.RCCredential{
+				Hosts:  []string{"api.example.test", "*.example.test"},
+				Header: "X-Token",
+				Env:    []string{"EXAMPLE_TOKEN"},
+				Secret: "/example.test/token",
+			},
+			wantTarget:  `header "X-Token" on "api.example.test", "*.example.test"`,
+			wantDetails: []string{`secret "/example.test/token"`, `env "EXAMPLE_TOKEN"`},
+		},
+		{
+			name: "escape sequences print as text",
+			cred: config.RCCredential{
+				Hosts:  []string{"evil.example.test\x1b[2K\r"},
+				Header: "X-Token",
+				Secret: "/example.test/key\u202e",
+			},
+			wantTarget:  `header "X-Token" on "evil.example.test\x1b[2K\r"`,
+			wantDetails: []string{`secret "/example.test/key\u202e"`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			target, details := describeCredential(tc.cred)
 
-		// Act
-		target, details := describeCredential(cred)
-
-		// Assert
-		assert.Equal(t, `preset "github"`, target)
-		assert.Equal(t, []string{`secret "~/.secrets/gh"`}, details)
-	})
-
-	t.Run("custom hosts with env", func(t *testing.T) {
-		// Arrange
-		cred := config.RCCredential{
-			Hosts:  []string{"api.example.test", "*.example.test"},
-			Header: "X-Token",
-			Env:    []string{"EXAMPLE_TOKEN"},
-			Secret: "/example.test/token",
-		}
-
-		// Act
-		target, details := describeCredential(cred)
-
-		// Assert
-		assert.Equal(t, `header "X-Token" on "api.example.test", "*.example.test"`, target)
-		assert.Equal(t, []string{`secret "/example.test/token"`, `env "EXAMPLE_TOKEN"`}, details)
-	})
-
-	t.Run("escape sequences print as text", func(t *testing.T) {
-		// Arrange
-		cred := config.RCCredential{
-			Hosts:  []string{"evil.example.test\x1b[2K\r"},
-			Header: "X-Token",
-			Secret: "/example.test/key\u202e",
-		}
-
-		// Act
-		target, details := describeCredential(cred)
-
-		// Assert
-		assert.Equal(t, `header "X-Token" on "evil.example.test\x1b[2K\r"`, target)
-		assert.Equal(t, []string{`secret "/example.test/key\u202e"`}, details)
-	})
+			// Assert
+			assert.Equal(t, tc.wantTarget, target)
+			assert.Equal(t, tc.wantDetails, details)
+		})
+	}
 }
 
 func Test_describeSetting(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
-	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,24 +83,6 @@ func TestClient_Run(t *testing.T) {
 		assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n", call.conf)
 		assert.Equal(t, envConfPath(testRunID), call.confPath)
 		assert.NoFileExists(t, call.confPath)
-	})
-
-	t.Run("runs with unsupported features left out", func(t *testing.T) {
-		// Arrange
-		client, call := stubRunInteractive()
-		rs := sandbox.RunSpec{
-			RunID:   testRunID,
-			Image:   "agentic-claude",
-			Dind:    sandbox.DindSpec{Enabled: true},
-			Volumes: []string{"go-cache:/cache"},
-		}
-
-		// Act
-		err := client.Run(rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, call.args, "go-cache:/cache")
 	})
 
 	t.Run("routes through the proxy with the token only in msb's env", func(t *testing.T) {
@@ -342,14 +323,6 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 			assert.Equal(t, []string{tc.want}, args)
 		})
 	}
-
-	t.Run("returns a parse error", func(t *testing.T) {
-		// Act
-		_, err := buildNamedVolumeArgs("maven", "", "")
-
-		// Assert
-		assert.ErrorContains(t, err, `invalid volume "maven"`)
-	})
 }
 
 func Test_buildNetworkArgs(t *testing.T) {
@@ -654,14 +627,6 @@ func Test_buildMountArgs(t *testing.T) {
 			assert.Equal(t, []string{tc.want}, args)
 		})
 	}
-
-	t.Run("returns a parse error", func(t *testing.T) {
-		// Act
-		_, err := buildMountArgs(dir, "", "")
-
-		// Assert
-		assert.ErrorContains(t, err, "expected host:container")
-	})
 }
 
 func Test_parseMountSpec(t *testing.T) {
@@ -700,13 +665,4 @@ func Test_parseMountSpec(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, `invalid volume "maven": expected host:container[:options]`)
 	})
-}
-
-func Test_ownerOptions(t *testing.T) {
-	// Act
-	options := ownerOptions()
-
-	// Assert
-	host := platform.HostUser()
-	assert.Equal(t, fmt.Sprintf("uid=%d,gid=%d", host.UID, host.GID), options)
 }

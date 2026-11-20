@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
@@ -53,7 +54,7 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 
 func init() {
 	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
+	if env := os.Getenv(config.EnvHome); env != "" {
 		defaultHome = env
 	}
 

@@ -10,36 +10,39 @@ import (
 
 func TestDindEnabled(t *testing.T) {
 	enabled := true
+	rcEnabled := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
 
-	t.Run("no flag and no config defaults off", func(t *testing.T) {
-		// Act
-		result := DindEnabled(DindInput{}, &config.AgenticRC{})
+	for _, tc := range []struct {
+		name string
+		in   DindInput
+		rc   *config.AgenticRC
+		want bool
+	}{
+		{
+			name: "no flag and no config defaults off",
+			rc:   &config.AgenticRC{},
+			want: false,
+		},
+		{
+			name: "config enabled is honored",
+			rc:   rcEnabled,
+			want: true,
+		},
+		{
+			name: "no-dind flag overrides config enabled",
+			in:   DindInput{NoDindFlag: true},
+			rc:   rcEnabled,
+			want: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := DindEnabled(tc.in, tc.rc)
 
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("config enabled is honored", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
-
-		// Act
-		result := DindEnabled(DindInput{}, rc)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("no-dind flag overrides config enabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
-
-		// Act
-		result := DindEnabled(DindInput{NoDindFlag: true}, rc)
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestDindResourceLimitsFor(t *testing.T) {
@@ -53,25 +56,14 @@ func TestDindResourceLimitsFor(t *testing.T) {
 		assert.Equal(t, tool, result)
 	})
 
-	t.Run("rc takes precedence over tool limits", func(t *testing.T) {
+	t.Run("flag wins over rc, which wins over the tool's", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, rc, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{Memory: "16g"}, rc, tool)
 
 		// Assert
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
-	})
-
-	t.Run("flag takes precedence over rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}}
-
-		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)
-
-		// Assert
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "16g"}, result)
 	})
 }

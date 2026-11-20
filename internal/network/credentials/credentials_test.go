@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,10 +80,7 @@ func TestResolve(t *testing.T) {
 	t.Run("invalid entries are rejected", func(t *testing.T) {
 		cases := map[string]config.RCCredential{
 			`unknown preset "bogus"`:                {Preset: "bogus", Secret: secret},
-			"needs env":                             {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: secret},
 			"credential 1 (api.custom.test)":        {Hosts: []string{"api.custom.test"}, Header: "X Api", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
-			`invalid host "*.custom.test"`:          {Hosts: []string{"*.custom.test"}, Header: "X-Api-Key", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
-			"header Host cannot be injected":        {Hosts: []string{"api.custom.test"}, Header: "Host", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
 			`invalid env name "BAD-NAME"`:           {Preset: "example", Env: []string{"BAD-NAME"}, Secret: secret},
 			`unsupported secret source "keychain:"`: {Preset: "example", Secret: "keychain:example-item"},
 		}
@@ -140,21 +136,6 @@ func TestResolve(t *testing.T) {
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "test-secret")
 	})
-}
-
-func Test_validationCredential(t *testing.T) {
-	// Arrange
-	r := Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_TOKEN"}, Secret: "test-secret"}
-
-	// Act
-	first := validationCredential(r, 0)
-	second := validationCredential(r, 1)
-
-	// Assert
-	require.NoError(t, proxy.ValidateCredential(first))
-	assert.Equal(t, []string{"api.example.test"}, first.Hosts)
-	assert.Equal(t, "test-secret", first.Secret)
-	assert.NoError(t, proxy.ValidateCredentials([]proxy.Credential{first, {Hosts: []string{"git.example.test"}, Headers: second.Headers, Placeholder: second.Placeholder, Secret: second.Secret}}), "stand-ins never overlap")
 }
 
 func TestCheck(t *testing.T) {

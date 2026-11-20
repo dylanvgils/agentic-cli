@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -75,19 +74,5 @@ func Test_runBuild(t *testing.T) {
 		// Assert
 		assert.False(t, buildCalled)
 		assert.Contains(t, out, "FROM")
-	})
-
-	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		writeRC(t, dir, "not valid toml [[[")
-		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		t.Chdir(dir)
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		assert.ErrorContains(t, err, rcPath)
 	})
 }

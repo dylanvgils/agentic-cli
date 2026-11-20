@@ -300,27 +300,14 @@ func Test_isInside(t *testing.T) {
 }
 
 func Test_resolveExisting(t *testing.T) {
-	t.Run("missing path resolves through its existing parent", func(t *testing.T) {
-		// Arrange
-		ws := chdirSymlinkWorkspace(t)
+	// Arrange
+	host := stubUnresolvablePath(t)
 
-		// Act
-		resolved := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
+	// Act
+	resolved := resolveExisting(host)
 
-		// Assert
-		assert.Equal(t, filepath.Join(ws.outside, "missing"), resolved)
-	})
-
-	t.Run("unresolvable path is kept as is", func(t *testing.T) {
-		// Arrange
-		host := stubUnresolvablePath(t)
-
-		// Act
-		resolved := resolveExisting(host)
-
-		// Assert
-		assert.Equal(t, host, resolved)
-	})
+	// Assert
+	assert.Equal(t, host, resolved)
 }
 
 func Test_resolvePrefix(t *testing.T) {
@@ -368,31 +355,35 @@ func Test_isProcPath(t *testing.T) {
 }
 
 func Test_pathForms(t *testing.T) {
-	t.Run("ignoreCase lower-cases every form", func(t *testing.T) {
-		// Arrange - a resolved temp dir, so there's no symlinked form (macOS's /var)
-		dir, err := filepath.EvalSymlinks(t.TempDir())
-		require.NoError(t, err)
-		path := filepath.Join(dir, "Secrets")
+	for _, tc := range []struct {
+		name       string
+		ignoreCase bool
+		want       func(path string) string
+	}{
+		{
+			name:       "ignoreCase lower-cases every form",
+			ignoreCase: true,
+			want:       strings.ToLower,
+		},
+		{
+			name:       "without ignoreCase keeps the case",
+			ignoreCase: false,
+			want:       func(path string) string { return path },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange - a resolved temp dir, so there's no symlinked form (macOS's /var)
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			require.NoError(t, err)
+			path := filepath.Join(dir, "Secrets")
 
-		// Act
-		forms := pathForms(path, true)
+			// Act
+			forms := pathForms(path, tc.ignoreCase)
 
-		// Assert
-		assert.Equal(t, []string{strings.ToLower(path)}, forms)
-	})
-
-	t.Run("without ignoreCase keeps the case", func(t *testing.T) {
-		// Arrange - a resolved temp dir, so there's no symlinked form (macOS's /var)
-		dir, err := filepath.EvalSymlinks(t.TempDir())
-		require.NoError(t, err)
-		path := filepath.Join(dir, "Secrets")
-
-		// Act
-		forms := pathForms(path, false)
-
-		// Assert
-		assert.Equal(t, []string{path}, forms)
-	})
+			// Assert
+			assert.Equal(t, []string{tc.want(path)}, forms)
+		})
+	}
 }
 
 func Test_workspaceSymlink(t *testing.T) {

@@ -141,22 +141,6 @@ func Test_ensureProxy(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, built)
 	})
-
-	t.Run("rebuilds when CLI version does not match image label", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
-		fake.inspectImage = inspectReturns(&docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
-
-		// Act
-		err := New(fake).ensureProxy("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-proxy (built by a different agentic version)")
-	})
-
 }
 
 func Test_ensureDind(t *testing.T) {

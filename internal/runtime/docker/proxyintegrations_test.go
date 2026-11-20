@@ -26,21 +26,30 @@ func TestProxyIntegrationEnvNames(t *testing.T) {
 }
 
 func Test_proxyIntegrationToolEnv(t *testing.T) {
-	t.Run("maven points at the global settings", func(t *testing.T) {
-		// Act
-		env := proxyIntegrationToolEnv([]string{"maven"})
+	for _, tc := range []struct {
+		name        string
+		integration string
+		want        []string
+	}{
+		{
+			name:        "maven points at the global settings",
+			integration: "maven",
+			want:        []string{"MAVEN_ARGS=--global-settings /etc/agentic/maven/settings.xml"},
+		},
+		{
+			name:        "gradle sets the proxy system properties",
+			integration: "gradle",
+			want:        []string{"GRADLE_OPTS=-Dhttp.proxyHost=agentic-proxy -Dhttp.proxyPort=3128 -Dhttps.proxyHost=agentic-proxy -Dhttps.proxyPort=3128"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			env := proxyIntegrationToolEnv([]string{tc.integration})
 
-		// Assert
-		assert.Equal(t, []string{"MAVEN_ARGS=--global-settings /etc/agentic/maven/settings.xml"}, env)
-	})
-
-	t.Run("gradle sets the proxy system properties", func(t *testing.T) {
-		// Act
-		env := proxyIntegrationToolEnv([]string{"gradle"})
-
-		// Assert
-		assert.Equal(t, []string{"GRADLE_OPTS=-Dhttp.proxyHost=agentic-proxy -Dhttp.proxyPort=3128 -Dhttps.proxyHost=agentic-proxy -Dhttps.proxyPort=3128"}, env)
-	})
+			// Assert
+			assert.Equal(t, tc.want, env)
+		})
+	}
 
 	t.Run("none for no integrations", func(t *testing.T) {
 		// Act

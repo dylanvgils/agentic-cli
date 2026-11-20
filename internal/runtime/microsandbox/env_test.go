@@ -11,23 +11,12 @@ import (
 )
 
 func Test_buildEnvArgs(t *testing.T) {
-	t.Run("pairs become flags", func(t *testing.T) {
-		// Act
-		flags, refs := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
+	// Act
+	flags, refs := buildEnvArgs(sandbox.RunSpec{}, []string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"})
 
-		// Assert
-		assert.Contains(t, flags, "--env=MAVEN_OPTS=-Xmx1g")
-		assert.Empty(t, refs)
-	})
-
-	t.Run("hidden entries are forwarded, not flags", func(t *testing.T) {
-		// Act
-		flags, refs := buildEnvArgs(sandbox.RunSpec{}, []string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"})
-
-		// Assert
-		assert.NotContains(t, strings.Join(flags, " "), "test-token")
-		assert.Equal(t, []envRef{{guest: "HTTPS_PROXY", source: guestEnvName("HTTPS_PROXY")}}, refs)
-	})
+	// Assert
+	assert.NotContains(t, strings.Join(flags, " "), "test-token", "hidden entries are forwarded, not flags")
+	assert.Equal(t, []envRef{{guest: "HTTPS_PROXY", source: guestEnvName("HTTPS_PROXY")}}, refs)
 }
 
 func Test_splitEnv(t *testing.T) {

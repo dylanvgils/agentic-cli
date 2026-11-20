@@ -1,10 +1,7 @@
 package selfupdate
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,10 +11,7 @@ import (
 func Test_fetchRelease(t *testing.T) {
 	t.Run("parses tag_name from response", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(release{TagName: "v1.5.0"}) //nolint:errcheck
-		}))
-		defer srv.Close()
+		srv := stubStatusServer(t, http.StatusOK, `{"tag_name":"v1.5.0"}`)
 
 		// Act
 		r, err := fetchRelease(srv.URL, http.DefaultClient)
@@ -27,31 +21,31 @@ func Test_fetchRelease(t *testing.T) {
 		assert.Equal(t, "v1.5.0", r.TagName)
 	})
 
-	t.Run("returns error on non-200 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
-		}))
-		defer srv.Close()
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{
+			name:   "returns error on non-200 response",
+			status: http.StatusForbidden,
+			body:   "",
+		},
+		{
+			name:   "returns error on invalid JSON",
+			status: http.StatusOK,
+			body:   "not json",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			srv := stubStatusServer(t, tc.status, tc.body)
 
-		// Act
-		_, err := fetchRelease(srv.URL, http.DefaultClient)
+			// Act
+			_, err := fetchRelease(srv.URL, http.DefaultClient)
 
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("returns error on invalid JSON", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "not json")
-		}))
-		defer srv.Close()
-
-		// Act
-		_, err := fetchRelease(srv.URL, http.DefaultClient)
-
-		// Assert
-		assert.Error(t, err)
-	})
+			// Assert
+			assert.Error(t, err)
+		})
+	}
 }

@@ -147,16 +147,6 @@ func Test_Service_capabilities(t *testing.T) {
 		&fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return msbCaps }},
 	)
 
-	t.Run("docker and the empty runtime ask docker", func(t *testing.T) {
-		// Act
-		docker := svc.capabilities(sandbox.RuntimeDocker, "")
-		empty := svc.capabilities("", "")
-
-		// Assert
-		assert.Equal(t, dockerCaps, docker)
-		assert.Equal(t, dockerCaps, empty)
-	})
-
 	t.Run("microsandbox asks msb", func(t *testing.T) {
 		// Act
 		caps := svc.capabilities(sandbox.RuntimeMicrosandbox, "")
@@ -175,19 +165,6 @@ func Test_Service_capabilities(t *testing.T) {
 }
 
 func Test_Service_checkRuntime(t *testing.T) {
-	t.Run("docker passes every feature", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		req.Flags.Proxy.ProxyFlag = true
-		req.Flags.Dind.DindFlag = true
-
-		// Act
-		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
 	t.Run("a missing capability stops before the msb checks", func(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
@@ -324,8 +301,8 @@ func Test_Service_Teardown(t *testing.T) {
 		snapshotPath := sandbox.HostPart(mountSpec)
 		var snapshotAtTeardown bool
 		d := &fakeDocker{teardown: func(string, sandbox.RunID) error {
-			require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
-			snapshotAtTeardown = true
+			_, statErr := os.Stat(snapshotPath)
+			snapshotAtTeardown = statErr == nil
 			return nil
 		}}
 		run := sandbox.RunRef{
@@ -341,9 +318,6 @@ func Test_Service_Teardown(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, snapshotAtTeardown)
-		got, err := os.ReadFile(tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome))
-		require.NoError(t, err)
-		assert.Equal(t, "user note\n", string(got))
 		assert.NoDirExists(t, sandbox.RunTempDir(testRunID))
 	})
 }

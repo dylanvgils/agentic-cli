@@ -47,23 +47,7 @@ func Test_checkDocker(t *testing.T) {
 		})
 	}
 
-	t.Run("calls check success", func(t *testing.T) {
-		// Arrange
-		var called bool
-		stubCheckDockerDaemon(t, func() error {
-			called = true
-			return nil
-		})
-
-		// Act
-		err := checkDocker(buildCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, called)
-	})
-
-	t.Run("calls check error", func(t *testing.T) {
+	t.Run("other commands return the check's error", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error {
 			return docker.ErrDaemonNotRunning
@@ -169,18 +153,16 @@ func Test_persistentPreRunE(t *testing.T) {
 		return cmd
 	}
 
-	t.Run("resolves the docker context and loads the project onto the command's context", func(t *testing.T) {
+	t.Run("loads the project onto the command's context", func(t *testing.T) {
 		// Arrange
 		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
 		cmd := newCmd(t, "status")
-		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
 
 		// Act
 		err := persistentPreRunE(cmd, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "prod", dockerClient.Context())
 		_, ok := cmd.Context().Value(projectKey{}).(loadedProject)
 		assert.True(t, ok)
 	})

@@ -1,29 +1,13 @@
 package iostreams
 
 import (
-	"bytes"
 	"io"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNew(t *testing.T) {
-	// Arrange
-	in := strings.NewReader("y\n")
-	var out, errOut bytes.Buffer
-
-	// Act
-	s := New(in, &out, &errOut)
-
-	// Assert
-	assert.Same(t, in, s.In)
-	assert.Same(t, &out, s.Out)
-	assert.Same(t, &errOut, s.Err)
-}
 
 func TestSystem(t *testing.T) {
 	// Act
@@ -87,19 +71,6 @@ func TestStreams_IsTerminal(t *testing.T) {
 	})
 }
 
-func TestDefault(t *testing.T) {
-	// Arrange
-	stubDefault(t)
-	s, _ := newTestStreams()
-	std.Store(s)
-
-	// Act
-	got := Default()
-
-	// Assert
-	assert.Same(t, s, got)
-}
-
 func TestSetDefault(t *testing.T) {
 	// Arrange
 	stubDefault(t)
@@ -107,9 +78,10 @@ func TestSetDefault(t *testing.T) {
 
 	// Act
 	SetDefault(s)
+	got := Default()
 
 	// Assert
-	assert.Same(t, s, std.Load())
+	assert.Same(t, s, got)
 }
 
 // Test_packagePrint covers each package print func writing through Default.

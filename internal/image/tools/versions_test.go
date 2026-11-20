@@ -9,45 +9,45 @@ import (
 func Test_versionsForLayer(t *testing.T) {
 	v := Versions{Node: "22", Java: "25", Dotnet: "10", Go: "1.26.3"}
 
-	t.Run("node returns node field", func(t *testing.T) {
-		// Act
-		result := v.ForLayer("node")
+	for _, tc := range []struct {
+		name  string
+		layer string
+		want  string
+	}{
+		{
+			name:  "node returns node field",
+			layer: "node",
+			want:  "22",
+		},
+		{
+			name:  "java returns java field",
+			layer: "java",
+			want:  "25",
+		},
+		{
+			name:  "dotnet returns dotnet field",
+			layer: "dotnet",
+			want:  "10",
+		},
+		{
+			name:  "go returns go field",
+			layer: "go",
+			want:  "1.26.3",
+		},
+		{
+			name:  "unknown name returns empty string",
+			layer: "ruby",
+			want:  "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := v.ForLayer(tc.layer)
 
-		// Assert
-		assert.Equal(t, "22", result)
-	})
-
-	t.Run("java returns java field", func(t *testing.T) {
-		// Act
-		result := v.ForLayer("java")
-
-		// Assert
-		assert.Equal(t, "25", result)
-	})
-
-	t.Run("dotnet returns dotnet field", func(t *testing.T) {
-		// Act
-		result := v.ForLayer("dotnet")
-
-		// Assert
-		assert.Equal(t, "10", result)
-	})
-
-	t.Run("go returns go field", func(t *testing.T) {
-		// Act
-		result := v.ForLayer("go")
-
-		// Assert
-		assert.Equal(t, "1.26.3", result)
-	})
-
-	t.Run("unknown name returns empty string", func(t *testing.T) {
-		// Act
-		result := v.ForLayer("ruby")
-
-		// Assert
-		assert.Equal(t, "", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_mustDecode(t *testing.T) {

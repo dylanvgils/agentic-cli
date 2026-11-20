@@ -7,13 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,18 +83,6 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 		// Act
 		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(req)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("accepts agentic-proxy for a proxy run", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendAgentic}
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, agenticProxy: true}.Check(req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -530,26 +516,6 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 		assert.False(t, loaded)
 	})
 
-	t.Run("loads the image under the ref when msb lacks it", func(t *testing.T) {
-		// Arrange
-		var gotTag string
-		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{
-			imageRefs: func() ([]string, error) { return []string{"agentic-claude:old111"}, nil },
-			loadImage: func(r io.Reader, tag string) error {
-				gotTag = tag
-				_, err := io.ReadAll(r)
-				return err
-			},
-		}}
-
-		// Act
-		err := msb.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude:abc123", gotTag)
-	})
-
 	t.Run("check error returns before loading", func(t *testing.T) {
 		// Arrange
 		loaded := false
@@ -611,12 +577,14 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 		assert.False(t, removed)
 	})
 
-	t.Run("removes the image's stale refs after loading", func(t *testing.T) {
+	t.Run("loads the image under the ref when msb lacks it, then removes its stale refs", func(t *testing.T) {
 		// Arrange
+		var gotTag string
 		var removed []string
 		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{
 			imageRefs: func() ([]string, error) { return []string{"agentic-claude:old111"}, nil },
-			loadImage: func(r io.Reader, _ string) error {
+			loadImage: func(r io.Reader, tag string) error {
+				gotTag = tag
 				_, err := io.ReadAll(r)
 				return err
 			},
@@ -631,6 +599,7 @@ func Test_microsandboxRunner_ensureMicrosandboxImage(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude:abc123", gotTag)
 		assert.Equal(t, []string{"agentic-claude:old111"}, removed)
 	})
 }

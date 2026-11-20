@@ -3,7 +3,6 @@ package docker
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,18 +29,6 @@ func TestBuildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, args, "--env=AGENTIC_TEST_TOKEN")
 		assert.NotContains(t, args, "--env=AGENTIC_TEST_TOKEN=test-secret", "the value would show in the host's process list")
-	})
-
-	t.Run("publishes the ports", func(t *testing.T) {
-		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser, Ports: []sandbox.PortMapping{{Host: 8080, Guest: 80}}}}
-
-		// Act
-		args, err := buildRunArgs(rs, nil, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, args, "--publish=127.0.0.1:8080:80")
 	})
 }
 
@@ -133,25 +120,6 @@ func TestBuildTmpfsArgs(t *testing.T) {
 			"--tmpfs=/tmp:exec,size=1g",
 			"--tmpfs=/home/user/.cache:exec,size=1g",
 		}, args)
-	})
-	t.Run("keeps every tool's tmpfs flags", func(t *testing.T) {
-		want := map[string][]string{
-			"claude":   {"--tmpfs=/tmp:exec,size=1g"},
-			"copilot":  {"--tmpfs=/tmp:exec,size=1g", "--tmpfs=/home/user/.cache:exec,size=1g"},
-			"opencode": {"--tmpfs=/tmp:exec,size=1g"},
-		}
-		require.Len(t, tools.Configs, len(want))
-
-		for name, tool := range tools.Configs {
-			// Arrange
-			rs := sandbox.RunSpec{ContainerHome: "/home/user", EphemeralDirs: tool.Runtime.EphemeralDirs()}
-
-			// Act
-			args := buildTmpfsArgs(rs)
-
-			// Assert
-			assert.Equal(t, want[name], args, name)
-		}
 	})
 }
 

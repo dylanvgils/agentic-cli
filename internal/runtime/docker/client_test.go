@@ -46,18 +46,35 @@ func TestClient_Capabilities(t *testing.T) {
 }
 
 func TestClient_run(t *testing.T) {
-	t.Run("captures output", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, `printf '%s\n' "$@"`)
-		client := New("")
+	for _, tc := range []struct {
+		name    string
+		context string
+		want    string
+	}{
+		{
+			name:    "captures output",
+			context: "",
+			want:    "images\n--quiet\n",
+		},
+		{
+			name:    "prepends --context to the executed command",
+			context: "prod",
+			want:    "--context\nprod\nimages\n--quiet\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubDocker(t, `printf '%s\n' "$@"`)
+			client := New(tc.context)
 
-		// Act
-		out, err := client.run("images", "--quiet")
+			// Act
+			out, err := client.run("images", "--quiet")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "images\n--quiet\n", out)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, out)
+		})
+	}
 
 	t.Run("returns error on failure", func(t *testing.T) {
 		// Arrange
@@ -69,19 +86,6 @@ func TestClient_run(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-	})
-
-	t.Run("prepends --context to the executed command", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, `printf '%s\n' "$@"`)
-		client := New("prod")
-
-		// Act
-		out, err := client.run("images", "--quiet")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "--context\nprod\nimages\n--quiet\n", out)
 	})
 }
 
@@ -183,25 +187,6 @@ func TestClient_stream(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "boom")
 	})
-}
-
-func TestClient_withContext(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		context string
-		want    []string
-	}{
-		{name: "returns args unchanged when context unset", want: []string{"build", "-t", "img"}},
-		{name: "prepends --context flag when context set", context: "prod", want: []string{"--context", "prod", "build", "-t", "img"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := New(tc.context).withContext([]string{"build", "-t", "img"})
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
 }
 
 func Test_defaultTiming(t *testing.T) {

@@ -151,32 +151,15 @@ func Test_ensureEgressNetwork(t *testing.T) {
 }
 
 func Test_createRunNetwork(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	stubDockerRunCapture(t, client, "network create")
 
-	t.Run("creates the run network", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		rs := toolRun{container: "agentic-claude-abc", network: "agentic-run-abc"}
+	// Act
+	err := client.createRunNetwork(toolRun{network: "agentic-run-abc"})
 
-		// Act
-		err := client.createRunNetwork(rs)
-
-		// Assert
-		require.NoError(t, err)
-		args := findCall(get(), "network", "create")
-		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
-	})
-
-	t.Run("create failure is an error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "network create")
-
-		// Act
-		err := client.createRunNetwork(toolRun{network: "agentic-run-abc"})
-
-		// Assert
-		assert.ErrorContains(t, err, "create run network")
-	})
+	// Assert
+	assert.ErrorContains(t, err, "create run network")
 }
 
 func Test_networkSubnets(t *testing.T) {

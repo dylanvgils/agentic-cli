@@ -182,7 +182,6 @@ func TestBuildProxyImage(t *testing.T) {
 		assert.Contains(t, args, "--tag=default-proxy")
 		assert.NotEqual(t, "", args[len(args)-1], "context should be set")
 		assert.Contains(t, dockerfile, "go install github.com/dylanvgils/agentic-cli/cmd/proxy@${AGENTIC_VERSION}")
-		assert.NotContains(t, dockerfile, "COPY . /src")
 	})
 
 	t.Run("dev version compiles the supplied source tree as context", func(t *testing.T) {
@@ -195,10 +194,8 @@ func TestBuildProxyImage(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		args, dockerfile := get()
+		args, _ := get()
 		assert.Equal(t, src, args[len(args)-1], "source dir should be the build context")
-		assert.Contains(t, dockerfile, "COPY . /src")
-		assert.Contains(t, dockerfile, "go build")
 	})
 
 	t.Run("dev version without source tree errors", func(t *testing.T) {

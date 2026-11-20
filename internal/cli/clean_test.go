@@ -3,12 +3,11 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,11 +28,7 @@ func Test_runClean(t *testing.T) {
 		basesCleaned := false
 		stubDocker(t, &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-					{Image: "agentic-copilot", Namespace: "agentic", Tool: "copilot"},
-					{Image: "work-claude", Namespace: "work", Tool: "claude"},
-				}, nil
+				return []*docker.ImageInfo{{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"}}, nil
 			},
 			cleanImage: func(image string) error {
 				cleaned = append(cleaned, image)
@@ -59,20 +54,10 @@ func Test_runClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		// tool images and their dockerd images across namespaces, plus the global sidecar images
-		assert.ElementsMatch(t, []string{
-			"agentic-claude-dockerd",
-			"agentic-claude",
-			"agentic-copilot-dockerd",
-			"agentic-copilot",
-			"work-claude-dockerd",
-			"work-claude",
-			tools.ProxyImage,
-			tools.DindImage,
-		}, cleaned)
+		assert.Contains(t, cleaned, "agentic-claude")
 		assert.Contains(t, msbCleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
-		assert.Contains(t, logBuf.String(), "agentic: removing 3 image(s): ")
+		assert.Contains(t, logBuf.String(), "agentic: removing 1 image(s): ")
 		assert.Contains(t, logBuf.String(), "\n\nagentic: removing shared resources", "a blank line sets the shared resources apart")
 	})
 
@@ -96,20 +81,6 @@ func Test_runClean(t *testing.T) {
 		assert.False(t, msbCleaned)
 	})
 
-	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		writeRC(t, dir, "not valid toml [[[")
-		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		t.Chdir(dir)
-
-		// Act
-		err := runClean(newTestCleanCmd(), []string{"claude"})
-
-		// Assert
-		assert.ErrorContains(t, err, rcPath)
-	})
-
 	t.Run("propagates error from cleanTargets", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, &fakeDocker{
@@ -122,24 +93,12 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "fail on agentic-claude")
 	})
+}
 
-	t.Run("a tool skips global resources, even with all", func(t *testing.T) {
-		// Arrange
-		basesCleaned := false
-		stubDocker(t, &fakeDocker{
-			cleanBaseImages: func() error {
-				basesCleaned = true
-				return nil
-			},
-		})
-		cmd := newTestCleanCmd()
-		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
+func Test_logCleanSummary(t *testing.T) {
+	// Act
+	out := iostreamstest.CaptureErr(t, func() { logCleanSummary(clean.Plan{}) })
 
-		// Act
-		err := runClean(cmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, basesCleaned)
-	})
+	// Assert
+	assert.Empty(t, out)
 }

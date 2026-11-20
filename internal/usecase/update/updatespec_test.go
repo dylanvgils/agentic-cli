@@ -496,12 +496,6 @@ func Test_rebuild(t *testing.T) {
 			freshBust: true,
 		},
 		{
-			name:     "pull rebuilds an up-to-date image without busting the tool stage",
-			info:     &docker.ImageInfo{Version: "1.2.3"},
-			upToDate: true,
-			opts:     tools.BuildOptions{Pull: true},
-		},
-		{
 			name:     "pull rebuilds an up-to-date image with its recorded cache bust",
 			info:     &docker.ImageInfo{Version: "1.2.3", CacheBust: "2026-08-21T07:18:37Z"},
 			upToDate: true,

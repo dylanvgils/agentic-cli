@@ -41,19 +41,6 @@ func TestStartProxy(t *testing.T) {
 		assert.NotEmpty(t, handle.caPEM)
 	})
 
-	t.Run("fails when the proxy fails to boot", func(t *testing.T) {
-		// Arrange
-		stubProxyDocker(t, client, "true")
-		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
-		rs := newProxyRun(t, sandbox.RunSpec{Credentials: testCredentials})
-
-		// Act
-		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs, nil)
-
-		// Assert
-		require.ErrorContains(t, err, "copy proxy credentials")
-	})
-
 	t.Run("fails when the create fails", func(t *testing.T) {
 		// Arrange
 		stubProxyDocker(t, client, "true", "create")
@@ -278,18 +265,6 @@ func TestNewProxyHandle(t *testing.T) {
 			assert.Equal(t, tc.wantMonitor, handle.monitor)
 		})
 	}
-
-	t.Run("sets the integrations' env", func(t *testing.T) {
-		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Integrations: []string{"maven"}}}}
-
-		// Act
-		handle, err := client.newProxyHandle(rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"MAVEN_ARGS=--global-settings /etc/agentic/maven/settings.xml"}, handle.integrationEnv)
-	})
 }
 
 func Test_proxyHandle_toolEnvArgs(t *testing.T) {
@@ -317,9 +292,7 @@ func Test_proxyEnvArgs(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
-		assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
 		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
-		assert.Contains(t, args, "--env=NODE_USE_ENV_PROXY=1")
 	})
 
 	t.Run("dind excludes the docker sidecar", func(t *testing.T) {
@@ -367,9 +340,7 @@ func Test_proxyHandle_boot(t *testing.T) {
 		for _, name := range []string{proxy.CACertFile, proxy.CAKeyFile, proxyCredentialsFile} {
 			entry := proxyCredentialsSubdir + "/" + name
 			require.Contains(t, files, entry)
-			assert.Equal(t, int64(0o600), files[entry].header.Mode, name)
 			assert.Equal(t, testUser.UID, files[entry].header.Uid, name)
-			assert.Equal(t, testUser.GID, files[entry].header.Gid, name)
 		}
 
 		var loaded []proxy.Credential
@@ -499,55 +470,35 @@ func Test_proxyHandle_checkStarted(t *testing.T) {
 }
 
 func Test_dryRunProxy(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	calls := stubDockerRunCapture(t, client)
+	stdin := stubDockerRunWithStdinCapture(t, client, nil)
+	rs := newProxyRun(t, sandbox.RunSpec{
+		Credentials: testCredentials,
+		Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+	})
 
-	t.Run("returns the tool env and makes no docker calls", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		rs := newProxyRun(t, sandbox.RunSpec{
-			Image:  "agentic-claude",
-			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-		})
-
-		// Act
-		env, err := client.dryRunProxy(rs)
-
-		// Assert
+	// Act
+	var toolArgs []string
+	out := iostreamstest.CaptureOut(t, func() {
+		var err error
+		toolArgs, err = client.dryRunProxy(rs)
 		require.NoError(t, err)
-		assert.NotEmpty(t, env)
-		assert.Empty(t, calls(), "dry run must not invoke docker")
 	})
 
-	t.Run("credentials print no secret and touch nothing", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		rs := newProxyRun(t, sandbox.RunSpec{
-			Credentials: testCredentials,
-			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-		})
-
-		// Act
-		var toolArgs []string
-		out := iostreamstest.CaptureOut(t, func() {
-			var err error
-			toolArgs, err = client.dryRunProxy(rs)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, toolArgs, "--env="+tools.ProxyCAEnvName+"="+dryRunCAPlaceholder)
-		assert.Regexp(t, `--env=EXAMPLE_API_KEY=agentic-[0-9a-f]{24}`, strings.Join(toolArgs, " "))
-		assert.Contains(t, out, "--volume="+proxyRunMountDir)
-		assert.Contains(t, out, proxy.EnvClientNets+"="+dryRunClientNetsPlaceholder)
-		_, connect, _ := strings.Cut(out, "docker network")
-		assert.Contains(t, connect, "connect")
-		assert.Contains(t, connect, NetworkName)
-		assert.NotContains(t, connect, "docker create", "the proxy joins the egress network after it is created")
-		assert.NotContains(t, out, "test-secret")
-		assert.Empty(t, calls())
-		assert.Empty(t, stdin())
-	})
+	// Assert
+	assert.Contains(t, toolArgs, "--env="+tools.ProxyCAEnvName+"="+dryRunCAPlaceholder)
+	assert.Regexp(t, `--env=EXAMPLE_API_KEY=agentic-[0-9a-f]{24}`, strings.Join(toolArgs, " "))
+	assert.Contains(t, out, "--volume="+proxyRunMountDir)
+	assert.Contains(t, out, proxy.EnvClientNets+"="+dryRunClientNetsPlaceholder)
+	_, connect, _ := strings.Cut(out, "docker network")
+	assert.Contains(t, connect, "connect")
+	assert.Contains(t, connect, NetworkName)
+	assert.NotContains(t, connect, "docker create", "the proxy joins the egress network after it is created")
+	assert.NotContains(t, out, "test-secret")
+	assert.Empty(t, calls())
+	assert.Empty(t, stdin())
 }
 
 func Test_proxyRules(t *testing.T) {

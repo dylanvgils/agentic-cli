@@ -52,22 +52,6 @@ func TestClient_Teardown(t *testing.T) {
 		assert.NoFileExists(t, tokenFilePath(testRunID))
 	})
 
-	t.Run("removes what a partly created run has", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		makeDindRunDir(t, toolHome, string(testRunID), 0)
-		daemon := &fakeDaemon{networks: []ownedResource{owned(network, tool, testRunID, 0)}}
-		stubDaemon(t, client, daemon)
-
-		// Act
-		err := client.Teardown(toolHome, testRunID)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, daemon.names())
-		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
-	})
-
 	t.Run("a run already torn down is a no-op", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()

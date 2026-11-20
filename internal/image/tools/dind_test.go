@@ -7,23 +7,32 @@ import (
 )
 
 func TestGenerateDindDockerfile(t *testing.T) {
-	t.Run("builds on the upstream rootless image", func(t *testing.T) {
-		// Act
-		result := GenerateDindDockerfile("")
+	for _, tc := range []struct {
+		name     string
+		registry string
+		wantFrom string
+	}{
+		{
+			name:     "builds on the upstream rootless image",
+			registry: "",
+			wantFrom: "FROM docker:" + DefaultVersions.Docker + "-dind-rootless AS dind",
+		},
+		{
+			name:     "registry prefixes the base image",
+			registry: "mirror.example.com/",
+			wantFrom: "FROM mirror.example.com/docker:" + DefaultVersions.Docker + "-dind-rootless AS dind",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := GenerateDindDockerfile(tc.registry)
 
-		// Assert
-		assert.Contains(t, result, "FROM docker:"+DefaultVersions.Docker+"-dind-rootless AS dind")
-	})
+			// Assert
+			assert.Contains(t, result, tc.wantFrom)
+		})
+	}
 
-	t.Run("registry prefixes the base image", func(t *testing.T) {
-		// Act
-		result := GenerateDindDockerfile("mirror.example.com/")
-
-		// Assert
-		assert.Contains(t, result, "FROM mirror.example.com/docker:"+DefaultVersions.Docker+"-dind-rootless AS dind")
-	})
-
-	t.Run("replaces setuid with narrow file capabilities and verifies none remain", func(t *testing.T) {
+	t.Run("replaces setuid with narrow file capabilities and drops back to the rootless user", func(t *testing.T) {
 		// Act
 		result := GenerateDindDockerfile("")
 
@@ -33,13 +42,6 @@ func TestGenerateDindDockerfile(t *testing.T) {
 		assert.Contains(t, result, "setcap cap_setgid=ep /usr/bin/newgidmap")
 		assert.Contains(t, result, `test -z "$(find / -xdev -type f -perm /6000)"`)
 		assert.Contains(t, result, "chmod 1777 /home/rootless/.local/share/docker")
-	})
-
-	t.Run("drops back to the rootless user", func(t *testing.T) {
-		// Act
-		result := GenerateDindDockerfile("")
-
-		// Assert
 		assert.Regexp(t, `USER rootless\s*$`, result)
 	})
 }

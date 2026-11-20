@@ -18,27 +18,18 @@ import (
 )
 
 func Test_createContainerUser(t *testing.T) {
+	// Act
 	result := df.File{Stages: []df.Stage{
 		df.NewStage(df.From{Image: "scratch"}).Add(createContainerUser("myuser")...).Build(),
 	}}.Render()
 
-	t.Run("renders host ID args", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "ARG HOST_UID=1000")
-		assert.Contains(t, result, "ARG HOST_GID=1000")
-	})
-
-	t.Run("renders group and user add", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique myuser")
-		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique myuser")
-	})
-
-	t.Run("renders conflict check", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "getent passwd ${HOST_UID}")
-		assert.Contains(t, result, `"myuser"`)
-	})
+	// Assert
+	assert.Contains(t, result, "ARG HOST_UID=1000")
+	assert.Contains(t, result, "ARG HOST_GID=1000")
+	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique myuser")
+	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique myuser")
+	assert.Contains(t, result, "getent passwd ${HOST_UID}")
+	assert.Contains(t, result, `"myuser"`)
 }
 
 func Test_cacheBustInstructions(t *testing.T) {
@@ -143,27 +134,27 @@ func Test_installScriptRun(t *testing.T) {
 		assert.NotContains(t, out, "installed")
 	})
 
-	t.Run("fails when the install script fails", func(t *testing.T) {
-		// Arrange
-		script := "exit 3"
+	for _, tc := range []struct {
+		name   string
+		script string
+	}{
+		{
+			name:   "fails when the install script fails",
+			script: "exit 3",
+		},
+		{
+			name:   "fails when the install leaves no tool on PATH",
+			script: "echo installed",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, err := runInstall(t, tc.script, sum(tc.script), "false")
 
-		// Act
-		_, err := runInstall(t, script, sum(script), "false")
-
-		// Assert
-		require.Error(t, err)
-	})
-
-	t.Run("fails when the install leaves no tool on PATH", func(t *testing.T) {
-		// Arrange
-		script := "echo installed"
-
-		// Act
-		_, err := runInstall(t, script, sum(script), "false")
-
-		// Assert
-		require.Error(t, err)
-	})
+			// Assert
+			require.Error(t, err)
+		})
+	}
 
 	t.Run("runs the after steps before the PATH check", func(t *testing.T) {
 		// Arrange

@@ -7,14 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRuntimeNames(t *testing.T) {
-	// Act
-	names := RuntimeNames()
-
-	// Assert
-	assert.Equal(t, "docker or microsandbox", names)
-}
-
 func TestParseRuntime(t *testing.T) {
 	t.Run("known name returns its runtime", func(t *testing.T) {
 		// Act

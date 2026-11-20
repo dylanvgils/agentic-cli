@@ -67,13 +67,31 @@ func Test_newGuardedDialer(t *testing.T) {
 }
 
 func Test_guardAddr(t *testing.T) {
-	t.Run("refuses a blocked address", func(t *testing.T) {
-		// Act
-		err := guardAddr(blockedAddr)(context.Background(), "tcp", "127.0.0.1:443", nil)
+	for _, tc := range []struct {
+		name string
+		addr string
+	}{
+		{
+			name: "refuses a blocked address",
+			addr: "127.0.0.1:443",
+		},
+		{
+			name: "refuses a private address without privateOK",
+			addr: "10.0.0.1:443",
+		},
+		{
+			name: "fails closed on an unparsable address",
+			addr: "not-an-address",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			err := guardAddr(blockedAddr)(context.Background(), "tcp", tc.addr, nil)
 
-		// Assert
-		assert.ErrorIs(t, err, errBlockedAddr)
-	})
+			// Assert
+			assert.ErrorIs(t, err, errBlockedAddr)
+		})
+	}
 
 	t.Run("passes privateOK from the context", func(t *testing.T) {
 		// Arrange
@@ -84,21 +102,5 @@ func Test_guardAddr(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
-	})
-
-	t.Run("refuses a private address without privateOK", func(t *testing.T) {
-		// Act
-		err := guardAddr(blockedAddr)(context.Background(), "tcp", "10.0.0.1:443", nil)
-
-		// Assert
-		assert.ErrorIs(t, err, errBlockedAddr)
-	})
-
-	t.Run("fails closed on an unparsable address", func(t *testing.T) {
-		// Act
-		err := guardAddr(blockedAddr)(context.Background(), "tcp", "not-an-address", nil)
-
-		// Assert
-		assert.ErrorIs(t, err, errBlockedAddr)
 	})
 }

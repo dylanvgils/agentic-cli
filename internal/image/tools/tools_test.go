@@ -27,23 +27,31 @@ func TestNames(t *testing.T) {
 }
 
 func TestImageName(t *testing.T) {
-	t.Run("known tool with default namespace", func(t *testing.T) {
-		// Act
-		image, err := ImageName("claude", "agentic")
+	for _, tc := range []struct {
+		name      string
+		namespace string
+		want      string
+	}{
+		{
+			name:      "known tool with default namespace",
+			namespace: "agentic",
+			want:      "agentic-claude",
+		},
+		{
+			name:      "known tool with custom namespace",
+			namespace: "myproject",
+			want:      "myproject-claude",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			image, err := ImageName("claude", tc.namespace)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude", image)
-	})
-
-	t.Run("known tool with custom namespace", func(t *testing.T) {
-		// Act
-		image, err := ImageName("claude", "myproject")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "myproject-claude", image)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, image)
+		})
+	}
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
@@ -55,60 +63,54 @@ func TestImageName(t *testing.T) {
 	})
 }
 
-func TestVersionScript_returnsAgenticPrefixedName(t *testing.T) {
-	// Act
-	result := versionScript("node")
-
-	// Assert
-	assert.Equal(t, "agentic-version-node", result)
-}
-
 func TestParseImageName(t *testing.T) {
-	t.Run("default namespace and known tool", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := ParseImageName("agentic-claude")
+	for _, tc := range []struct {
+		name          string
+		image         string
+		wantNamespace string
+		wantTool      string
+		wantOK        bool
+	}{
+		{
+			name:          "default namespace and known tool",
+			image:         "agentic-claude",
+			wantNamespace: "agentic",
+			wantTool:      "claude",
+			wantOK:        true,
+		},
+		{
+			name:          "custom namespace and known tool",
+			image:         "myproject-copilot",
+			wantNamespace: "myproject",
+			wantTool:      "copilot",
+			wantOK:        true,
+		},
+		{
+			name:          "multi-segment namespace",
+			image:         "my-long-project-opencode",
+			wantNamespace: "my-long-project",
+			wantTool:      "opencode",
+			wantOK:        true,
+		},
+		{
+			name:  "unknown tool returns false",
+			image: "agentic-bogus",
+		},
+		{
+			name:  "no dash returns false",
+			image: "claude",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			namespace, tool, ok := ParseImageName(tc.image)
 
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "agentic", namespace)
-		assert.Equal(t, "claude", tool)
-	})
-
-	t.Run("custom namespace and known tool", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := ParseImageName("myproject-copilot")
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "myproject", namespace)
-		assert.Equal(t, "copilot", tool)
-	})
-
-	t.Run("multi-segment namespace", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := ParseImageName("my-long-project-opencode")
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "my-long-project", namespace)
-		assert.Equal(t, "opencode", tool)
-	})
-
-	t.Run("unknown tool returns false", func(t *testing.T) {
-		// Act
-		_, _, ok := ParseImageName("agentic-bogus")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("no dash returns false", func(t *testing.T) {
-		// Act
-		_, _, ok := ParseImageName("claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
+			// Assert
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.wantNamespace, namespace)
+			assert.Equal(t, tc.wantTool, tool)
+		})
+	}
 }
 
 func TestRuntimeConfig_InstructionsHostPath(t *testing.T) {

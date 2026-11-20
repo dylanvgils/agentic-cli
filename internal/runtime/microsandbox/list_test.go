@@ -9,31 +9,20 @@ import (
 )
 
 func TestClient_ListRunning(t *testing.T) {
-	t.Run("lists only running agentic VMs", func(t *testing.T) {
-		// Arrange
-		c, args := stubRun("[]", nil)
-
-		// Act
-		_, err := c.ListRunning()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"ls", "--running", "--label=project=agentic-cli", "--format=json"}, *args)
-	})
-
-	t.Run("trims the image to its tool repo and splits it into namespace and tool", func(t *testing.T) {
+	t.Run("lists running agentic VMs, trimming the image to its tool repo and splitting it into namespace and tool", func(t *testing.T) {
 		// Arrange
 		out := `[
 			{"name": "vm-1", "image": "myproject-claude:sha256-ab12", "status": "running"},
 			{"name": "vm-2", "image": "agentic-copilot-dockerd:sha256-cd34", "status": "running"}
 		]`
-		c, _ := stubRun(out, nil)
+		c, args := stubRun(out, nil)
 
 		// Act
 		sandboxes, err := c.ListRunning()
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, []string{"ls", "--running", "--label=project=agentic-cli", "--format=json"}, *args)
 		assert.Equal(t, []*Sandbox{
 			{
 				Name:      "vm-1",

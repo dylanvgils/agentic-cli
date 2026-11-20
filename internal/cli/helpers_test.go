@@ -20,12 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeDocker implements dockerAPI; a nil field succeeds with a zero value.
+// fakeDocker implements dockerAPI with a func field per method a test stubs; a nil field, or a method without one, succeeds with a zero value.
 type fakeDocker struct {
 	context               string
 	checkDaemon           func() error
 	buildTool             func(tool, image string, opts tools.BuildOptions) error
-	restampImage          func(image string, info docker.ImageInfo)
 	buildProxyImage       func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage        func(image string, opts tools.BuildOptions) error
 	inspectImage          func(string) (*docker.ImageInfo, error)
@@ -35,23 +34,14 @@ type fakeDocker struct {
 	pruneImages           func() (string, error)
 	pruneBuildCache       func() (string, error)
 	startSidecars         func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
-	runTool               func(sidecars docker.Sidecars) error
-	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
-	buildDockerdImage     func(image string, parent *docker.ImageInfo) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
-	removeNetwork         func() error
-	ensureNamedVolumes    func(rs sandbox.RunSpec, chownImage string) error
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
-	sweepRuns             func(string) (docker.SweptRuns, error)
-	teardown              func(toolHome string, id sandbox.RunID) error
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
 	version               func() (string, error)
-	serverVersion         func() (engine, version string, err error)
-	requireLocalContext   func(reason string) error
 }
 
 func (f *fakeDocker) Context() string { return f.context }
@@ -82,11 +72,7 @@ func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) erro
 	return f.buildTool(tool, image, opts)
 }
 
-func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
-	if f.restampImage != nil {
-		f.restampImage(image, info)
-	}
-}
+func (f *fakeDocker) RestampImage(string, docker.ImageInfo) {}
 
 func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
 	if f.buildProxyImage == nil {
@@ -177,18 +163,9 @@ func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.
 	return f.startSidecars(rs, proxyLog)
 }
 
-func (f *fakeDocker) RunTool(sidecars docker.Sidecars) error {
-	if f.runTool == nil {
-		return nil
-	}
-	return f.runTool(sidecars)
-}
+func (f *fakeDocker) RunTool(docker.Sidecars) error { return nil }
 
-func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
-	if f.stopSidecars != nil {
-		f.stopSidecars(sidecars)
-	}
-}
+func (f *fakeDocker) StopSidecars(docker.Sidecars) {}
 
 func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	if f.saveImage == nil {
@@ -197,12 +174,7 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	return f.saveImage(image, w)
 }
 
-func (f *fakeDocker) BuildDockerdImage(image string, parent *docker.ImageInfo) error {
-	if f.buildDockerdImage == nil {
-		return nil
-	}
-	return f.buildDockerdImage(image, parent)
-}
+func (f *fakeDocker) BuildDockerdImage(string, *docker.ImageInfo) error { return nil }
 
 func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
 	if f.listRunningContainers == nil {
@@ -211,19 +183,9 @@ func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
 	return f.listRunningContainers()
 }
 
-func (f *fakeDocker) RemoveNetwork() error {
-	if f.removeNetwork == nil {
-		return nil
-	}
-	return f.removeNetwork()
-}
+func (f *fakeDocker) RemoveNetwork() error { return nil }
 
-func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
-	if f.ensureNamedVolumes == nil {
-		return nil
-	}
-	return f.ensureNamedVolumes(rs, chownImage)
-}
+func (f *fakeDocker) EnsureNamedVolumes(sandbox.RunSpec, string) error { return nil }
 
 func (f *fakeDocker) CreateVolume(name string) error {
 	if f.createVolume == nil {
@@ -246,19 +208,9 @@ func (f *fakeDocker) RemoveVolume(name string) error {
 	return f.removeVolume(name)
 }
 
-func (f *fakeDocker) SweepRuns(toolHome string) (docker.SweptRuns, error) {
-	if f.sweepRuns == nil {
-		return docker.SweptRuns{}, nil
-	}
-	return f.sweepRuns(toolHome)
-}
+func (f *fakeDocker) SweepRuns(string) (docker.SweptRuns, error) { return docker.SweptRuns{}, nil }
 
-func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
-	if f.teardown == nil {
-		return nil
-	}
-	return f.teardown(toolHome, id)
-}
+func (f *fakeDocker) Teardown(string, sandbox.RunID) error { return nil }
 
 func (f *fakeDocker) ListContexts() ([]string, error) {
 	if f.listContexts == nil {
@@ -274,20 +226,12 @@ func (f *fakeDocker) Version() (string, error) {
 	return f.version()
 }
 
-// ServerVersion reports a recent Docker Engine unless stubbed.
+// ServerVersion reports a recent Docker Engine.
 func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
-	if f.serverVersion == nil {
-		return "Engine", "29.0.0", nil
-	}
-	return f.serverVersion()
+	return "Engine", "29.0.0", nil
 }
 
-func (f *fakeDocker) RequireLocalContext(reason string) error {
-	if f.requireLocalContext == nil {
-		return nil
-	}
-	return f.requireLocalContext(reason)
-}
+func (f *fakeDocker) RequireLocalContext(string) error { return nil }
 
 // overlay copies o's set fields onto f.
 func (f *fakeDocker) overlay(o *fakeDocker) {
@@ -299,9 +243,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.buildTool != nil {
 		f.buildTool = o.buildTool
-	}
-	if o.restampImage != nil {
-		f.restampImage = o.restampImage
 	}
 	if o.buildProxyImage != nil {
 		f.buildProxyImage = o.buildProxyImage
@@ -330,23 +271,11 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.startSidecars != nil {
 		f.startSidecars = o.startSidecars
 	}
-	if o.runTool != nil {
-		f.runTool = o.runTool
-	}
-	if o.stopSidecars != nil {
-		f.stopSidecars = o.stopSidecars
-	}
 	if o.saveImage != nil {
 		f.saveImage = o.saveImage
 	}
 	if o.listRunningContainers != nil {
 		f.listRunningContainers = o.listRunningContainers
-	}
-	if o.removeNetwork != nil {
-		f.removeNetwork = o.removeNetwork
-	}
-	if o.ensureNamedVolumes != nil {
-		f.ensureNamedVolumes = o.ensureNamedVolumes
 	}
 	if o.createVolume != nil {
 		f.createVolume = o.createVolume
@@ -357,12 +286,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.removeVolume != nil {
 		f.removeVolume = o.removeVolume
 	}
-	if o.sweepRuns != nil {
-		f.sweepRuns = o.sweepRuns
-	}
-	if o.teardown != nil {
-		f.teardown = o.teardown
-	}
 	if o.listContexts != nil {
 		f.listContexts = o.listContexts
 	}
@@ -371,12 +294,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.version != nil {
 		f.version = o.version
-	}
-	if o.serverVersion != nil {
-		f.serverVersion = o.serverVersion
-	}
-	if o.requireLocalContext != nil {
-		f.requireLocalContext = o.requireLocalContext
 	}
 }
 
@@ -422,21 +339,16 @@ func captureToolRun(t *testing.T) func() sandbox.RunSpec {
 	return func() sandbox.RunSpec { return capturedSpec }
 }
 
-// fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
+// fakeMicrosandbox is a hand-written msbAPI with a func field per method a test stubs; nil funcs and methods without one succeed.
 type fakeMicrosandbox struct {
 	available       func() error
-	hasImage        func(ref string) (bool, error)
 	loadImage       func(r io.Reader, tag string) error
-	imageRefs       func() ([]string, error)
-	removeImage     func(ref string) error
 	run             func(rs sandbox.RunSpec) error
 	cleanImage      func(image string) error
 	listRunning     func() ([]*microsandbox.Sandbox, error)
-	ports           func(name string) ([]microsandbox.PublishedPort, error)
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
 	version         func() (string, error)
-	teardown        func(id sandbox.RunID) error
 }
 
 // Capabilities returns msb's real capabilities, which tests have no reason to change.
@@ -451,13 +363,8 @@ func (f *fakeMicrosandbox) Available() error {
 	return f.available()
 }
 
-// HasImage reports ref missing unless stubbed.
-func (f *fakeMicrosandbox) HasImage(ref string) (bool, error) {
-	if f.hasImage == nil {
-		return false, nil
-	}
-	return f.hasImage(ref)
-}
+// HasImage reports every ref missing.
+func (f *fakeMicrosandbox) HasImage(string) (bool, error) { return false, nil }
 
 func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {
 	if f.loadImage == nil {
@@ -466,19 +373,9 @@ func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {
 	return f.loadImage(r, tag)
 }
 
-func (f *fakeMicrosandbox) ImageRefs() ([]string, error) {
-	if f.imageRefs == nil {
-		return nil, nil
-	}
-	return f.imageRefs()
-}
+func (f *fakeMicrosandbox) ImageRefs() ([]string, error) { return nil, nil }
 
-func (f *fakeMicrosandbox) RemoveImage(ref string) error {
-	if f.removeImage == nil {
-		return nil
-	}
-	return f.removeImage(ref)
-}
+func (f *fakeMicrosandbox) RemoveImage(string) error { return nil }
 
 func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
@@ -499,12 +396,7 @@ func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, _ microsandbox.Pr
 	return f.Run(rs)
 }
 
-func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
-	if f.teardown == nil {
-		return nil
-	}
-	return f.teardown(id)
-}
+func (f *fakeMicrosandbox) Teardown(sandbox.RunID) error { return nil }
 
 func (f *fakeMicrosandbox) CleanImage(image string) error {
 	if f.cleanImage == nil {
@@ -520,12 +412,7 @@ func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
 	return f.listRunning()
 }
 
-func (f *fakeMicrosandbox) Ports(name string) ([]microsandbox.PublishedPort, error) {
-	if f.ports == nil {
-		return nil, nil
-	}
-	return f.ports(name)
-}
+func (f *fakeMicrosandbox) Ports(string) ([]microsandbox.PublishedPort, error) { return nil, nil }
 
 // Version reports a recent msb unless stubbed.
 func (f *fakeMicrosandbox) Version() (string, error) {
@@ -573,11 +460,6 @@ func withTempToolHome(t *testing.T) {
 	t.Cleanup(func() { toolHome = orig })
 }
 
-func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{buildProxyImage: fn})
-}
-
 func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{checkDaemon: fn})
@@ -586,11 +468,6 @@ func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 func stubCleanImage(t *testing.T, fn func(string) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{cleanImage: fn})
-}
-
-func stubCreateVolume(t *testing.T, fn func(string) error) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{createVolume: fn})
 }
 
 func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
@@ -611,11 +488,6 @@ func stubListRunningContainers(t *testing.T, fn func() ([]*docker.ContainerInfo,
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{listVolumeNames: fn})
-}
-
-func stubListContexts(t *testing.T, fn func() ([]string, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{listContexts: fn})
 }
 
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
@@ -640,11 +512,6 @@ type fakeUpstream struct {
 
 func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	return f.latest, f.newer, f.ok
-}
-
-func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.
@@ -715,12 +582,6 @@ func newTestAllCmd(t *testing.T, all bool) *cobra.Command {
 		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
 	}
 	return cmd
-}
-
-// writeMarketplaceRC writes a minimal .agenticrc.toml declaring one marketplace into dir.
-func writeMarketplaceRC(t *testing.T, dir, name, url string) {
-	t.Helper()
-	writeRC(t, dir, "root = true\n\n[[marketplaces]]\nname = \""+name+"\"\nurl = \""+url+"\"\n")
 }
 
 // writeRC writes content as dir's .agenticrc.toml.

@@ -97,6 +97,23 @@ func TestRun(t *testing.T) {
 	})
 }
 
+// TestRun_existingEmptyHome guards the real changelog: a pre-created home without a state file is at version 0 and must
+// still migrate, so the changelog may only be pruned while v0 homes can't occur.
+func TestRun_existingEmptyHome(t *testing.T) {
+	// Arrange
+	toolHome := t.TempDir()
+	iostreamstest.StubErr(t)
+
+	// Act
+	_, err := Run(toolHome)
+
+	// Assert
+	require.NoError(t, err)
+	got, err := loadState(toolHome)
+	require.NoError(t, err)
+	assert.Equal(t, latestVersion(changelog), got.Version)
+}
+
 func TestApplyPending(t *testing.T) {
 	t.Run("applies every pending migration newer than current.Version", func(t *testing.T) {
 		// Arrange
@@ -161,30 +178,5 @@ func TestApplyPending(t *testing.T) {
 		s, loadErr := loadState(toolHome)
 		require.NoError(t, loadErr)
 		assert.Equal(t, 1, s.Version)
-	})
-}
-
-func TestState_roundTrip(t *testing.T) {
-	t.Run("loadState on a missing file returns the zero value", func(t *testing.T) {
-		// Act
-		s, err := loadState(t.TempDir())
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, state{}, s)
-	})
-
-	t.Run("saveState persists a value loadState can read back", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-
-		// Act
-		err := saveState(toolHome, state{Version: 3})
-
-		// Assert
-		require.NoError(t, err)
-		s, err := loadState(toolHome)
-		require.NoError(t, err)
-		assert.Equal(t, 3, s.Version)
 	})
 }

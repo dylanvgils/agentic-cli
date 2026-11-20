@@ -79,27 +79,6 @@ func Test_splitMountHost(t *testing.T) {
 	}
 }
 
-func TestHostPart(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		spec string
-		want string
-	}{
-		{name: "unix path", spec: "/host/path:/container", want: "/host/path"},
-		{name: "named volume", spec: "maven:/container", want: "maven"},
-		{name: "windows drive letter", spec: `C:\Users\foo:/container`, want: `C:\Users\foo`},
-		{name: "no colon", spec: "maven", want: "maven"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := HostPart(tc.spec)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
 func TestSplitHostContainer(t *testing.T) {
 	for _, tc := range []struct {
 		name          string

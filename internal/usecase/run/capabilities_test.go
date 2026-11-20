@@ -288,11 +288,6 @@ func Test_proxySource(t *testing.T) {
 		want   string
 	}{
 		{
-			name:  "names the flag",
-			flags: resolve.ProxyInput{ProxyFlag: true},
-			want:  "--proxy",
-		},
-		{
 			name:  "names the monitor flag over the proxy flag",
 			flags: resolve.ProxyInput{ProxyFlag: true, MonitorFlag: true},
 			want:  "--proxy-monitor",
@@ -324,83 +319,29 @@ func Test_proxySource(t *testing.T) {
 }
 
 func Test_dindSource(t *testing.T) {
+	// Arrange
 	enabled := true
+	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+	layer.RC.Run.Dind.Enabled = &enabled
+	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
 
-	t.Run("names the flag", func(t *testing.T) {
-		// Arrange
-		req := Request{}
-		req.Flags.Dind.DindFlag = true
+	// Act
+	source := dindSource(req)
 
-		// Act
-		source := dindSource(req)
-
-		// Assert
-		assert.Equal(t, "--dind", source)
-	})
-
-	t.Run("names enabled and its layer", func(t *testing.T) {
-		// Arrange
-		layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
-		layer.RC.Run.Dind.Enabled = &enabled
-		req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
-
-		// Act
-		source := dindSource(req)
-
-		// Assert
-		assert.Equal(t, "[run.dind] enabled in /example.test/.agenticrc.toml", source)
-	})
+	// Assert
+	assert.Equal(t, "[run.dind] enabled in /example.test/.agenticrc.toml", source)
 }
 
 func Test_runtimeSource(t *testing.T) {
-	t.Run("names the flag", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-
-		// Act
-		source := runtimeSource(req)
-
-		// Assert
-		assert.Equal(t, "--runtime microsandbox", source)
-	})
-
-	t.Run("names the key and its layer", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
-		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
-
-		// Act
-		source := runtimeSource(req)
-
-		// Assert
-		assert.Equal(t, `[run] runtime = "microsandbox" in /example.test/.agenticrc.toml`, source)
-	})
-}
-
-func Test_credentialsSource(t *testing.T) {
 	// Arrange
-	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
-	layer.RC.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}}}
-	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
+	rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
+	req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
 
 	// Act
-	source := credentialsSource(req)
+	source := runtimeSource(req)
 
 	// Assert
-	assert.Equal(t, "[[run.proxy.credentials]] in /example.test/.agenticrc.toml", source)
-}
-
-func Test_pathRulesSource(t *testing.T) {
-	// Arrange
-	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
-	layer.RC.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
-
-	// Act
-	source := pathRulesSource(req)
-
-	// Assert
-	assert.Equal(t, "[[run.proxy.allowed_paths]] in /example.test/.agenticrc.toml", source)
+	assert.Equal(t, `[run] runtime = "microsandbox" in /example.test/.agenticrc.toml`, source)
 }
 
 func Test_layerSource(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
-	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -87,28 +86,6 @@ func startHelloServer(t *testing.T) *httptest.Server {
 	}))
 	t.Cleanup(upstream.Close)
 	return upstream
-}
-
-// startHopHeaderServer starts an HTTP upstream answering with testHopHeader, sending each request's header on the channel.
-func startHopHeaderServer(t *testing.T) (*httptest.Server, <-chan http.Header) {
-	t.Helper()
-	received := make(chan http.Header, 1)
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received <- r.Header.Clone()
-		maps.Copy(w.Header(), testHopHeader())
-	}))
-	t.Cleanup(upstream.Close)
-	return upstream, received
-}
-
-// testHopHeader returns a header with hop-by-hop fields, one of them listed in Connection, and the end-to-end X-Keep.
-func testHopHeader() http.Header {
-	return http.Header{
-		"Connection":       {"X-Hop"},
-		"X-Hop":            {"1"},
-		"Proxy-Connection": {"keep-alive"},
-		"X-Keep":           {"1"},
-	}
 }
 
 // closedPort returns a loopback host and port nothing listens on.

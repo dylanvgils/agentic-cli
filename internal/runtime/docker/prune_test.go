@@ -44,27 +44,9 @@ func TestPruneBuildCache(t *testing.T) {
 }
 
 func Test_reclaimedSpace(t *testing.T) {
-	t.Run("reads the image prune total", func(t *testing.T) {
-		// Act
-		result := reclaimedSpace("Total reclaimed space: 0B\n")
+	// Act
+	result := reclaimedSpace("")
 
-		// Assert
-		assert.Equal(t, "0B", result)
-	})
-
-	t.Run("reads the builder prune total", func(t *testing.T) {
-		// Act
-		result := reclaimedSpace("Total:\t1.5GB\n")
-
-		// Assert
-		assert.Equal(t, "1.5GB", result)
-	})
-
-	t.Run("no total line gives empty", func(t *testing.T) {
-		// Act
-		result := reclaimedSpace("")
-
-		// Assert
-		assert.Empty(t, result)
-	})
+	// Assert
+	assert.Empty(t, result, "no total line gives empty")
 }

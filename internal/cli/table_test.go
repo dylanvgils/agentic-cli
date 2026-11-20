@@ -23,84 +23,85 @@ type testDetail struct {
 }
 
 func Test_writeTable(t *testing.T) {
-	t.Run("prints a column per tagged field, aligned under its header", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		rows := []testRow{
-			{
-				tool:      "claude",
-				namespace: "agentic",
-				note:      "hidden",
+	for _, tc := range []struct {
+		name string
+		rows []testRow
+		want string
+	}{
+		{
+			name: "prints a column per tagged field, aligned under its header",
+			rows: []testRow{
+				{
+					tool:      "claude",
+					namespace: "agentic",
+					note:      "hidden",
+				},
+				{
+					tool:      "opencode",
+					namespace: "work",
+				},
 			},
-			{
-				tool:      "opencode",
-				namespace: "work",
-			},
-		}
+			want: "TOOL      NAMESPACE\nclaude    agentic\nopencode  work\n",
+		},
+		{
+			name: "dashes empty cells",
+			rows: []testRow{{tool: "claude"}},
+			want: "TOOL    NAMESPACE\nclaude  -\n",
+		},
+		{
+			name: "prints only the header without rows",
+			want: "TOOL  NAMESPACE\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var buf bytes.Buffer
 
-		// Act
-		err := writeTable(&buf, rows)
+			// Act
+			err := writeTable(&buf, tc.rows)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "TOOL      NAMESPACE\nclaude    agentic\nopencode  work\n", buf.String())
-	})
-
-	t.Run("dashes empty cells", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-
-		// Act
-		err := writeTable(&buf, []testRow{{tool: "claude"}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "TOOL    NAMESPACE\nclaude  -\n", buf.String())
-	})
-
-	t.Run("prints only the header without rows", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-
-		// Act
-		err := writeTable[testRow](&buf, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "TOOL  NAMESPACE\n", buf.String())
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, buf.String())
+		})
+	}
 }
 
 func Test_writeFields(t *testing.T) {
-	t.Run("aligns values after the longest key", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		detail := testDetail{
-			tool:      "claude",
-			namespace: "agentic",
-		}
+	for _, tc := range []struct {
+		name   string
+		prefix string
+		detail testDetail
+		want   string
+	}{
+		{
+			name:   "aligns values after the longest key",
+			prefix: "  ",
+			detail: testDetail{
+				tool:      "claude",
+				namespace: "agentic",
+			},
+			want: "  tool:       claude\n  namespace:  agentic\n",
+		},
+		{
+			name: "skips empty values and untagged fields",
+			detail: testDetail{
+				tool: "claude",
+				note: "hidden",
+			},
+			want: "tool:  claude\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var buf bytes.Buffer
 
-		// Act
-		err := writeFields(&buf, "  ", detail)
+			// Act
+			err := writeFields(&buf, tc.prefix, tc.detail)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  tool:       claude\n  namespace:  agentic\n", buf.String())
-	})
-
-	t.Run("skips empty values and untagged fields", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		detail := testDetail{
-			tool: "claude",
-			note: "hidden",
-		}
-
-		// Act
-		err := writeFields(&buf, "", detail)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "tool:  claude\n", buf.String())
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, buf.String())
+		})
+	}
 }

@@ -143,22 +143,6 @@ func Test_prefixImage(t *testing.T) {
 	}
 }
 
-func TestDebianImageFor(t *testing.T) {
-	// Act
-	result := DebianImageFor("")
-
-	// Assert
-	assert.Equal(t, "debian:"+DefaultVersions.Debian, result)
-}
-
-func TestBusyboxImageFor(t *testing.T) {
-	// Act
-	result := BusyboxImageFor("")
-
-	// Assert
-	assert.Equal(t, "busybox:"+DefaultVersions.Busybox, result)
-}
-
 func Test_extraStage(t *testing.T) {
 	defaults := map[string]string{
 		"docker": "DOCKER_VERSION=" + DefaultVersions.Docker,
@@ -241,6 +225,38 @@ func Test_extraStage(t *testing.T) {
 	})
 }
 
+func TestKnownExtras(t *testing.T) {
+	// Act
+	result := KnownExtras()
+	result[0] = "changed"
+
+	// Assert - the extras without the base layer, as a copy callers can't use to edit the list
+	assert.Equal(t, "docker", knownExtras[0])
+	assert.NotContains(t, KnownExtras(), BaseLayer)
+}
+
+func Test_layerFlagDescCoversAllLayers(t *testing.T) {
+	for _, name := range KnownLayers() {
+		assert.NotEmpty(t, LayerFlagDesc[name], "LayerFlagDesc missing entry for %q", name)
+	}
+}
+
+func TestDebianImageFor(t *testing.T) {
+	// Act
+	result := DebianImageFor("")
+
+	// Assert
+	assert.Equal(t, "debian:"+DefaultVersions.Debian, result)
+}
+
+func TestBusyboxImageFor(t *testing.T) {
+	// Act
+	result := BusyboxImageFor("")
+
+	// Assert
+	assert.Equal(t, "busybox:"+DefaultVersions.Busybox, result)
+}
+
 func TestBuildLayers(t *testing.T) {
 	t.Run("base layer is always first", func(t *testing.T) {
 		// Act
@@ -257,29 +273,4 @@ func TestBuildLayers(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{BaseLayer, "dotnet", "java"}, result)
 	})
-}
-
-func TestKnownExtras(t *testing.T) {
-	// Act
-	result := KnownExtras()
-	result[0] = "changed"
-
-	// Assert - the extras without the base layer, as a copy callers can't use to edit the list
-	assert.Equal(t, "docker", knownExtras[0])
-	assert.NotContains(t, KnownExtras(), BaseLayer)
-}
-
-func Test_knownLayers(t *testing.T) {
-	// Act
-	result := KnownLayers()
-
-	// Assert
-	assert.Equal(t, BaseLayer, result[0], "base layer must be first")
-	assert.Equal(t, knownExtras, result[1:], "extras follow the base layer")
-}
-
-func Test_layerFlagDescCoversAllLayers(t *testing.T) {
-	for _, name := range KnownLayers() {
-		assert.NotEmpty(t, LayerFlagDesc[name], "LayerFlagDesc missing entry for %q", name)
-	}
 }

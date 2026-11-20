@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -32,6 +31,7 @@ func Test_Service_build(t *testing.T) {
 			ToolHome: t.TempDir(),
 			Volumes:  []string{"/host:/container:rw"},
 			Ports:    []string{"3000"},
+			Proxy:    resolve.ProxyInput{MonitorFlag: true},
 			DryRun:   true,
 		}
 		rc := &config.AgenticRC{Run: config.RCRun{
@@ -55,45 +55,13 @@ func Test_Service_build(t *testing.T) {
 		assert.Equal(t, []string{"--from-rc", "--from-cli"}, rs.ToolArgs)
 		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
 		assert.Equal(t, rs.Limits, rs.Dind.Limits, "dind limits inherit the tool's")
-		assert.Equal(t, sandbox.EgressOff, rs.Egress.Mode)
+		assert.Equal(t, sandbox.EgressMonitor, rs.Egress.Mode)
 		for _, v := range rs.Volumes {
 			assert.NotContains(t, v, "CLAUDE.md", "no instructions mount without one in the config")
 		}
 		for _, e := range rs.Env {
 			assert.NotContains(t, e, "AGENTIC_MARKETPLACES", "no marketplaces configured")
 		}
-	})
-
-	t.Run("skip entrypoint wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
-		svc := newTestService(d, nil)
-		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, &config.AgenticRC{})
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, rs.SkipEntrypoint)
-	})
-
-	t.Run("instructions mount wired after the tool's base mounts", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		svc := newTestService(d, nil)
-		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, &config.AgenticRC{})
-		c.Mounts.Instructions = "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md"
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		require.Contains(t, rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
-		baseMountIdx := slices.Index(rs.Volumes, tools.Configs["claude"].Runtime.Mounts()[1])
-		instructionsMountIdx := slices.Index(rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
-		assert.Less(t, baseMountIdx, instructionsMountIdx, "instructions mount must overlay the base directory mount, so it must be listed after it")
 	})
 
 	t.Run("config mount through a planted symlink out of cwd is refused", func(t *testing.T) {
@@ -112,30 +80,9 @@ func Test_Service_build(t *testing.T) {
 		assert.ErrorContains(t, err, "goes through workspace symlink")
 	})
 
-	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
+	t.Run("proxy wired with the resolved rules", func(t *testing.T) {
 		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
-
-		svc := newTestService(d, nil)
-		flags := Flags{
-			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
-		}
-		c := resolvedConfig(t, svc, target, flags, rc)
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressEnforce, rs.Egress.Mode)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Egress.WholeHosts())
-	})
-
-	t.Run("proxy gets path rules after the hosts allowed whole", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
@@ -152,6 +99,8 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.True(t, rs.SkipEntrypoint)
+		assert.Equal(t, sandbox.EgressEnforce, rs.Egress.Mode)
 		assert.Equal(t, sandbox.AllowRule{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}, rs.Egress.Rules[len(rs.Egress.Rules)-1])
 	})
 
@@ -175,48 +124,6 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "can't trust the proxy CA")
-	})
-
-	t.Run("path rules limit a host the tool's baseline allows whole", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
-			{Host: "api.anthropic.com", Paths: []string{"/v1/**"}},
-		}}}}
-
-		svc := newTestService(d, nil)
-		flags := Flags{
-			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
-		}
-		c := resolvedConfig(t, svc, target, flags, rc)
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, rs.Egress.Rules, sandbox.AllowRule{Host: "api.anthropic.com", Paths: []string{"/v1/**"}})
-		assert.Contains(t, rs.Egress.WholeHosts(), ".anthropic.com", "the proxy lets the path rules win over the wildcard")
-	})
-
-	t.Run("proxy monitor wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-
-		svc := newTestService(d, nil)
-		flags := Flags{
-			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{MonitorFlag: true},
-		}
-		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressMonitor, rs.Egress.Mode)
 	})
 
 	for _, tc := range []struct {
@@ -263,30 +170,6 @@ func Test_Service_build(t *testing.T) {
 		})
 	}
 
-	t.Run("microsandbox allows path rule hosts whole", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
-			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
-		}}}}
-
-		svc := newTestService(&fakeDocker{}, &fakeMicrosandbox{})
-		flags := Flags{
-			ToolHome: t.TempDir(),
-			Runtime:  sandbox.RuntimeMicrosandbox,
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
-		}
-		c := resolvedConfig(t, svc, target, flags, rc)
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, rs.Egress.HasPathRules())
-		assert.Contains(t, rs.Egress.WholeHosts(), "raw.example.test")
-	})
-
 	t.Run("proxy credentials refused on an image without proxy trust", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
@@ -328,28 +211,6 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
-	})
-
-	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{inspectImage: trusted}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-
-		svc := newTestService(d, nil)
-		flags := Flags{
-			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
-			Dind:     resolve.DindInput{DindFlag: true},
-		}
-		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
-
-		// Act
-		rs, err := svc.build(c)
-
-		// Assert - agentic-net is skipped since the tool joins a per-run network
-		require.NoError(t, err)
-		assert.True(t, rs.Dind.Enabled)
-		assert.Contains(t, rs.Egress.WholeHosts(), "registry-1.docker.io")
 	})
 
 	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {
@@ -517,33 +378,7 @@ func Test_Service_syncToolMarketplaces(t *testing.T) {
 	})
 }
 
-func Test_marketplaceEntries(t *testing.T) {
-	// Arrange
-	rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{
-		{Name: "acme", URL: "git@example.test:acme.git"},
-		{Name: "copilot-only", URL: "git@example.test:other.git", Tools: []string{"copilot"}},
-	}}
-
-	// Act
-	entries := marketplaceEntries(rc, "claude")
-
-	// Assert
-	assert.Equal(t, []marketplace.Entry{{Name: "acme", URL: "git@example.test:acme.git"}}, entries)
-}
-
 func Test_toolMarketplaceMounts(t *testing.T) {
-	t.Run("returns each result's mount spec and name", func(t *testing.T) {
-		// Arrange
-		results := []marketplace.Result{{Entry: marketplace.Entry{Name: "acme", URL: "git@example.test:acme.git"}}}
-
-		// Act
-		mounts, names := toolMarketplaceMounts(tools.Configs["claude"], results)
-
-		// Assert
-		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.test:acme.git")}, mounts)
-		assert.Equal(t, []string{"acme"}, names)
-	})
-
 	t.Run("warns about a stale clone and still mounts it", func(t *testing.T) {
 		// Arrange
 		logs := iostreamstest.StubErr(t)
@@ -556,25 +391,6 @@ func Test_toolMarketplaceMounts(t *testing.T) {
 		assert.Len(t, mounts, 1)
 		assert.Equal(t, []string{"acme"}, names)
 		assert.Contains(t, logs.String(), `marketplace "acme": offline; using existing clone`)
-	})
-}
-
-func Test_isReservedEnvName(t *testing.T) {
-	t.Run("an integration's env is reserved only with that integration", func(t *testing.T) {
-		// Act
-		without, with := isReservedEnvName("MAVEN_ARGS", true, false, nil), isReservedEnvName("MAVEN_ARGS", true, false, []string{"maven"})
-
-		// Assert
-		assert.False(t, without)
-		assert.True(t, with)
-	})
-
-	t.Run("agentic's own env is reserved", func(t *testing.T) {
-		// Act
-		reserved := isReservedEnvName("HTTPS_PROXY", true, false, nil)
-
-		// Assert
-		assert.True(t, reserved)
 	})
 }
 

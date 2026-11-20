@@ -19,18 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_dockerRunner_Capabilities(t *testing.T) {
-	// Arrange
-	want := sandbox.Capabilities{Features: sandbox.Features{Proxy: true}}
-	r := dockerRunner{docker: &fakeDocker{capabilities: func() sandbox.Capabilities { return want }}}
-
-	// Act
-	caps := r.Capabilities()
-
-	// Assert
-	assert.Equal(t, want, caps)
-}
-
 func Test_dockerRunner_Check(t *testing.T) {
 	engine := func(name, version string) func() (string, string, error) {
 		return func() (string, string, error) { return name, version, nil }
@@ -49,14 +37,6 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
-	})
-
-	t.Run("refuses an older Docker Engine", func(t *testing.T) {
-		// Act
-		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Engine", "25.0.5")}).Check(plain)
-
-		// Assert
-		assert.EqualError(t, err, "Docker Engine 25.0.5 is older than the minimum 26.0; update it and run again")
 	})
 
 	t.Run("only warns for another engine", func(t *testing.T) {

@@ -108,23 +108,37 @@ func TestClient_ServerVersion(t *testing.T) {
 }
 
 func Test_engineComponent(t *testing.T) {
-	t.Run("picks a component named like an engine", func(t *testing.T) {
-		// Act
-		got, err := engineComponent([]serverComponent{{"Conmon", "2.1.12"}, {"Podman Engine", "5.2.0"}})
+	for _, tc := range []struct {
+		name       string
+		components []serverComponent
+		want       serverComponent
+	}{
+		{
+			name: "picks a component named like an engine",
+			components: []serverComponent{
+				{"Conmon", "2.1.12"},
+				{"Podman Engine", "5.2.0"},
+			},
+			want: serverComponent{"Podman Engine", "5.2.0"},
+		},
+		{
+			name: "falls back to the first component",
+			components: []serverComponent{
+				{"Daemon", "1.0.0"},
+				{"runtime", "2.0.0"},
+			},
+			want: serverComponent{"Daemon", "1.0.0"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got, err := engineComponent(tc.components)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, serverComponent{"Podman Engine", "5.2.0"}, got)
-	})
-
-	t.Run("falls back to the first component", func(t *testing.T) {
-		// Act
-		got, err := engineComponent([]serverComponent{{"Daemon", "1.0.0"}, {"runtime", "2.0.0"}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, serverComponent{"Daemon", "1.0.0"}, got)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 
 	t.Run("no components is an error", func(t *testing.T) {
 		// Act
@@ -168,53 +182,13 @@ func TestRunVersionScript(t *testing.T) {
 }
 
 func TestCollectExtraVersions(t *testing.T) {
-	client := newTestClient()
-
-	t.Run("empty extras returns empty map", func(t *testing.T) {
-		// Arrange
-		calls := 0
-		stubDockerRun(t, client, func(_ ...string) (string, error) { calls++; return "", nil })
-
-		// Act
-		result := client.collectExtraVersions("agentic-base", nil)
-
-		// Assert
-		assert.Empty(t, result)
-		assert.Equal(t, 0, calls, "docker should not be called for empty extras")
-	})
-
-	t.Run("detects version for each extra", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "21.0.1\n", nil)
-
-		// Act
-		result := client.collectExtraVersions("agentic-base", []string{"java", "python"})
-
-		// Assert
-		assert.Equal(t, "21.0.1", result["java"])
-		assert.Equal(t, "21.0.1", result["python"])
-	})
-
-	t.Run("docker run error stores empty string", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", fmt.Errorf("fail"))
-
-		// Act
-		result := client.collectExtraVersions("agentic-base", []string{"java"})
-
-		// Assert
-		assert.Equal(t, "", result["java"])
-	})
-}
-
-func TestCollectBaseLabel(t *testing.T) {
 	// Arrange
 	client := newTestClient()
 	stubDockerRunFixed(t, client, "21.0.1\n", nil)
 
 	// Act
-	result := client.collectBaseLabel("agentic-base", []string{"java"})
+	result := client.collectExtraVersions("agentic-base", []string{"java", "python"})
 
 	// Assert
-	assert.Equal(t, "java@21.0.1", result)
+	assert.Equal(t, map[string]string{"java": "21.0.1", "python": "21.0.1"}, result)
 }

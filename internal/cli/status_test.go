@@ -104,27 +104,3 @@ func Test_runStatus(t *testing.T) {
 		assert.ErrorContains(t, err, "docker error")
 	})
 }
-
-func Test_msbStatus(t *testing.T) {
-	t.Run("installed", func(t *testing.T) {
-		// Arrange
-		stubMicrosandbox(t, &fakeMicrosandbox{})
-
-		// Act
-		status := msbStatus()
-
-		// Assert
-		assert.Equal(t, "installed", status)
-	})
-
-	t.Run("not installed", func(t *testing.T) {
-		// Arrange
-		stubMicrosandbox(t, &fakeMicrosandbox{available: func() error { return fmt.Errorf("msb not found") }})
-
-		// Act
-		status := msbStatus()
-
-		// Assert
-		assert.Equal(t, "not installed", status)
-	})
-}

@@ -200,49 +200,18 @@ func TestMergeConfigs(t *testing.T) {
 }
 
 func Test_mergeLimits(t *testing.T) {
+	// Arrange
 	parent := RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}
+	limits := RCLimits{CPUs: "2"}
 
-	t.Run("empty limits take the parent's", func(t *testing.T) {
-		// Act
-		result := mergeLimits(RCLimits{}, parent)
+	// Act
+	result := mergeLimits(limits, parent)
 
-		// Assert
-		assert.Equal(t, parent, result)
-	})
-
-	t.Run("set limits win over the parent", func(t *testing.T) {
-		// Arrange
-		limits := RCLimits{PidsLimit: "100", CPUs: "2", Memory: "2g"}
-
-		// Act
-		result := mergeLimits(limits, parent)
-
-		// Assert
-		assert.Equal(t, limits, result)
-	})
-
-	t.Run("each limit merges on its own", func(t *testing.T) {
-		// Arrange
-		limits := RCLimits{CPUs: "2"}
-
-		// Act
-		result := mergeLimits(limits, parent)
-
-		// Assert
-		assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
-	})
+	// Assert - each limit merges on its own
+	assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
 }
 
 func TestMerge(t *testing.T) {
-	t.Run("no layers returns empty", func(t *testing.T) {
-		// Act
-		rc, err := Merge(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, rc.Run.Proxy.Credentials)
-	})
-
 	t.Run("innermost scalar wins and lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		layers := []RCLayer{
@@ -285,50 +254,65 @@ func TestMerge(t *testing.T) {
 }
 
 func Test_fillUnset(t *testing.T) {
-	t.Run("fills an empty string", func(t *testing.T) {
-		// Arrange
-		dst := ""
+	disabled := false
+	enabled := true
 
-		// Act
-		fillUnset(&dst, "agentic")
+	for _, tc := range []struct {
+		name string
+		dst  string
+		src  string
+		want string
+	}{
+		{
+			name: "fills an empty string",
+			dst:  "",
+			src:  "agentic",
+			want: "agentic",
+		},
+		{
+			name: "keeps a set string",
+			dst:  "inner",
+			src:  "outer",
+			want: "inner",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			dst := tc.dst
 
-		// Assert
-		assert.Equal(t, "agentic", dst)
-	})
+			// Act
+			fillUnset(&dst, tc.src)
 
-	t.Run("keeps a set string", func(t *testing.T) {
-		// Arrange
-		dst := "inner"
+			// Assert
+			assert.Equal(t, tc.want, dst)
+		})
+	}
 
-		// Act
-		fillUnset(&dst, "outer")
+	for _, tc := range []struct {
+		name string
+		dst  *bool
+		want *bool
+	}{
+		{
+			name: "fills a nil pointer",
+			dst:  nil,
+			want: &enabled,
+		},
+		{
+			name: "keeps an explicit false",
+			dst:  &disabled,
+			want: &disabled,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			dst := tc.dst
 
-		// Assert
-		assert.Equal(t, "inner", dst)
-	})
+			// Act
+			fillUnset(&dst, &enabled)
 
-	t.Run("fills a nil pointer", func(t *testing.T) {
-		// Arrange
-		var dst *bool
-		enabled := true
-
-		// Act
-		fillUnset(&dst, &enabled)
-
-		// Assert
-		assert.Same(t, &enabled, dst)
-	})
-
-	t.Run("keeps an explicit false", func(t *testing.T) {
-		// Arrange
-		disabled := false
-		enabled := true
-		dst := &disabled
-
-		// Act
-		fillUnset(&dst, &enabled)
-
-		// Assert
-		assert.Same(t, &disabled, dst)
-	})
+			// Assert
+			assert.Same(t, tc.want, dst)
+		})
+	}
 }

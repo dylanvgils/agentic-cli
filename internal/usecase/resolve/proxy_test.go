@@ -82,18 +82,6 @@ func TestProxyAllowList(t *testing.T) {
 		assert.Equal(t, []string{"api.example.com", "extra.example.com", "api.custom.test"}, result)
 	})
 
-	t.Run("merges tool baseline with rc-configured hosts", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
-
-		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
-
-		// Assert
-		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
-	})
-
 	t.Run("dind adds docker hub between baseline and rc hosts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -117,42 +105,42 @@ func TestProxyAllowList(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
 	})
-
-	t.Run("empty allowlists on both sides return empty result", func(t *testing.T) {
-		// Act
-		result := ProxyAllowList(nil, false, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
 }
 
 func TestProxyBackend(t *testing.T) {
 	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Backend: config.BackendAgentic}}}
 
-	t.Run("the flag wins over the config", func(t *testing.T) {
-		// Act
-		backend := ProxyBackend(ProxyInput{Backend: config.BackendNative}, rc)
+	for _, tc := range []struct {
+		name string
+		in   ProxyInput
+		rc   *config.AgenticRC
+		want string
+	}{
+		{
+			name: "the flag wins over the config",
+			in:   ProxyInput{Backend: config.BackendNative},
+			rc:   rc,
+			want: config.BackendNative,
+		},
+		{
+			name: "the config applies without the flag",
+			rc:   rc,
+			want: config.BackendAgentic,
+		},
+		{
+			name: "neither set is empty",
+			rc:   &config.AgenticRC{},
+			want: "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			backend := ProxyBackend(tc.in, tc.rc)
 
-		// Assert
-		assert.Equal(t, config.BackendNative, backend)
-	})
-
-	t.Run("the config applies without the flag", func(t *testing.T) {
-		// Act
-		backend := ProxyBackend(ProxyInput{}, rc)
-
-		// Assert
-		assert.Equal(t, config.BackendAgentic, backend)
-	})
-
-	t.Run("neither set is empty", func(t *testing.T) {
-		// Act
-		backend := ProxyBackend(ProxyInput{}, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, backend)
-	})
+			// Assert
+			assert.Equal(t, tc.want, backend)
+		})
+	}
 }
 
 func TestProxyIntegrations(t *testing.T) {

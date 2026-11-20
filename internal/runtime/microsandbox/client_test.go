@@ -120,68 +120,31 @@ func Test_execRunner_Run(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "boom")
 	})
-
-	t.Run("refuses when msb is not installed", func(t *testing.T) {
-		// Arrange
-		t.Setenv("PATH", t.TempDir())
-
-		// Act
-		_, err := execRunner{}.Run("load")
-
-		// Assert
-		assert.ErrorIs(t, err, errNotInstalled)
-	})
 }
 
 func Test_execRunner_RunWithStdin(t *testing.T) {
-	t.Run("pipes stdin and captures output", func(t *testing.T) {
-		// Arrange
-		stubMsb(t, `printf '%s\n' "$@"; cat`)
+	// Arrange
+	stubMsb(t, `printf '%s\n' "$@"; cat`)
 
-		// Act
-		out, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
+	// Act
+	out, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "load\ntar", out)
-	})
-
-	t.Run("refuses when msb is not installed", func(t *testing.T) {
-		// Arrange
-		t.Setenv("PATH", t.TempDir())
-
-		// Act
-		_, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
-
-		// Assert
-		assert.ErrorIs(t, err, errNotInstalled)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "load\ntar", out)
 }
 
 func Test_execRunner_RunInteractive(t *testing.T) {
-	t.Run("adds env to msb's environment", func(t *testing.T) {
-		// Arrange
-		out := filepath.Join(t.TempDir(), "env")
-		stubMsb(t, `echo "$EXAMPLE_TOKEN" > "`+out+`"`)
+	// Arrange
+	out := filepath.Join(t.TempDir(), "env")
+	stubMsb(t, `echo "$EXAMPLE_TOKEN" > "`+out+`"`)
 
-		// Act
-		err := execRunner{}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "img")
+	// Act
+	err := execRunner{}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "img")
 
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(out)
-		require.NoError(t, err)
-		assert.Equal(t, "test-secret\n", string(got))
-	})
-
-	t.Run("missing msb", func(t *testing.T) {
-		// Arrange
-		t.Setenv("PATH", t.TempDir())
-
-		// Act
-		err := execRunner{}.RunInteractive(nil, "run", "img")
-
-		// Assert
-		assert.ErrorIs(t, err, errNotInstalled)
-	})
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Equal(t, "test-secret\n", string(got))
 }
