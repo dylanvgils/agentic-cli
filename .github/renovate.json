@@ -29,7 +29,6 @@
     },
     {
       "matchDepNames": ["python"],
-      "matchDatasources": ["python-version"],
       "groupName": "Python version",
       "allowedVersions": "<3.15"
     },
