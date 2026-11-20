@@ -20,11 +20,6 @@ func IsDev(version string) bool {
 	return version == "" || version == "dev"
 }
 
-// IsDevBuild reports whether the running agentic binary itself is a dev build.
-func IsDevBuild() bool {
-	return IsDev(Version)
-}
-
 // DevSourceDir returns the local module root for modulePath, for use as a dev build's Docker build context - "" for released builds or when no matching go.mod is found.
 func DevSourceDir(modulePath string) string {
 	if !IsDev(Version) {

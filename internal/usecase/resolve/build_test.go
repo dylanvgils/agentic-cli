@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBases(t *testing.T) {
+func Test_bases(t *testing.T) {
 	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 
 	for _, tc := range []struct {
@@ -23,7 +23,7 @@ func TestBases(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := Bases(tc.flags, tc.rc)
+			result := bases(tc.flags, tc.rc)
 
 			// Assert
 			assert.Equal(t, tc.want, result)
@@ -31,15 +31,15 @@ func TestBases(t *testing.T) {
 	}
 }
 
-func TestBasesExact(t *testing.T) {
+func Test_basesExact(t *testing.T) {
 	// Act
-	result := BasesExact([]string{"java", "dotnet"})
+	result := basesExact([]string{"java", "dotnet"})
 
 	// Assert - sorted by canonical extras order
 	assert.Equal(t, []string{"dotnet", "java"}, result)
 }
 
-func TestVersions(t *testing.T) {
+func Test_versions(t *testing.T) {
 	rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 
 	for _, tc := range []struct {
@@ -55,7 +55,7 @@ func TestVersions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := Versions(tc.flags, tc.rc)
+			result := versions(tc.flags, tc.rc)
 
 			// Assert
 			assert.Equal(t, tc.want, result)
@@ -63,7 +63,7 @@ func TestVersions(t *testing.T) {
 	}
 }
 
-func TestAptPackages(t *testing.T) {
+func Test_aptPackages(t *testing.T) {
 	rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 
 	for _, tc := range []struct {
@@ -78,7 +78,7 @@ func TestAptPackages(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := AptPackages(tc.flags, tc.rc)
+			result := aptPackages(tc.flags, tc.rc)
 
 			// Assert
 			assert.Equal(t, tc.want, result)
@@ -86,9 +86,9 @@ func TestAptPackages(t *testing.T) {
 	}
 }
 
-func TestAptPackagesExact(t *testing.T) {
+func Test_aptPackagesExact(t *testing.T) {
 	// Act
-	result := AptPackagesExact([]string{"make", "gcc", "make"})
+	result := aptPackagesExact([]string{"make", "gcc", "make"})
 
 	// Assert
 	assert.Equal(t, []string{"make", "gcc"}, result)

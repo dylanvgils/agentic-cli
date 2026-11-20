@@ -68,7 +68,7 @@ func TestRequestedProxyMode(t *testing.T) {
 	assert.Equal(t, sandbox.EgressOff, result)
 }
 
-func TestProxyAllowList(t *testing.T) {
+func Test_proxyAllowList(t *testing.T) {
 	t.Run("credential hosts come after rc hosts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -76,7 +76,7 @@ func TestProxyAllowList(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
 
 		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
+		result := proxyAllowList([]string{"api.example.com"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com", "api.custom.test"}, result)
@@ -88,7 +88,7 @@ func TestProxyAllowList(t *testing.T) {
 		rc.Run.Proxy.AllowedHosts = []string{"ghcr.io"}
 
 		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, true, rc)
+		result := proxyAllowList([]string{"api.example.com"}, true, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "production.cloudfront.docker.com", "ghcr.io"}, result)
@@ -100,7 +100,7 @@ func TestProxyAllowList(t *testing.T) {
 		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com", "api.example.com"}
 
 		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
+		result := proxyAllowList([]string{"api.example.com"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
