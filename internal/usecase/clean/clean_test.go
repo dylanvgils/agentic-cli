@@ -36,7 +36,7 @@ func TestService_Resolve(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, plan.Targets, 1)
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
-		assert.False(t, plan.Shared)
+		assert.False(t, plan.SharedResources)
 	})
 
 	t.Run("bare all scope also removes the shared resources", func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestService_Resolve(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, plan.Shared)
+		assert.True(t, plan.SharedResources)
 	})
 
 	t.Run("single tool resolves to its image in the namespace", func(t *testing.T) {
@@ -113,8 +113,8 @@ func TestService_Apply(t *testing.T) {
 		name   string
 		shared bool
 	}{
-		{name: "keeps the shared resources without Shared", shared: false},
-		{name: "removes the shared resources with Shared", shared: true},
+		{name: "keeps the shared resources without SharedResources", shared: false},
+		{name: "removes the shared resources with SharedResources", shared: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
@@ -124,7 +124,7 @@ func TestService_Apply(t *testing.T) {
 				return nil
 			}}
 			withShared := plan
-			withShared.Shared = tc.shared
+			withShared.SharedResources = tc.shared
 
 			// Act
 			var err error
@@ -300,7 +300,7 @@ func TestService_Apply(t *testing.T) {
 	})
 }
 
-func Test_Service_removeShared(t *testing.T) {
+func Test_Service_removeSharedResources(t *testing.T) {
 	t.Run("cleans base, proxy image, sweeps, and removes network", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
@@ -334,7 +334,7 @@ func Test_Service_removeShared(t *testing.T) {
 		}
 
 		// Act
-		err := New("/agentic-home", d).removeShared()
+		err := New("/agentic-home", d).removeSharedResources()
 
 		// Assert
 		require.NoError(t, err)
@@ -368,7 +368,7 @@ func Test_Service_removeShared(t *testing.T) {
 		t.Run(tc.name+" error propagates", func(t *testing.T) {
 			// Act
 			var err error
-			iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", tc.d).removeShared() })
+			iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", tc.d).removeSharedResources() })
 
 			// Assert
 			assert.ErrorIs(t, err, errFake)

@@ -21,10 +21,10 @@ type Target struct {
 	Image string
 }
 
-// Plan is what Apply removes; Shared adds the shared images and network.
+// Plan is what Apply removes; SharedResources adds the shared images and network.
 type Plan struct {
-	Targets []Target
-	Shared  bool
+	Targets         []Target
+	SharedResources bool
 }
 
 // Scope describes which tool images Resolve should target.
@@ -44,7 +44,7 @@ func New(home string, d Docker, runtimes ...ImageCleaner) *Service {
 func (s *Service) Resolve(scope Scope) (Plan, error) {
 	if scope.All {
 		targets, err := s.resolveAll(scope.Tool)
-		return Plan{Targets: targets, Shared: scope.Tool == ""}, err
+		return Plan{Targets: targets, SharedResources: scope.Tool == ""}, err
 	}
 
 	image, err := tools.ImageName(scope.Tool, scope.Namespace)
@@ -54,17 +54,17 @@ func (s *Service) Resolve(scope Scope) (Plan, error) {
 	return Plan{Targets: []Target{{Label: image, Image: image}}}, nil
 }
 
-// Apply removes plan's images from every runtime, then with Shared the shared resources; active runs keep theirs.
+// Apply removes plan's images from every runtime, then with SharedResources the shared resources; active runs keep theirs.
 func (s *Service) Apply(plan Plan) error {
 	if err := s.removeTargets(plan.Targets); err != nil {
 		return err
 	}
-	if !plan.Shared {
+	if !plan.SharedResources {
 		return nil
 	}
 
 	logging.Separate()
-	return s.removeShared()
+	return s.removeSharedResources()
 }
 
 // Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
@@ -126,8 +126,8 @@ func (s *Service) removeImage(image string) error {
 	return nil
 }
 
-// removeShared removes the base and sidecar images, leftover runs and agentic-net; active runs keep theirs.
-func (s *Service) removeShared() error {
+// removeSharedResources removes the base and sidecar images, leftover runs and agentic-net; active runs keep theirs.
+func (s *Service) removeSharedResources() error {
 	logging.Info("removing shared resources")
 
 	logging.Step("base")
