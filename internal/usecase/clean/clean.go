@@ -21,6 +21,12 @@ type Target struct {
 	Image string
 }
 
+// Plan is what Apply removes; SharedResources adds the shared images and network.
+type Plan struct {
+	Targets         []Target
+	SharedResources bool
+}
+
 // Scope describes which tool images Resolve should target.
 type Scope struct {
 	// Tool is the tool to resolve in Namespace, or the one tool an All resolve narrows to (empty means every tool).
@@ -34,22 +40,55 @@ func New(home string, d Docker, runtimes ...ImageCleaner) *Service {
 	return &Service{docker: d, runtimes: runtimes, home: home}
 }
 
-// Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the tool in one namespace.
-func (s *Service) Resolve(scope Scope) ([]Target, error) {
+// Resolve returns the plan for scope; a bare All also removes the shared resources.
+func (s *Service) Resolve(scope Scope) (Plan, error) {
 	if scope.All {
-		return s.resolveAll(scope.Tool)
+		targets, err := s.resolveAll(scope.Tool)
+		return Plan{Targets: targets, SharedResources: scope.Tool == ""}, err
 	}
 
 	image, err := tools.ImageName(scope.Tool, scope.Namespace)
 	if err != nil {
-		return nil, err
+		return Plan{}, err
 	}
-	return []Target{{Label: image, Image: image}}, nil
+	return Plan{Targets: []Target{{Label: image, Image: image}}}, nil
 }
 
-// Apply removes each target's image from Docker and every other runtime, reporting progress, then the stored custom installs no image uses anymore.
-// Images an active run uses are kept.
-func (s *Service) Apply(targets []Target) error {
+// Apply removes plan's images from every runtime, then with SharedResources the shared resources; active runs keep theirs.
+func (s *Service) Apply(plan Plan) error {
+	if err := s.removeTargets(plan.Targets); err != nil {
+		return err
+	}
+	if !plan.SharedResources {
+		return nil
+	}
+
+	logging.Separate()
+	return s.removeSharedResources()
+}
+
+// Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
+func (s *Service) Prune(confirmCache func() bool) error {
+	swept, err := s.docker.SweepRuns(s.home)
+	if err != nil {
+		return err
+	}
+	stepRemoved("leftover sidecars", swept.Sidecars)
+	stepRemoved("leftover run networks", swept.Networks)
+
+	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
+		return err
+	}
+
+	if !confirmCache() {
+		logging.Step("build cache (kept)")
+		return nil
+	}
+	return stepReclaimed("build cache", s.docker.PruneBuildCache)
+}
+
+// removeTargets removes each target's image, then the custom installs no image uses anymore.
+func (s *Service) removeTargets(targets []Target) error {
 	inUse, err := s.imagesInUse()
 	if err != nil {
 		return err
@@ -87,9 +126,8 @@ func (s *Service) removeImage(image string) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecars and run
-// networks, and agentic-net. Active runs keep their sidecars, networks and images.
-func (s *Service) GlobalResources() error {
+// removeSharedResources removes the base and sidecar images, leftover runs and agentic-net; active runs keep theirs.
+func (s *Service) removeSharedResources() error {
 	logging.Info("removing shared resources")
 
 	logging.Step("base")
@@ -107,26 +145,6 @@ func (s *Service) GlobalResources() error {
 
 	logging.Step("network")
 	return s.docker.RemoveNetwork()
-}
-
-// Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
-func (s *Service) Prune(confirmCache func() bool) error {
-	swept, err := s.docker.SweepRuns(s.home)
-	if err != nil {
-		return err
-	}
-	stepRemoved("leftover sidecars", swept.Sidecars)
-	stepRemoved("leftover run networks", swept.Networks)
-
-	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
-		return err
-	}
-
-	if !confirmCache() {
-		logging.Step("build cache (kept)")
-		return nil
-	}
-	return stepReclaimed("build cache", s.docker.PruneBuildCache)
 }
 
 // cleanSidecarImages removes the proxy and dind images, keeping those an active run uses.

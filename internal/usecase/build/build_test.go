@@ -11,7 +11,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDryRun(t *testing.T) {
+func TestService_Resolve(t *testing.T) {
+	t.Run("names each tool's image in the namespace", func(t *testing.T) {
+		// Arrange
+		opts := tools.BuildOptions{NoCache: true}
+
+		// Act
+		plan, err := New(&fakeDocker{}, t.TempDir()).Resolve([]string{"claude", "copilot"}, "agentic", opts)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, Plan{
+			Targets: []Target{
+				{Name: "claude", Image: "agentic-claude"},
+				{Name: "copilot", Image: "agentic-copilot"},
+			},
+			Opts: opts,
+		}, plan)
+	})
+
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		_, err := New(&fakeDocker{}, t.TempDir()).Resolve([]string{"nonexistent"}, "agentic", tools.BuildOptions{})
+
+		// Assert
+		assert.ErrorContains(t, err, "unknown tool")
+	})
+}
+
+func TestService_DryRun(t *testing.T) {
 	t.Run("prints the labelled dockerfile without building", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{}
@@ -20,7 +48,7 @@ func TestDryRun(t *testing.T) {
 		out := iostreamstest.StubOut(t)
 
 		// Act
-		err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{})
+		err := New(d, t.TempDir()).DryRun(newPlan(tools.BuildOptions{}, "claude"))
 
 		// Assert
 		require.NoError(t, err)
@@ -32,14 +60,14 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"nonexistent"}, tools.BuildOptions{})
+		err := New(&fakeDocker{}, t.TempDir()).DryRun(newPlan(tools.BuildOptions{}, "nonexistent"))
 
 		// Assert
 		assert.ErrorContains(t, err, "unknown tool")
 	})
 }
 
-func TestApply(t *testing.T) {
+func TestService_Apply(t *testing.T) {
 	t.Run("builds each tool, then prunes and records the checks", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
@@ -50,13 +78,13 @@ func TestApply(t *testing.T) {
 		// Act
 		var err error
 		out := iostreamstest.CaptureErr(t, func() {
-			err = New(d, home).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{})
+			err = New(d, home).Apply(newPlan(tools.BuildOptions{}, "claude", "copilot", "opencode"))
 		})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "copilot", "opencode"}, *built)
-		assert.Equal(t, "agentic: building 3 image(s): agentic-claude, agentic-copilot, agentic-opencode\n=> agentic-claude\n=> agentic-copilot\n=> agentic-opencode\n", out)
+		assert.Equal(t, "=> agentic-claude\n=> agentic-copilot\n=> agentic-opencode\n", out)
 		assert.True(t, pruned)
 		state, err := config.LoadState(home)
 		require.NoError(t, err)
@@ -71,7 +99,7 @@ func TestApply(t *testing.T) {
 		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
 		// Act
-		err := New(&fakeDocker{}, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{CustomInstalls: installs})
+		err := New(&fakeDocker{}, home).Apply(newPlan(tools.BuildOptions{CustomInstalls: installs}, "claude"))
 
 		// Assert
 		require.NoError(t, err)
@@ -100,11 +128,11 @@ func TestApply(t *testing.T) {
 		t.Run("reports "+tc.name, func(t *testing.T) {
 			// Act
 			var err error
-			out := iostreamstest.CaptureErr(t, func() { err = New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tc.opts) })
+			out := iostreamstest.CaptureErr(t, func() { err = New(&fakeDocker{}, t.TempDir()).Apply(newPlan(tc.opts, "claude")) })
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, "agentic: building 1 image(s): agentic-claude\n"+tc.want, out)
+			assert.Equal(t, tc.want, out)
 		})
 	}
 
@@ -117,7 +145,7 @@ func TestApply(t *testing.T) {
 		built := stubBuilds(d, errors.New("build failed"))
 
 		// Act
-		err := New(d, home).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{})
+		err := New(d, home).Apply(newPlan(tools.BuildOptions{}, "claude", "copilot", "opencode"))
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -134,17 +162,9 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{pruneImages: func() (string, error) { return "", errors.New("prune failed") }}
 
 		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{})
+		err := New(d, t.TempDir()).Apply(newPlan(tools.BuildOptions{}, "claude"))
 
 		// Assert
 		require.NoError(t, err)
-	})
-
-	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Act
-		err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{})
-
-		// Assert
-		assert.ErrorContains(t, err, "unknown tool")
 	})
 }

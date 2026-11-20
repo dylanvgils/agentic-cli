@@ -33,6 +33,11 @@ type Target struct {
 	Opts  tools.BuildOptions
 }
 
+// Plan is what Apply rebuilds.
+type Plan struct {
+	Targets []Target
+}
+
 // Scope describes which tools/images Resolve should target.
 type Scope struct {
 	// Tool is the tool to resolve in Namespace, or the one tool an All resolve narrows to (empty means every tool).
@@ -47,49 +52,39 @@ func New(d Docker, u Upstream, home string) *Service {
 	return &Service{docker: d, upstream: u, home: home}
 }
 
-// Resolve returns the update targets for scope: every image across all namespaces (All), or the tool in one namespace.
-func (s *Service) Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
+// Resolve returns the plan for scope: every image (All), or the tool in one namespace.
+func (s *Service) Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) (Plan, error) {
 	if scope.All {
-		return s.resolveAll(scope.Tool, opts, pullExplicit)
+		targets, err := s.resolveAll(scope.Tool, opts, pullExplicit)
+		return Plan{Targets: targets}, err
 	}
 
 	target, err := s.resolveTool(scope.Tool, scope.Namespace, opts, pullExplicit)
 	if err != nil {
-		return nil, err
+		return Plan{}, err
 	}
-	return []Target{target}, nil
+	return Plan{Targets: []Target{target}}, nil
 }
 
-// DryRun prints the generated Dockerfile for tool instead of building it, recovering build options from the existing image's labels first.
-func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error {
-	if tool == "" {
-		return fmt.Errorf("--dry-run requires a tool argument")
-	}
-
-	image, err := tools.ImageName(tool, namespace)
-	if err == nil {
-		if info, iErr := s.docker.InspectImage(image); iErr == nil && info != nil {
-			opts = recoverOpts(s.home, info, opts)
+// DryRun prints each target's Dockerfile, with its recovered options, instead of building it.
+func (s *Service) DryRun(plan Plan) error {
+	for _, t := range plan.Targets {
+		content, err := tools.GenerateDockerfile(t.Name, t.Opts)
+		if err != nil {
+			return err
 		}
+		sandbox.PrintDryRunText(t.Name+" Dockerfile", content)
 	}
-
-	content, err := tools.GenerateDockerfile(tool, opts)
-	if err != nil {
-		return err
-	}
-
-	sandbox.PrintDryRunText(tool+" Dockerfile", content)
 	return nil
 }
 
-// ApplyAll rebuilds every target in order, stopping at the first failure, then prunes what the builds left behind. All targets
-// share one cache-bust value, so a tool updated in several namespaces (e.g. --all) can reuse its cached layers.
-// Each update resets `agentic run`'s update check timer.
-func (s *Service) ApplyAll(targets []Target) error {
+// Apply rebuilds each target, stopping at the first failure, then prunes; one shared cache bust lets namespaces reuse
+// layers, and each update resets `agentic run`'s update check.
+func (s *Service) Apply(plan Plan) error {
 	cacheBust := docker.NewCacheBust()
-	for _, t := range targets {
+	for _, t := range plan.Targets {
 		t.Opts.CacheBust = cacheBust
-		if err := s.Apply(t.Name, t.Image, t.Opts); err != nil {
+		if err := s.apply(t.Name, t.Image, t.Opts); err != nil {
 			return err
 		}
 
@@ -109,11 +104,11 @@ func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error
 	if info, err := s.docker.InspectImage(image); err == nil && info != nil {
 		opts = recoverOpts(s.home, info, opts)
 	}
-	return s.Apply(tool, image, opts)
+	return s.apply(tool, image, opts)
 }
 
-// Apply rebuilds image for tool, reporting base/apt/version before the build starts.
-func (s *Service) Apply(name, image string, opts tools.BuildOptions) error {
+// apply rebuilds image for tool, reporting base/apt/version before the build starts.
+func (s *Service) apply(name, image string, opts tools.BuildOptions) error {
 	logging.Step(image)
 	if len(opts.BaseOverride) > 0 {
 		logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))

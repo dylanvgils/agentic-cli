@@ -157,8 +157,6 @@ func Test_dockerRunner_Check(t *testing.T) {
 }
 
 func Test_dockerRunner_Run(t *testing.T) {
-	req := Request{Target: Target{ToolName: "claude"}}
-
 	t.Run("readies the host, starts the sidecars, runs the tool, then stops the sidecars", func(t *testing.T) {
 		// Arrange
 		var calls []string
@@ -179,7 +177,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -199,7 +197,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, rs)
+		err := newTestDockerRunner(d).Run(rs, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -224,7 +222,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/late/sub:/data:ro"}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, rs)
+		err := newTestDockerRunner(d).Run(rs, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+late)
@@ -247,7 +245,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		assert.EqualError(t, err, "proxy error")
@@ -267,7 +265,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		assert.EqualError(t, err, "volume error")
@@ -289,7 +287,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -308,7 +306,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, rs)
+		err := newTestDockerRunner(d).Run(rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -333,7 +331,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, rs)
+		err := newTestDockerRunner(d).Run(rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -352,7 +350,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(req, rs)
+		err := newTestDockerRunner(d).Run(rs, "")
 
 		// Assert
 		require.NoError(t, err)

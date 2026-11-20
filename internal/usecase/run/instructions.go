@@ -87,14 +87,9 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 
 // instructionsFacts inspects the image and resolves the run's settings into what the block describes.
 func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
-	info, err := s.docker.InspectImage(c.Target.ImageName)
-	if err != nil {
-		return instructionsFacts{}, fmt.Errorf("inspect %s: %w", c.Target.ImageName, err)
-	}
-
 	return instructionsFacts{
 		caps:          c.Runtime.Caps,
-		image:         info,
+		image:         c.Image,
 		containerHome: c.Homes.Container,
 		mounts:        resolve.Volumes(c.Tool.Runtime.Mounts(), c.Mounts.Extra, c.RC),
 		ephemeralDirs: c.Tool.Runtime.EphemeralDirs(),

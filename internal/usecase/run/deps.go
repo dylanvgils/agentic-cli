@@ -13,7 +13,6 @@ import (
 type Docker interface {
 	InspectImage(name string) (*docker.ImageInfo, error)
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
-	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
 	BuildDockerdImage(image string, parent *docker.ImageInfo) error
@@ -36,7 +35,8 @@ type Microsandbox interface {
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
-	Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
+	Run(rs sandbox.RunSpec) error
+	RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	Teardown(id sandbox.RunID) error
 }
 

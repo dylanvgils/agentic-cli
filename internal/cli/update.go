@@ -54,12 +54,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := updateOptsFromFlags(cmd, project.RC)
 	warnSkipInstallChecksum(opts)
 
-	svc := update.New(dockerClient, upstreamClient, toolHome)
-
-	if dryRun, _ := cmd.Flags().GetBool(dryRunFlagName); dryRun {
-		return svc.DryRun(firstArg(args), namespace, opts)
-	}
-
 	all, _ := cmd.Flags().GetBool(allFlagName)
 	scope := update.Scope{
 		Tool:      firstArg(args),
@@ -67,19 +61,24 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		All:       all,
 	}
 
-	targets, err := svc.Resolve(scope, opts, cmd.Flags().Changed("pull"))
+	svc := update.New(dockerClient, upstreamClient, toolHome)
+	plan, err := svc.Resolve(scope, opts, cmd.Flags().Changed("pull"))
 	if err != nil {
 		return err
 	}
 
 	// Only --all can match nothing; a named tool always resolves to its image
-	if len(targets) == 0 {
+	if len(plan.Targets) == 0 {
 		logging.Info("no agentic images found; run 'agentic build' first")
 		return nil
 	}
 
-	logUpdateSummary(targets)
-	return svc.ApplyAll(targets)
+	if dryRun, _ := cmd.Flags().GetBool(dryRunFlagName); dryRun {
+		return svc.DryRun(plan)
+	}
+
+	logUpdateSummary(plan)
+	return svc.Apply(plan)
 }
 
 // updateOptsFromFlags returns the build options for an update; see resolve.UpdateOptions for why config bases/apt need an explicit flag.
@@ -91,9 +90,9 @@ func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOp
 }
 
 // logUpdateSummary prints the summary line of images to update.
-func logUpdateSummary(targets []update.Target) {
-	images := make([]string, len(targets))
-	for i, t := range targets {
+func logUpdateSummary(plan update.Plan) {
+	images := make([]string, len(plan.Targets))
+	for i, t := range plan.Targets {
 		images[i] = t.Image
 	}
 

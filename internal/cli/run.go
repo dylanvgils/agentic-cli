@@ -97,13 +97,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	svc := newRunService()
-	rs, cleanup, err := svc.Prepare(req, newTTYPrompter())
-	defer cleanup()
+	plan, err := svc.Resolve(req, newTTYPrompter())
 	if err != nil {
 		return err
 	}
+	defer svc.End(plan)
 
-	return svc.Run(req, rs)
+	return svc.Apply(plan)
 }
 
 // newRunService returns the run usecase wired to the cli's clients; call it at command time, after dockerClient is set up.
@@ -145,7 +145,7 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	}, nil
 }
 
-// runRequest collects the run flags for inv; Prepare resolves them against inv's config.
+// runRequest collects the run flags for inv; Resolve resolves them against inv's config.
 func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 	flags, err := runtimeFlags(cmd)
 	if err != nil {

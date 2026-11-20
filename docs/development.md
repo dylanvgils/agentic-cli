@@ -114,7 +114,7 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 ## Run teardown
 
-How every exit path tears a run down is in [Run flow](run-flow.md#teardown).
+How every exit path tears a run down is in [Lifecycle](lifecycle.md#teardown).
 
 ## Building the proxy image locally
 

@@ -29,5 +29,5 @@
 ## Contributing
 
 - [Development](development.md) - build commands, repo layout, sidecar images, releasing
-- [Run flow](run-flow.md) - what `agentic run` does, step by step, and where in the code
+- [Lifecycle](lifecycle.md) - what every command and `agentic run` do, step by step, and where in the code
 - [Dockerfile DSL](dockerfile-dsl.md) - the typed Go DSL used to generate Dockerfiles at build time

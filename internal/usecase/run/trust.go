@@ -9,7 +9,7 @@ import (
 )
 
 // approvedConfig is a project's config once checkSettings approved its guarded settings; only checkSettings builds one,
-// so reordering Prepare can't let a run use settings the user hasn't seen.
+// so reordering Resolve can't let a run use settings the user hasn't seen.
 type approvedConfig struct {
 	layers []config.RCLayer
 	rc     *config.AgenticRC

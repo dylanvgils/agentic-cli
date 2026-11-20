@@ -15,27 +15,24 @@ type runner interface {
 	Capabilities() sandbox.Capabilities
 	// Check refuses a run the runtime can't do for its own reasons, before any prompt.
 	Check(req Request) error
-	// Run readies the runtime's host resources for rs, then runs it.
-	Run(req Request, rs sandbox.RunSpec) error
+	// Run readies the runtime's host resources for rs, building missing sidecar images from registry, then runs it,
+	// rechecking the mounts right before each process that mounts them starts.
+	Run(rs sandbox.RunSpec, registry string) error
 	// Teardown removes everything run id left on the runtime; best-effort and idempotent.
 	Teardown(toolHome string, id sandbox.RunID) error
 }
 
-// Run executes rs, which Prepare gave its RunID, on req's runtime, which first readies its own host resources.
-// Every runtime gets rs's security checks here, even one whose runner skips its own.
-func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
-	r, err := s.runner(req.runtime(), req.proxyBackend())
-	if err != nil {
+// Apply runs plan on its runner after refusing a spec that needs a feature the runner lacks.
+func (s *Service) Apply(plan *Plan) error {
+	if err := checkSpec(plan.spec, plan.runner.Capabilities().Features); err != nil {
 		return err
 	}
+	return plan.runner.Run(plan.spec, plan.registry)
+}
 
-	if err := checkSpec(rs, r.Capabilities().Features); err != nil {
-		return err
-	}
-	if err := recheckMounts(rs); err != nil {
-		return err
-	}
-	return r.Run(req, rs)
+// End saves plan's instructions snapshot back and removes its temp dir, warning on a failure.
+func (s *Service) End(plan *Plan) {
+	warnOnEndRunError(endRun(plan.run))
 }
 
 // Teardown removes everything run left: its runtime resources first, so nothing writes its host files while endRun
@@ -102,17 +99,21 @@ func (s *Service) capabilities(runtime sandbox.Runtime, backend string) sandbox.
 	return r.Capabilities()
 }
 
-// checkRuntime refuses a run req's runtime can't do safely and warns about what it drops, then runs that runtime's own checks.
-func (s *Service) checkRuntime(req Request) error {
+// checkRuntime picks req's runner, refuses a run it can't do safely and warns about what it drops, then runs its own
+// checks.
+func (s *Service) checkRuntime(req Request) (runner, error) {
 	r, err := s.runner(req.runtime(), req.proxyBackend())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := checkCapabilities(req, r.Capabilities().Features); err != nil {
-		return err
+		return nil, err
 	}
-	return r.Check(req)
+	if err := r.Check(req); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // endRun saves run's instructions snapshot back to its tool, then removes its temp dir; idempotent.

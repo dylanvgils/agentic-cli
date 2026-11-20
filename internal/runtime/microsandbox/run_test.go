@@ -25,7 +25,7 @@ func TestClient_Run(t *testing.T) {
 		client := newTestClient(&fakeRunner{})
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.EqualError(t, err, `invalid run id ""`)
@@ -40,7 +40,7 @@ func TestClient_Run(t *testing.T) {
 			RunID:    testRunID,
 			Image:    "agentic-claude",
 			ToolArgs: []string{"--help"},
-		}, nil)
+		})
 
 		// Assert
 		require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestClient_Run(t *testing.T) {
 			RunID:       testRunID,
 			Image:       "agentic-claude",
 			Credentials: creds,
-		}, nil)
+		})
 
 		// Assert
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestClient_Run(t *testing.T) {
 			RunID: testRunID,
 			Image: "agentic-claude",
 			Env:   []string{"EXAMPLE_TOKEN"},
-		}, nil)
+		})
 
 		// Assert
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestClient_Run(t *testing.T) {
 		}
 
 		// Act
-		err := client.Run(rs, nil)
+		err := client.Run(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -131,10 +131,15 @@ func TestClient_Run(t *testing.T) {
 			Credentials: apiKey,
 			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressMonitor},
 		}
-		route := &ProxyRoute{Port: "49153", Token: "test-token", CAPEM: []byte("test-ca"), Env: []string{"EXAMPLE_API_KEY=agentic-placeholder"}}
+		route := ProxyRoute{
+			Port:  "49153",
+			Token: "test-token",
+			CAPEM: []byte("test-ca"),
+			Env:   []string{"EXAMPLE_API_KEY=agentic-placeholder"},
+		}
 
 		// Act
-		err := client.Run(rs, route)
+		err := client.RunThroughProxy(rs, route)
 
 		// Assert
 		require.NoError(t, err)

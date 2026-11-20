@@ -33,3 +33,12 @@ func stubBuilds(d *fakeDocker, err error) *[]string {
 	}
 	return built
 }
+
+// newPlan returns a Plan building names in the agentic namespace with opts.
+func newPlan(opts tools.BuildOptions, names ...string) Plan {
+	targets := make([]Target, len(names))
+	for i, name := range names {
+		targets[i] = Target{Name: name, Image: "agentic-" + name}
+	}
+	return Plan{Targets: targets, Opts: opts}
+}

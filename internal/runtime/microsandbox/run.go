@@ -55,8 +55,18 @@ type ProxyRoute struct {
 	Env []string
 }
 
-// Run runs rs in a microsandbox VM, through route when set; the image must already be loaded.
-func (c *Client) Run(rs sandbox.RunSpec, route *ProxyRoute) error {
+// Run runs rs in a VM with msb enforcing the allowlist; the image must already be loaded.
+func (c *Client) Run(rs sandbox.RunSpec) error {
+	return c.run(rs, nil)
+}
+
+// RunThroughProxy runs rs in a VM routed through agentic-proxy; the image must already be loaded.
+func (c *Client) RunThroughProxy(rs sandbox.RunSpec, route ProxyRoute) error {
+	return c.run(rs, &route)
+}
+
+// run runs rs, through route when set.
+func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 	if _, err := sandbox.ParseRunID(rs.RunID.String()); err != nil {
 		return err
 	}

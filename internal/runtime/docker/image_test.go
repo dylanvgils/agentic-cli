@@ -17,6 +17,7 @@ const fullImageJSON = `{
 	"Id": "sha256:a1b2c3d4e5f6abcdef012345678901234567890",
 	"Config": {
 		"User": "claude",
+		"Env": ["PATH=/usr/bin", "TOOL_HOME=/home/claude"],
 		"Labels": {
 			"agentic.tool": "claude",
 			"agentic.namespace": "agentic",
@@ -66,6 +67,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "a1b2c3d4e5f6", info.ID)
 		assert.Equal(t, "sha256:a1b2c3d4e5f6abcdef012345678901234567890", info.FullID)
 		assert.Equal(t, "claude", info.User)
+		assert.Equal(t, "/home/claude", info.ContainerHome)
 		assert.Equal(t, "1.2.3", info.Version)
 		assert.Equal(t, "node:24", info.Base)
 		assert.Equal(t, "2026-05-01", info.Built)

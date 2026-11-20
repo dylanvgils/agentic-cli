@@ -28,20 +28,19 @@ const testRunID sandbox.RunID = "0123456789ab"
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value, except capabilities, which defaults to Docker's.
 type fakeDocker struct {
-	capabilities         func() sandbox.Capabilities
-	inspectImage         func(string) (*docker.ImageInfo, error)
-	resolveContainerHome func(string) string
-	ensureNamedVolumes   func(rs sandbox.RunSpec, chownImage string) error
-	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
-	saveImage            func(image string, w io.Writer) error
-	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
-	startSidecars        func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
-	startPublishedProxy  func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
-	runTool              func(sidecars docker.Sidecars) error
-	stopSidecars         func(sidecars docker.Sidecars)
-	teardown             func(toolHome string, id sandbox.RunID) error
-	serverVersion        func() (engine, version string, err error)
-	requireLocalContext  func(reason string) error
+	capabilities        func() sandbox.Capabilities
+	inspectImage        func(string) (*docker.ImageInfo, error)
+	ensureNamedVolumes  func(rs sandbox.RunSpec, chownImage string) error
+	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	saveImage           func(image string, w io.Writer) error
+	buildDockerdImage   func(image string, parent *docker.ImageInfo) error
+	startSidecars       func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
+	startPublishedProxy func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
+	runTool             func(sidecars docker.Sidecars) error
+	stopSidecars        func(sidecars docker.Sidecars)
+	teardown            func(toolHome string, id sandbox.RunID) error
+	serverVersion       func() (engine, version string, err error)
+	requireLocalContext func(reason string) error
 }
 
 func (f *fakeDocker) Capabilities() sandbox.Capabilities {
@@ -78,13 +77,6 @@ func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
 		return nil, nil
 	}
 	return f.inspectImage(name)
-}
-
-func (f *fakeDocker) ResolveContainerHome(image string) string {
-	if f.resolveContainerHome == nil {
-		return ""
-	}
-	return f.resolveContainerHome(image)
 }
 
 func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
@@ -186,6 +178,28 @@ func newTestService(d Docker, m Microsandbox) *Service {
 	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{})
 }
 
+// resolvePlan resolves req on svc and returns its RunSpec, ending the run when the test does.
+func resolvePlan(t *testing.T, svc *Service, req Request, prompter Prompter) (sandbox.RunSpec, error) {
+	t.Helper()
+	plan, err := svc.Resolve(req, prompter)
+	if err != nil {
+		return sandbox.RunSpec{}, err
+	}
+	t.Cleanup(func() { svc.End(plan) })
+	return plan.spec, nil
+}
+
+// newPlan returns a Plan running rs on runtime's runner from svc, as Resolve would.
+func newPlan(t *testing.T, svc *Service, runtime sandbox.Runtime, rs sandbox.RunSpec) *Plan {
+	t.Helper()
+	r, err := svc.runner(runtime, "")
+	require.NoError(t, err)
+	return &Plan{
+		runner: r,
+		spec:   rs,
+	}
+}
+
 // newUpdatingService returns a Docker-only Service offering tool updates through u.
 func newUpdatingService(d Docker, u ToolUpdates) *Service {
 	return New(d, nil, u, &fakeSidecarImages{}, &fakeWatchdog{})
@@ -238,15 +252,16 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 
 // fakeMicrosandbox implements Microsandbox; a nil field succeeds, except capabilities, which defaults to msb's.
 type fakeMicrosandbox struct {
-	capabilities func() sandbox.Capabilities
-	available    func() error
-	version      func() (string, error)
-	hasImage     func(ref string) (bool, error)
-	loadImage    func(r io.Reader, tag string) error
-	imageRefs    func() ([]string, error)
-	removeImage  func(ref string) error
-	run          func(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
-	teardown     func(id sandbox.RunID) error
+	capabilities    func() sandbox.Capabilities
+	available       func() error
+	version         func() (string, error)
+	hasImage        func(ref string) (bool, error)
+	loadImage       func(r io.Reader, tag string) error
+	imageRefs       func() ([]string, error)
+	removeImage     func(ref string) error
+	run             func(rs sandbox.RunSpec) error
+	runThroughProxy func(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
+	teardown        func(id sandbox.RunID) error
 }
 
 func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
@@ -300,11 +315,18 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
 		return nil
 	}
-	return f.run(rs, route)
+	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error {
+	if f.runThroughProxy == nil {
+		return nil
+	}
+	return f.runThroughProxy(rs, route)
 }
 
 func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
@@ -317,7 +339,7 @@ func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
 // stubRunImage makes m's Run record the image it runs; empty means it didn't run.
 func stubRunImage(m *fakeMicrosandbox) *string {
 	var image string
-	m.run = func(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
+	m.run = func(rs sandbox.RunSpec) error {
 		image = rs.Image
 		return nil
 	}
@@ -411,10 +433,10 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
 
-// newPrepareRequest returns a Request for claude in a fresh home and cwd.
-func newPrepareRequest(t *testing.T) Request {
+// newResolveRequest returns a Request for claude in a fresh home and cwd.
+func newResolveRequest(t *testing.T) Request {
 	t.Helper()
-	// Prepare creates the run temp dir
+	// Resolve creates the run temp dir
 	t.Setenv("TMPDIR", t.TempDir())
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
@@ -424,10 +446,10 @@ func newPrepareRequest(t *testing.T) Request {
 	}
 }
 
-// newCredentialRequest returns newPrepareRequest with one proxy credential declared, reading a test-secret file.
+// newCredentialRequest returns newResolveRequest with one proxy credential declared, reading a test-secret file.
 func newCredentialRequest(t *testing.T) Request {
 	t.Helper()
-	req := newPrepareRequest(t)
+	req := newResolveRequest(t)
 	secret := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(secret, []byte("test-secret\n"), 0o600))
 	layer := credentialLayer(t, secret)
@@ -529,7 +551,7 @@ func newTestRunConfig(t *testing.T) runConfig {
 	}
 }
 
-// resolvedConfig resolves flags and rc for claude through svc, as Prepare does.
+// resolvedConfig resolves flags and rc for claude through svc, as Resolve does.
 func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *config.AgenticRC) runConfig {
 	t.Helper()
 	req := Request{

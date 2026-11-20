@@ -48,33 +48,23 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	svc := clean.New(toolHome, dockerClient, runtimes...)
-	targets, err := svc.Resolve(scope)
+	plan, err := svc.Resolve(scope)
 	if err != nil {
 		return err
 	}
 
-	logCleanSummary(targets)
-	if err := svc.Apply(targets); err != nil {
-		return err
-	}
-
-	// Only a bare --all reaches past tool images
-	if all && len(args) == 0 {
-		logging.Separate()
-		return svc.GlobalResources()
-	}
-
-	return nil
+	logCleanSummary(plan)
+	return svc.Apply(plan)
 }
 
 // logCleanSummary prints the summary line of images about to be removed, or nothing when there are none.
-func logCleanSummary(targets []clean.Target) {
-	if len(targets) == 0 {
+func logCleanSummary(plan clean.Plan) {
+	if len(plan.Targets) == 0 {
 		return
 	}
 
-	labels := make([]string, len(targets))
-	for i, t := range targets {
+	labels := make([]string, len(plan.Targets))
+	for i, t := range plan.Targets {
 		labels[i] = t.Label
 	}
 	logging.Infof("removing %d image(s): %s", len(labels), strings.Join(labels, ", "))
