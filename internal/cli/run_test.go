@@ -35,6 +35,8 @@ func Test_runTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureToolRun(t)
+		stubDocker(t, &fakeDocker{context: "test-context"})
+		spawned := stubWatchdogs(t)
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude", "--dangerously-skip-permissions"})
@@ -44,6 +46,9 @@ func Test_runTool(t *testing.T) {
 		rs := get()
 		assert.Equal(t, "agentic-claude", rs.Image)
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, rs.ToolArgs)
+		assert.Equal(t, []string{"test-context"}, spawned.contexts)
+		require.Len(t, spawned.spawned, 1)
+		assert.Equal(t, rs.RunID, spawned.spawned[0].ID)
 	})
 }
 

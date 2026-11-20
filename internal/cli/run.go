@@ -7,7 +7,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 	"github.com/spf13/cobra"
 )
 
@@ -120,7 +119,7 @@ func newRunServiceFor(d dockerAPI) *run.Service {
 		msbClient,
 		toolUpdates{docker: d, upstream: upstreamClient},
 		sidecar.New(d),
-		watch.NewSpawner(watchCmdName, d.Context()),
+		watchdogs.For(d.Context()),
 	)
 }
 

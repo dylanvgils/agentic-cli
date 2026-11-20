@@ -15,6 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -647,4 +648,30 @@ func stubToolHome(t *testing.T, dir string) {
 	orig := toolHome
 	toolHome = dir
 	t.Cleanup(func() { toolHome = orig })
+}
+
+// fakeWatchdogs implements watchdogStarter, recording each Docker context and spawned run instead of starting a process.
+type fakeWatchdogs struct {
+	contexts []string
+	spawned  []sandbox.RunRef
+}
+
+func (f *fakeWatchdogs) For(dockerContext string) run.Watchdog {
+	f.contexts = append(f.contexts, dockerContext)
+	return f
+}
+
+func (f *fakeWatchdogs) Spawn(r sandbox.RunRef) error {
+	f.spawned = append(f.spawned, r)
+	return nil
+}
+
+// stubWatchdogs makes watchdogs a fresh fakeWatchdogs for the duration of the test.
+func stubWatchdogs(t *testing.T) *fakeWatchdogs {
+	t.Helper()
+	orig := watchdogs
+	f := &fakeWatchdogs{}
+	watchdogs = f
+	t.Cleanup(func() { watchdogs = orig })
+	return f
 }

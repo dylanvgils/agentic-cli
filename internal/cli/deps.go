@@ -14,6 +14,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 )
 
 var (
@@ -28,6 +29,9 @@ var (
 
 	// releasesClient fetches and installs agentic's own releases for `agentic upgrade` and the upgrade check.
 	releasesClient upgradecheck.Releases = selfupdate.Releases{}
+
+	// watchdogs starts the watchdog that tears each run down once agentic exits.
+	watchdogs watchdogStarter = spawnedWatchdogs{}
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -60,4 +64,16 @@ type msbAPI interface {
 	Available() error
 	ListRunning() ([]*microsandbox.Sandbox, error)
 	Version() (string, error)
+}
+
+// watchdogStarter returns the watchdog for runs on a Docker context.
+type watchdogStarter interface {
+	For(dockerContext string) run.Watchdog
+}
+
+// spawnedWatchdogs reruns this executable's watch command as each run's watchdog.
+type spawnedWatchdogs struct{}
+
+func (spawnedWatchdogs) For(dockerContext string) run.Watchdog {
+	return watch.NewSpawner(watchCmdName, dockerContext)
 }
