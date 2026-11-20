@@ -124,33 +124,72 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		require.ErrorContains(t, err, "isn't on this machine")
 		assert.Nil(t, findCall(calls(), "create"))
 	})
+}
 
-	t.Run("dry run prints placeholders and creates nothing", func(t *testing.T) {
-		// Arrange
-		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
-		spec := newSpec(t)
-		spec.Credentials = testCredentials
+func TestClient_DryRunPublishedProxy(t *testing.T) {
+	// Arrange
+	client := newTestClient()
+	calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
+	spec := sandbox.RunSpec{
+		RunID:       testRunID,
+		User:        &testUser,
+		ToolHome:    t.TempDir(),
+		Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		Credentials: testCredentials,
+	}
 
-		// Act
-		var published PublishedProxy
-		out := iostreamstest.CaptureOut(t, func() {
-			var err error
-			published, err = client.DryRunPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, PublishedProxy{
-			Port:  dryRunPortPlaceholder,
-			Token: dryRunTokenPlaceholder,
-			CAPEM: []byte(dryRunCAPlaceholder),
-			Env:   published.Env,
-		}, published)
-		assert.Contains(t, out, "--env-file="+dryRunTokenFilePlaceholder)
-		assert.Contains(t, out, "--publish=127.0.0.1::3128")
-		assert.NotContains(t, out, "test-secret")
-		assert.Empty(t, calls())
+	// Act
+	var published PublishedProxy
+	out := iostreamstest.CaptureOut(t, func() {
+		var err error
+		published, err = client.DryRunPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
+		require.NoError(t, err)
 	})
+
+	// Assert
+	assert.Equal(t, dryRunPortPlaceholder, published.Port)
+	assert.Contains(t, out, "--env-file="+dryRunTokenFilePlaceholder)
+	assert.Contains(t, out, "--publish=127.0.0.1::3128")
+	assert.NotContains(t, out, "test-secret")
+	assert.Empty(t, calls())
+}
+
+func Test_proxyHandle_printedProxy(t *testing.T) {
+	client := newTestClient()
+
+	for _, tc := range []struct {
+		name   string
+		rules  []sandbox.AllowRule
+		wantCA []byte
+	}{
+		{
+			name:   "has a CA placeholder when the proxy decrypts",
+			rules:  []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}},
+			wantCA: []byte(dryRunCAPlaceholder),
+		},
+		{
+			name:   "has no CA when the proxy only tunnels",
+			rules:  []sandbox.AllowRule{{Host: "example.test"}},
+			wantCA: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Rules: tc.rules}}}
+			h := newTestProxyHandle(t, client, rs)
+
+			// Act
+			published := h.printedProxy()
+
+			// Assert
+			assert.Equal(t, PublishedProxy{
+				Port:  dryRunPortPlaceholder,
+				Token: dryRunTokenPlaceholder,
+				CAPEM: tc.wantCA,
+				Env:   published.Env,
+			}, published)
+		})
+	}
 }
 
 func Test_parsePublishedPort(t *testing.T) {
