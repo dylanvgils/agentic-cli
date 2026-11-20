@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
@@ -59,7 +60,7 @@ func PrepareSnapshot(toolsDir, hostPath, block, snapshotPath string) error {
 		return err
 	}
 
-	return os.WriteFile(snapshotPath, []byte(mergeInstructions(existing, block)), 0o600)
+	return hostfs.Private.WriteFile(snapshotPath, []byte(mergeInstructions(existing, block)))
 }
 
 // FinalizeSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.
@@ -83,7 +84,7 @@ func FinalizeSnapshot(toolsDir, hostPath, snapshotPath string) error {
 	}
 	defer func() { _ = root.Close() }()
 
-	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+	if err := root.MkdirAll(filepath.Dir(name), hostfs.Data.Dir()); err != nil {
 		return err
 	}
 
@@ -126,7 +127,7 @@ func WriteManaged(toolsDir, path, block string) error {
 		return nil
 	}
 
-	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+	if err := root.MkdirAll(filepath.Dir(name), hostfs.Data.Dir()); err != nil {
 		return err
 	}
 	return writeInstructions(root, name, mergeInstructions(existing, block))
@@ -134,7 +135,7 @@ func WriteManaged(toolsDir, path, block string) error {
 
 // createRoot is openRoot, creating toolsDir first.
 func createRoot(toolsDir, path string) (*os.Root, string, error) {
-	if err := os.MkdirAll(toolsDir, 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(toolsDir); err != nil {
 		return nil, "", err
 	}
 	return openRoot(toolsDir, path)
@@ -162,12 +163,12 @@ func ensureHostFile(root *os.Root, name string) error {
 		return err
 	}
 
-	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+	if err := root.MkdirAll(filepath.Dir(name), hostfs.Data.Dir()); err != nil {
 		return err
 	}
 
 	// O_EXCL refuses to follow a dangling link to its target
-	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
+	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, hostfs.Data.File())
 	if err != nil {
 		return err
 	}
@@ -229,7 +230,7 @@ func readCapped(r io.Reader, path string) (string, error) {
 // writeInstructions replaces name via a temp file and rename, so a planted symlink is replaced instead of followed.
 func writeInstructions(root *os.Root, name, content string) error {
 	tmp := filepath.Join(filepath.Dir(name), ".agentic-instructions-"+rand.Text())
-	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, hostfs.Private.File())
 	if err != nil {
 		return err
 	}
@@ -238,7 +239,7 @@ func writeInstructions(root *os.Root, name, content string) error {
 	_, err = f.WriteString(content)
 	if err == nil {
 		// On the handle, since the agent can swap the temp name for a link
-		err = f.Chmod(0o640)
+		err = f.Chmod(hostfs.Data.File())
 	}
 	if err != nil {
 		_ = f.Close()

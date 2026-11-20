@@ -2,11 +2,11 @@ package run
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -40,7 +40,7 @@ func proxyLogFile(rs sandbox.RunSpec, start time.Time) string {
 
 // prepareProxyLogDir creates runDir and prunes the log dirs older than agentic.json's retention, the default if unreadable.
 func prepareProxyLogDir(runDir, toolHome string) error {
-	if err := os.MkdirAll(runDir, 0o750); err != nil {
+	if err := hostfs.Data.MkdirAll(runDir); err != nil {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 

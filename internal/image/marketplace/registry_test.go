@@ -45,7 +45,12 @@ func TestLoadRegistry(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.DirExists(t, baseDir)
+		dirInfo, err := os.Stat(baseDir)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o750), dirInfo.Mode().Perm())
+		fileInfo, err := os.Stat(filepath.Join(baseDir, registryFileName))
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o640), fileInfo.Mode().Perm())
 	})
 
 	t.Run("old single-entry-per-key format falls back to an empty registry", func(t *testing.T) {

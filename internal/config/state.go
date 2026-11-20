@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // State holds what agentic records itself in $AGENTIC_HOME/state.json, apart from the settings users edit in agentic.json.
@@ -43,7 +45,7 @@ func (state *State) Save(toolHome string) error {
 		return err
 	}
 
-	return os.WriteFile(StateFile(toolHome), data, 0o640)
+	return hostfs.Data.WriteFile(StateFile(toolHome), data)
 }
 
 // IsTrusted reports whether dir, once symlinks are resolved, is a trusted entry or below one; entries compare as stored, since a link inside one could otherwise widen trust.

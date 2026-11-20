@@ -99,6 +99,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Before adding a helper, grep for one that already computes it and reuse it; no second variant (sorted, filtered) beside it.
 - Loop over a collection once: two loops over the same input that each skip what the other handles become one loop with a branch.
 - When a format changes (e.g. a comma list becomes JSON), drop the checks and comments that only guarded the old one.
+- Host files and dirs come from an `infra/hostfs` class (`Data`, `Private`, `Shared`), never `os.Mkdir*`/`os.WriteFile`; `OpenFile` and `os.Root` modes use its `Dir()`/`File()`. `forbidigo` and `gosec` enforce it.
 - Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere.
 - Run `make lint` and `shellcheck` (fix, or disable inline with a reason) before committing.
 - Use `-`, never em or en dashes, in all files.

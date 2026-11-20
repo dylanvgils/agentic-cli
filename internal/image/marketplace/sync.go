@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // MarketplacesDirName is the subdirectory under $TOOL_HOME where synced marketplace clones live.
@@ -71,6 +74,10 @@ func (s *Syncer) syncEntry(e Entry, dir string) (Result, error) {
 	}
 
 	if !exists {
+		// Create the parent ourselves; git clone would create it with the umask default
+		if err := hostfs.Data.MkdirAll(filepath.Dir(dir)); err != nil {
+			return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)
+		}
 		if err := s.git.Clone(e.URL, dir); err != nil {
 			_ = os.RemoveAll(dir)
 			return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)

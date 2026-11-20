@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
 // stateKeys is a historical snapshot of the keys moved, not config.State's fields - it must not track future state changes.
@@ -88,5 +90,5 @@ func writeJSONObject(path string, object map[string]json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o640)
+	return hostfs.Data.WriteFile(path, data)
 }

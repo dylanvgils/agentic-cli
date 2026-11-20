@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
@@ -287,7 +288,7 @@ func (h proxyHandle) connectArgs() []string {
 
 // createLogFile creates the run's empty log file, so Docker bind-mounts a file instead of creating a root-owned dir.
 func (h proxyHandle) createLogFile() error {
-	f, err := os.OpenFile(h.logPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(h.logPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, hostfs.Private.File())
 	if err != nil {
 		return fmt.Errorf("create proxy log: %w", err)
 	}

@@ -3,10 +3,10 @@ package dind
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
@@ -65,12 +65,12 @@ func (id Identity) files() map[string]string {
 
 // WriteIdentityFiles writes id's generated /etc files into dir.
 func WriteIdentityFiles(dir string, id Identity) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := hostfs.Shared.MkdirAll(dir); err != nil {
 		return fmt.Errorf("create dind etc dir: %w", err)
 	}
 
 	for name, content := range id.files() {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		if err := hostfs.Shared.WriteFile(filepath.Join(dir, name), []byte(content)); err != nil {
 			return fmt.Errorf("write dind %s: %w", name, err)
 		}
 	}

@@ -1,12 +1,12 @@
 package tools
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -116,5 +116,5 @@ func copilotLatestVersion() (string, error) {
 }
 
 func setupCopilot(toolHome string) error {
-	return os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "copilot"), 0o750)
+	return hostfs.Data.MkdirAll(filepath.Join(toolHome, ToolsDirName, "copilot"))
 }

@@ -1,11 +1,11 @@
 package tools
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -80,7 +80,7 @@ func opencodeLatestVersion() (string, error) {
 
 func setupOpencode(toolHome string) error {
 	for _, sub := range []string{"data", "share", "state", "cache", "config"} {
-		if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "opencode", sub), 0o750); err != nil {
+		if err := hostfs.Data.MkdirAll(filepath.Join(toolHome, ToolsDirName, "opencode", sub)); err != nil {
 			return err
 		}
 	}
