@@ -40,15 +40,6 @@ func copilotMounts() []string {
 	}
 }
 
-// copilotMarketplaceMount mounts a synced marketplace clone read-only; entrypoint.sh registers it.
-func copilotMarketplaceMount(name, url string) string {
-	return sandbox.VolumeMount(
-		path.Join(toolHomeVar, marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
-		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
-		sandbox.VolumeOptions{ReadOnly: true},
-	)
-}
-
 func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(pipefailShell).

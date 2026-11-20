@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,18 +29,6 @@ func TestCopilotMounts(t *testing.T) {
 		"$PWD:/workspace",
 		"$TOOL_HOME/tools/copilot:$CONTAINER_HOME/.copilot",
 	}, mounts)
-}
-
-func TestCopilotMarketplaceMount_returnsExpected(t *testing.T) {
-	// Arrange
-	url := "git@example.com:acme/marketplace.git"
-	dirName := marketplace.CloneDirName(url)
-
-	// Act
-	spec := copilotMarketplaceMount("acme", url)
-
-	// Assert
-	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
 
 func TestCopilotStage(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
@@ -23,6 +24,22 @@ type BuildOptions struct {
 	Registry            string                   // registry prefix for base images (e.g. "myregistry.example.com")
 	CustomInstalls      []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
 	SkipInstallChecksum bool                     // bypass installer script checksum verification via the SKIP_INSTALL_CHECKSUM build arg
+}
+
+// Overrides returns the base and apt overrides as report lines, e.g. "base: java, dotnet"; an exact empty override reads "(none, exact)".
+func (o BuildOptions) Overrides() []string {
+	var lines []string
+	if len(o.BaseOverride) > 0 {
+		lines = append(lines, "base: "+strings.Join(o.BaseOverride, ", "))
+	} else if o.BaseExact {
+		lines = append(lines, "base: (none, exact)")
+	}
+	if len(o.AptPackages) > 0 {
+		lines = append(lines, "apt: "+strings.Join(o.AptPackages, ", "))
+	} else if o.AptExact {
+		lines = append(lines, "apt: (none, exact)")
+	}
+	return lines
 }
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.

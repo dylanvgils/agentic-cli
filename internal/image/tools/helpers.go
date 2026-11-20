@@ -2,9 +2,12 @@ package tools
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // pipefailShell makes RUN fail when any command in a pipeline fails.
@@ -96,4 +99,13 @@ func versionCheckScript(tool, command string) df.Heredoc {
 		Dest:  "/usr/local/bin/" + versionScript(tool),
 		Lines: []string{"#!/bin/sh", command},
 	}
+}
+
+// marketplaceMount mounts a synced marketplace clone read-only under $CONTAINER_HOME/marketplaces, outside any tool's own state tree.
+func marketplaceMount(name, url string) string {
+	return sandbox.VolumeMount(
+		path.Join(toolHomeVar, marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
+		sandbox.VolumeOptions{ReadOnly: true},
+	)
 }

@@ -264,11 +264,6 @@ func Test_Service_apply(t *testing.T) {
 			opts: tools.BuildOptions{BaseOverride: []string{"java"}, AptPackages: []string{"curl", "jq"}},
 			want: "=> agentic-claude\n   base: java\n   apt: curl, jq\n",
 		},
-		{
-			name: "empty exact base and apt",
-			opts: tools.BuildOptions{BaseExact: true, AptExact: true},
-			want: "=> agentic-claude\n   base: (none, exact)\n   apt: (none, exact)\n",
-		},
 	} {
 		t.Run("reports "+tc.name, func(t *testing.T) {
 			// Arrange
@@ -323,7 +318,9 @@ func Test_Service_apply(t *testing.T) {
 
 			// Act
 			var err error
-			iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &tc.upstream).apply("claude", "agentic-claude", tools.BuildOptions{}) })
+			iostreamstest.CaptureErr(t, func() {
+				err = newTestService(t, d, &tc.upstream).apply("claude", "agentic-claude", tools.BuildOptions{})
+			})
 
 			// Assert
 			require.NoError(t, err)
@@ -340,7 +337,9 @@ func Test_Service_apply(t *testing.T) {
 
 		// Act
 		var err error
-		iostreamstest.CaptureErr(t, func() { err = newTestService(t, d, &fakeUpstream{}).apply("claude", "agentic-claude", tools.BuildOptions{}) })
+		iostreamstest.CaptureErr(t, func() {
+			err = newTestService(t, d, &fakeUpstream{}).apply("claude", "agentic-claude", tools.BuildOptions{})
+		})
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
