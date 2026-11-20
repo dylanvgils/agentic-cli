@@ -107,7 +107,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 	t.Run("agentic-proxy runs msb through a published proxy, then stops it and prints the summary", func(t *testing.T) {
 		// Arrange
 		var calls []string
-		var gotRoute *microsandbox.ProxyRoute
+		var gotRoute microsandbox.ProxyRoute
 		var gotOwner sandbox.Runtime
 		ensured := false
 		d := &fakeDocker{
@@ -119,7 +119,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 				return docker.PublishedProxy{Port: "49153", Token: "test-token", Env: []string{"EXAMPLE=agentic-placeholder"}}, nil
 			},
 		}
-		m := &fakeMicrosandbox{run: func(_ sandbox.RunSpec, route *microsandbox.ProxyRoute) error {
+		m := &fakeMicrosandbox{runThroughProxy: func(_ sandbox.RunSpec, route microsandbox.ProxyRoute) error {
 			calls = append(calls, "msb")
 			gotRoute = route
 			return nil
@@ -139,7 +139,11 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		assert.True(t, ensured)
 		assert.Equal(t, []string{"start", "msb"}, calls)
 		assert.Equal(t, sandbox.RuntimeMicrosandbox, gotOwner)
-		assert.Equal(t, &microsandbox.ProxyRoute{Port: "49153", Token: "test-token", Env: []string{"EXAMPLE=agentic-placeholder"}}, gotRoute)
+		assert.Equal(t, microsandbox.ProxyRoute{
+			Port:  "49153",
+			Token: "test-token",
+			Env:   []string{"EXAMPLE=agentic-placeholder"},
+		}, gotRoute)
 		assert.Contains(t, buf.String(), "proxy blocked 1 request(s) to: blocked.example.test")
 	})
 
@@ -181,10 +185,17 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		assert.NoDirExists(t, filepath.Join(rs.ToolHome, "logs"))
 	})
 
-	t.Run("native and agentic-proxy without the proxy run msb without a route", func(t *testing.T) {
-		for _, agentic := range []bool{false, true} {
+	for _, tc := range []struct {
+		name    string
+		agentic bool
+		mode    sandbox.EgressMode
+	}{
+		{name: "native runs msb with its own rules", mode: sandbox.EgressEnforce},
+		{name: "agentic-proxy without the proxy runs msb with its own rules", agentic: true, mode: sandbox.EgressOff},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			route := &microsandbox.ProxyRoute{}
+			ran, proxied := false, false
 			d := &fakeDocker{
 				inspectImage: inspectImageID("abc123"),
 				startPublishedProxy: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
@@ -192,24 +203,28 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 					return docker.PublishedProxy{}, nil
 				},
 			}
-			m := &fakeMicrosandbox{run: func(_ sandbox.RunSpec, got *microsandbox.ProxyRoute) error {
-				route = got
-				return nil
-			}}
-			rs := newProxyRunSpec(t, sandbox.EgressOff)
-			if !agentic {
-				rs.Egress.Mode = sandbox.EgressEnforce
+			m := &fakeMicrosandbox{
+				run: func(sandbox.RunSpec) error {
+					ran = true
+					return nil
+				},
+				runThroughProxy: func(sandbox.RunSpec, microsandbox.ProxyRoute) error {
+					proxied = true
+					return nil
+				},
 			}
-			r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: agentic}
+			rs := newProxyRunSpec(t, tc.mode)
+			r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: tc.agentic}
 
 			// Act
 			err := r.Run(rs, "")
 
 			// Assert
 			require.NoError(t, err)
-			assert.Nil(t, route, agentic)
-		}
-	})
+			assert.True(t, ran)
+			assert.False(t, proxied)
+		})
+	}
 
 	t.Run("runs the image pinned to its Docker ID", func(t *testing.T) {
 		// Arrange

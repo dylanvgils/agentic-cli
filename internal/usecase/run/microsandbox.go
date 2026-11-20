@@ -84,7 +84,7 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.microsandbox.Run(rs, nil)
+	return r.microsandbox.Run(rs)
 }
 
 // runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
@@ -114,7 +114,7 @@ func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string)
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.microsandbox.Run(rs, &microsandbox.ProxyRoute{
+	return r.microsandbox.RunThroughProxy(rs, microsandbox.ProxyRoute{
 		Port:  published.Port,
 		Token: published.Token,
 		CAPEM: published.CAPEM,

@@ -470,11 +470,15 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
 		return nil
 	}
 	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, _ microsandbox.ProxyRoute) error {
+	return f.Run(rs)
 }
 
 func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {

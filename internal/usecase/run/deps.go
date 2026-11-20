@@ -35,7 +35,8 @@ type Microsandbox interface {
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
-	Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
+	Run(rs sandbox.RunSpec) error
+	RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	Teardown(id sandbox.RunID) error
 }
 

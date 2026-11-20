@@ -252,15 +252,16 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 
 // fakeMicrosandbox implements Microsandbox; a nil field succeeds, except capabilities, which defaults to msb's.
 type fakeMicrosandbox struct {
-	capabilities func() sandbox.Capabilities
-	available    func() error
-	version      func() (string, error)
-	hasImage     func(ref string) (bool, error)
-	loadImage    func(r io.Reader, tag string) error
-	imageRefs    func() ([]string, error)
-	removeImage  func(ref string) error
-	run          func(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
-	teardown     func(id sandbox.RunID) error
+	capabilities    func() sandbox.Capabilities
+	available       func() error
+	version         func() (string, error)
+	hasImage        func(ref string) (bool, error)
+	loadImage       func(r io.Reader, tag string) error
+	imageRefs       func() ([]string, error)
+	removeImage     func(ref string) error
+	run             func(rs sandbox.RunSpec) error
+	runThroughProxy func(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
+	teardown        func(id sandbox.RunID) error
 }
 
 func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
@@ -314,11 +315,18 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
 		return nil
 	}
-	return f.run(rs, route)
+	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error {
+	if f.runThroughProxy == nil {
+		return nil
+	}
+	return f.runThroughProxy(rs, route)
 }
 
 func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
@@ -331,7 +339,7 @@ func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
 // stubRunImage makes m's Run record the image it runs; empty means it didn't run.
 func stubRunImage(m *fakeMicrosandbox) *string {
 	var image string
-	m.run = func(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
+	m.run = func(rs sandbox.RunSpec) error {
 		image = rs.Image
 		return nil
 	}
