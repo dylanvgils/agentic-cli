@@ -63,7 +63,6 @@ func Test_runPs(t *testing.T) {
 		out := buf.String()
 		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+3000->3000/tcp\s+agentic-claude-ab12`, out)
 		assert.Regexp(t, `opencode\s+agentic\s+microsandbox\s+agentic-opencode:latest\s+running\s+-\s+vm-1`, out)
-		assert.NotContains(t, out, "other-copilot-cd34")
 	})
 
 	t.Run("lists every namespace with --all", func(t *testing.T) {
@@ -79,20 +78,6 @@ func Test_runPs(t *testing.T) {
 		out := buf.String()
 		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+3000->3000/tcp\s+agentic-claude-ab12`, out)
 		assert.Regexp(t, `copilot\s+other\s+docker\s+other-copilot\s+Up 1 minute\s+-\s+other-copilot-cd34`, out)
-	})
-
-	t.Run("lists the namespace given with --namespace", func(t *testing.T) {
-		// Arrange
-		buf := iostreamstest.StubCombined(t)
-		cmd := newTestPsCmd(t, "--namespace", "other")
-
-		// Act
-		err := runPs(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "other-copilot-cd34")
-		assert.NotContains(t, buf.String(), "agentic-claude-ab12")
 	})
 
 	t.Run("names the namespace when nothing runs in it", func(t *testing.T) {

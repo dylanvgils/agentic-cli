@@ -93,21 +93,7 @@ func TestReadSummary(t *testing.T) {
 		assert.Equal(t, []string{"local.example.test"}, summary.Refused.Hosts)
 		assert.Equal(t, []string{"cdn.example.test"}, summary.Mismatched.Hosts)
 		assert.Equal(t, []string{"api.example.test"}, summary.Missed.Hosts)
-	})
-
-	t.Run("counts a tunnel with failed requests as one attempt", func(t *testing.T) {
-		// Arrange
-		path := writeAccessLog(t,
-			`{"host":"api.example.test","decision":"allow","intercepted":true}`,
-			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"upstream-failed"}`,
-			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"no-placeholder"}`,
-		)
-
-		// Act
-		summary := ReadSummary(path)
-
-		// Assert
-		assert.Equal(t, 1, summary.Attempts)
+		assert.Equal(t, 3, summary.Attempts, "entries that repeat an attempt aren't counted")
 	})
 
 	t.Run("hosts are made safe to print", func(t *testing.T) {

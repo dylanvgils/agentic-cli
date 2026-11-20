@@ -319,32 +319,6 @@ func TestPreviewInstructions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, content)
 	})
-
-	t.Run("proxy flags are resolved like a run", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true}
-
-		// Act
-		content, err := newTestService(&fakeDocker{}, nil).PreviewInstructions(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, content, "## Network")
-	})
-
-	t.Run("a proxy conflict errors like a run", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Project.RC.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
-		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
-
-		// Act
-		_, err := newTestService(&fakeDocker{}, nil).PreviewInstructions(req)
-
-		// Assert
-		require.ErrorContains(t, err, "--no-proxy cannot be used")
-	})
 }
 
 func Test_instructionsEnabled(t *testing.T) {

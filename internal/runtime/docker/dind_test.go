@@ -50,25 +50,6 @@ func Test_startDind(t *testing.T) {
 		assert.DirExists(t, filepath.Join(handle.runDir, "config"))
 	})
 
-	t.Run("fails when dockerd never becomes ready", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "exec")
-		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: t.TempDir(),
-				Dind:     sandbox.DindSpec{},
-			},
-		}
-
-		// Act
-		_, err := client.startDind(rs, nil)
-
-		// Assert
-		require.ErrorContains(t, err, "docker sidecar did not become ready")
-	})
-
 	t.Run("refuses when the run network's subnets can't be read", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")

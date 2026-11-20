@@ -143,37 +143,20 @@ func Test_removeNamespaceImages(t *testing.T) {
 		{Image: "agentic-copilot", Namespace: "agentic", Tool: "copilot"},
 	}
 
-	t.Run("removes each image after one summary line", func(t *testing.T) {
+	t.Run("removes dockerd images first, after one summary line", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-
-		// Act
-		err := removeNamespaceImages("agentic", images)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
-		assert.Contains(t, logBuf.String(), `agentic: removing 2 image(s) in namespace "agentic"`)
-	})
-
-	t.Run("removes dockerd images before the tool images they derive from", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		var cleaned []string
-		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-		withDockerd := []*docker.ImageInfo{
-			{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			{Image: "agentic-claude-dockerd", Namespace: "agentic", Tool: tools.DockerdImageSuffix},
-		}
+		withDockerd := append(images, &docker.ImageInfo{Image: "agentic-claude-dockerd", Namespace: "agentic", Tool: tools.DockerdImageSuffix})
 
 		// Act
 		err := removeNamespaceImages("agentic", withDockerd)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude"}, cleaned)
+		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Contains(t, logBuf.String(), `agentic: removing 3 image(s) in namespace "agentic"`)
 	})
 
 	t.Run("stops at the first remove error", func(t *testing.T) {

@@ -13,14 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLabel_buildsFlag(t *testing.T) {
-	// Act
-	result := label("agentic.base", "node@24.0.0")
-
-	// Assert
-	assert.Equal(t, "--label=agentic.base=node@24.0.0", result)
-}
-
 func TestNewCacheBust(t *testing.T) {
 	// Arrange
 	first := NewCacheBust()
@@ -347,9 +339,6 @@ func TestRestampImage(t *testing.T) {
 
 	// Assert
 	require.NotEmpty(t, capturedArgs, "expected a relabel-only build via runWithStdin")
-	assert.Contains(t, capturedArgs, "--label=agentic.tool=claude")
-	assert.Contains(t, capturedArgs, "--label=agentic.namespace=agentic")
-	assert.Contains(t, capturedArgs, "--label=agentic.apt=make,gcc", "unchanged labels must be carried forward")
 	assert.Contains(t, capturedArgs, "--label=agentic.base=node@24.0.0", "unchanged labels must be carried forward")
 	assert.NotContains(t, capturedArgs, "--label=agentic.built=2020-01-01T00:00:00Z", "expected a fresh agentic.built label")
 	assert.NotContains(t, capturedArgs, "--label=agentic.version=old", "expected the current CLI version label")

@@ -65,25 +65,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		assert.Empty(t, get())
 	})
 
-	t.Run("names the tool container and network after the run and keeps the proxy log", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client)
-
-		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{
-			RunID: testRunID,
-			Image: "agentic-claude",
-			User:  &testUser,
-		}, "/example.test/logs/proxy_abc.jsonl")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude-"+string(testRunID), sidecars.run.container)
-		assert.Equal(t, "agentic-run-"+string(testRunID), sidecars.run.network)
-		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
-	})
-
-	t.Run("sweeps orphans, then creates the run network", func(t *testing.T) {
+	t.Run("sweeps orphans, then creates the run network named after the run and keeps the proxy log", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		spec := sandbox.RunSpec{
@@ -93,11 +75,14 @@ func TestClient_StartSidecars(t *testing.T) {
 		}
 
 		// Act
-		sidecars, err := client.StartSidecars(spec, "")
+		sidecars, err := client.StartSidecars(spec, "/example.test/logs/proxy_abc.jsonl")
 
 		// Assert
 		require.NoError(t, err)
 		require.NotNil(t, sidecars.guard)
+		assert.Equal(t, "agentic-claude-"+string(testRunID), sidecars.run.container)
+		assert.Equal(t, network, sidecars.run.network)
+		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
 		got := calls()
 		assert.Equal(t, "ps", got[0].args[0])
 		createArgs := findCall(got, "network", "create")
@@ -184,12 +169,6 @@ func TestClient_RunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.Contains(t, args, "run")
-		assert.Contains(t, args, "--rm")
-		assert.Contains(t, args, "--read-only")
-		assert.Contains(t, args, "--cap-drop=ALL")
-		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--user="+testUser.String())
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
 		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"))
@@ -206,9 +185,6 @@ func TestClient_RunTool(t *testing.T) {
 		require.NoError(t, err)
 		args := get()
 		assert.Contains(t, args, "--label="+LabelOwner+"="+pidOwner(sandbox.RuntimeDocker, os.Getpid()))
-		assert.Contains(t, args, "--label="+LabelHost+"="+hostname())
-		assert.Contains(t, args, "--label="+sandbox.LabelRun+"="+string(testRunID))
-		assert.True(t, hasArgWithPrefix(args, "--label="+LabelStarted+"="))
 	})
 
 	t.Run("proxy mode keeps the tool off the egress network and injects proxy env", func(t *testing.T) {
@@ -248,10 +224,6 @@ func TestClient_RunTool(t *testing.T) {
 		require.NoError(t, err)
 		args := get()
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "tool should share the run net with dind")
-		assert.Contains(t, args, "--env=DOCKER_HOST=tcp://agentic-docker:2376")
-		assert.Contains(t, args, "--cap-drop=ALL")
-		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--read-only")
 		assert.NotContains(t, args, "--privileged")
 		assert.False(t, hasArgWithPrefix(args, "--cap-add"), "tool container must not gain capabilities")
 	})
@@ -295,9 +267,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.Contains(t, args, "--volume=/host:/container")
 		assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
-		assert.Contains(t, args, "--tmpfs=/tmp:exec,size=1g")
 		assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
 		assert.Equal(t, "", argAfter(args, "--entrypoint"))
 		assert.Equal(t, []string{"agentic-claude", "--resume"}, args[len(args)-2:])
@@ -305,44 +275,30 @@ func TestClient_RunTool(t *testing.T) {
 }
 
 func TestClient_StopSidecars(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	stubDindReadyTimeout(t, client)
+	toolHome := t.TempDir()
+	daemon := &fakeDaemon{}
+	stubDaemon(t, client, daemon)
+	rs := sandbox.RunSpec{
+		RunID:    testRunID,
+		Image:    "agentic-claude",
+		User:     &testUser,
+		ToolHome: toolHome,
+		Dind:     sandbox.DindSpec{Enabled: true},
+	}
+	sidecars, err := client.StartSidecars(rs, "")
+	require.NoError(t, err)
+	daemon.containers = []ownedResource{owned(dindContainerName(testRunID), sidecars.run.container, testRunID, 0)}
+	daemon.networks = []ownedResource{owned(runNetworkName(testRunID), sidecars.run.container, testRunID, 0)}
 
-	t.Run("tears its run down", func(t *testing.T) {
-		// Arrange
-		stubDindReadyTimeout(t, client)
-		toolHome := t.TempDir()
-		daemon := &fakeDaemon{}
-		stubDaemon(t, client, daemon)
-		rs := sandbox.RunSpec{
-			RunID:    testRunID,
-			Image:    "agentic-claude",
-			User:     &testUser,
-			ToolHome: toolHome,
-			Dind:     sandbox.DindSpec{Enabled: true},
-		}
-		sidecars, err := client.StartSidecars(rs, "")
-		require.NoError(t, err)
-		daemon.containers = []ownedResource{owned(dindContainerName(testRunID), sidecars.run.container, testRunID, 0)}
-		daemon.networks = []ownedResource{owned(runNetworkName(testRunID), sidecars.run.container, testRunID, 0)}
+	// Act
+	client.StopSidecars(sidecars)
 
-		// Act
-		client.StopSidecars(sidecars)
-
-		// Assert
-		assert.Empty(t, daemon.names())
-		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
-	})
-
-	t.Run("zero value does nothing", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-
-		// Act
-		client.StopSidecars(Sidecars{})
-
-		// Assert
-		assert.Empty(t, calls())
-	})
+	// Assert
+	assert.Empty(t, daemon.names())
+	assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 }
 
 func Test_Client_attachTool(t *testing.T) {

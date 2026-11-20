@@ -51,74 +51,68 @@ func TestLoadCredentials(t *testing.T) {
 		assert.ErrorContains(t, err, "parse proxy credentials")
 	})
 
-	t.Run("incomplete credentials are rejected", func(t *testing.T) {
-		cases := map[string]func(c *Credential){
-			"no hosts":                 func(c *Credential) { c.Hosts = nil },
-			"no headers":               func(c *Credential) { c.Headers = nil },
-			`invalid header name ""`:   func(c *Credential) { c.Headers = []string{""} },
-			`invalid header name "a:"`: func(c *Credential) { c.Headers = []string{"a:"} },
-			"placeholder must be":      func(c *Credential) { c.Placeholder = "" },
-			"invalid secret":           func(c *Credential) { c.Secret = "test-secret\r\nX-Injected: 1" },
-		}
-		for want, breakIt := range cases {
-			// Arrange
-			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
-			breakIt(&cred)
-			path := writeCredentials(t, cred)
-
-			// Act
-			_, err := LoadCredentials(path)
-
-			// Assert
-			assert.ErrorContains(t, err, want)
-		}
-	})
-
-	t.Run("wildcard and malformed hosts are rejected", func(t *testing.T) {
-		hosts := []string{
-			// Wildcard
-			"*.example.test",
-			// Leading-dot wildcard
-			".example.test",
-			// Bare wildcard, "*" once the root dot is trimmed
-			"*.",
-			// Empty once the root dot is trimmed
-			".",
-			// Empty
-			"",
-			// Empty label
-			"api..example.test",
-			// Label starts with a hyphen
-			"-api.example.test",
-			// Underscore isn't a hostname character
-			"api_key.example.test",
-			// Port isn't part of a host
-			"api.example.test:443",
-		}
-		for _, host := range hosts {
-			// Arrange
-			path := writeCredentials(t, testPlaceholderCredential(host, testPlaceholder))
-
-			// Act
-			_, err := LoadCredentials(path)
-
-			// Assert
-			assert.ErrorContains(t, err, "invalid host", host)
-		}
-	})
-
-	t.Run("exact hostnames and ips are accepted", func(t *testing.T) {
+	t.Run("an invalid credential is an error", func(t *testing.T) {
 		// Arrange
-		cred := testPlaceholderCredential("API.example.test.", testPlaceholder)
-		cred.Hosts = append(cred.Hosts, "127.0.0.1", "::1")
-		path := writeCredentials(t, cred)
+		path := writeCredentials(t, Credential{Hosts: []string{"api.example.test"}})
 
 		// Act
 		_, err := LoadCredentials(path)
 
 		// Assert
+		assert.ErrorContains(t, err, "proxy credential 0: no headers")
+	})
+}
+
+func TestValidateCredentials(t *testing.T) {
+	t.Run("exact hostnames and ips pass", func(t *testing.T) {
+		// Arrange
+		cred := testPlaceholderCredential("API.example.test.", testPlaceholder)
+		cred.Hosts = append(cred.Hosts, "127.0.0.1", "::1")
+
+		// Act
+		err := ValidateCredentials([]Credential{cred})
+
+		// Assert
 		assert.NoError(t, err)
 	})
+
+	for _, tc := range []struct {
+		name    string
+		breakIt func(c *Credential)
+		want    string
+	}{
+		{name: "no hosts", breakIt: func(c *Credential) { c.Hosts = nil }, want: "no hosts"},
+		{name: "a bare wildcard host", breakIt: func(c *Credential) { c.Hosts = []string{"*."} }, want: `invalid host "*."`},
+		{name: "a root-only host", breakIt: func(c *Credential) { c.Hosts = []string{"."} }, want: `invalid host "."`},
+		{name: "no headers", breakIt: func(c *Credential) { c.Headers = nil }, want: "no headers"},
+		{name: "an empty header", breakIt: func(c *Credential) { c.Headers = []string{""} }, want: `invalid header name ""`},
+		{name: "a header with a colon", breakIt: func(c *Credential) { c.Headers = []string{"a:"} }, want: `invalid header name "a:"`},
+		{name: "a header with a space", breakIt: func(c *Credential) { c.Headers = []string{"X Api"} }, want: `invalid header name "X Api"`},
+		{name: "a header with parentheses", breakIt: func(c *Credential) { c.Headers = []string{"X(Api)"} }, want: `invalid header name "X(Api)"`},
+		{name: "a non-ascii header", breakIt: func(c *Credential) { c.Headers = []string{"X-Ápi"} }, want: `invalid header name "X-Ápi"`},
+		{name: "the host header", breakIt: func(c *Credential) { c.Headers = []string{"Host"} }, want: "header Host cannot be injected"},
+		{name: "a lowercase host header", breakIt: func(c *Credential) { c.Headers = []string{"host"} }, want: "header host cannot be injected"},
+		{name: "a hop-by-hop header", breakIt: func(c *Credential) { c.Headers = []string{"Connection"} }, want: "header Connection cannot be injected"},
+		{name: "a short placeholder", breakIt: func(c *Credential) { c.Placeholder = "agentic-short" }, want: "placeholder must be at least 16"},
+		{name: "a placeholder with a space", breakIt: func(c *Credential) { c.Placeholder = "agentic 0123456789abcdef" }, want: "letters, digits, - or _"},
+		{name: "a secret with a newline", breakIt: func(c *Credential) { c.Secret = "test-secret\n" }, want: "invalid secret"},
+		{name: "a secret with a nul", breakIt: func(c *Credential) { c.Secret = "test-secret\u0000" }, want: "invalid secret"},
+		{name: "a secret with a del", breakIt: func(c *Credential) { c.Secret = "test-secret\u007f" }, want: "invalid secret"},
+		{name: "an empty secret", breakIt: func(c *Credential) { c.Secret = "" }, want: "invalid secret"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+			tc.breakIt(&cred)
+
+			// Act
+			err := ValidateCredentials([]Credential{cred})
+
+			// Assert
+			require.ErrorContains(t, err, tc.want)
+			assert.NotContains(t, err.Error(), "test-secret", "errors never hold the secret")
+		})
+	}
 
 	t.Run("host listed in two credentials is rejected", func(t *testing.T) {
 		// Arrange
@@ -126,103 +120,12 @@ func TestLoadCredentials(t *testing.T) {
 		first.Placeholder, first.Secret = "agentic-aaaaaaaaaaaaaaaa", "a"
 		second := testPlaceholderCredential("API.example.test.", testPlaceholder)
 		second.Placeholder, second.Secret = "agentic-bbbbbbbbbbbbbbbb", "b"
-		path := writeCredentials(t, first, second)
 
 		// Act
-		_, err := LoadCredentials(path)
+		err := ValidateCredentials([]Credential{first, second})
 
 		// Assert
 		assert.ErrorContains(t, err, "listed in more than one credential")
-	})
-
-	t.Run("invalid headers are rejected", func(t *testing.T) {
-		cases := map[string]string{
-			`invalid header name "X Api"`:          "X Api",
-			`invalid header name "X(Api)"`:         "X(Api)",
-			`invalid header name "X-Ápi"`:          "X-Ápi",
-			"header host cannot be injected":       "host",
-			"header Connection cannot be injected": "Connection",
-		}
-		for want, header := range cases {
-			// Arrange
-			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
-			cred.Headers = []string{header}
-			path := writeCredentials(t, cred)
-
-			// Act
-			_, err := LoadCredentials(path)
-
-			// Assert
-			assert.ErrorContains(t, err, want)
-		}
-	})
-}
-
-func TestValidateCredential(t *testing.T) {
-	t.Run("secrets a header can't carry are rejected", func(t *testing.T) {
-		for _, secret := range []string{"a\u0000b", "a\u007fb", "", "line\nbreak"} {
-			// Arrange
-			cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
-			cred.Secret = secret
-
-			// Act
-			err := ValidateCredential(cred)
-
-			// Assert
-			assert.ErrorContains(t, err, "invalid secret", secret)
-		}
-	})
-}
-
-func TestValidateCredentials(t *testing.T) {
-	t.Run("valid credentials pass", func(t *testing.T) {
-		// Arrange
-		creds := []Credential{testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")}
-
-		// Act
-		err := ValidateCredentials(creds)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("error does not contain the secret", func(t *testing.T) {
-		// Arrange
-		cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
-		cred.Secret = "test-secret\n"
-		creds := []Credential{cred}
-
-		// Act
-		err := ValidateCredentials(creds)
-
-		// Assert
-		require.Error(t, err)
-		assert.NotContains(t, err.Error(), "test-secret")
-	})
-	t.Run("invalid credentials are rejected", func(t *testing.T) {
-		cases := map[string]func(c *Credential){
-			"no headers":                      func(c *Credential) { c.Headers = nil },
-			`invalid header name "X Api"`:     func(c *Credential) { c.Headers = []string{"X Api"} },
-			"header Host cannot be injected":  func(c *Credential) { c.Headers = []string{"Host"} },
-			"placeholder must be at least 16": func(c *Credential) { c.Placeholder = "agentic-short" },
-			"letters, digits, - or _":         func(c *Credential) { c.Placeholder = "agentic 0123456789abcdef" },
-			"invalid secret":                  func(c *Credential) { c.Secret = "test-secret\n" },
-		}
-
-		for want, breakIt := range cases {
-			// Arrange
-			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
-			breakIt(&cred)
-
-			// Act
-			err := ValidateCredentials([]Credential{cred})
-
-			// Assert
-			assert.ErrorContains(t, err, want)
-			if err != nil {
-				assert.NotContains(t, err.Error(), "test-secret", want)
-			}
-		}
 	})
 
 	t.Run("overlapping placeholders are rejected", func(t *testing.T) {

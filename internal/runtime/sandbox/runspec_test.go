@@ -9,6 +9,12 @@ import (
 )
 
 func TestRunSpecBuilder_allFields(t *testing.T) {
+	// Arrange
+	egress := EgressPolicy{Mode: EgressMonitor, Rules: []AllowRule{{Host: ".anthropic.com"}}, Integrations: []string{"maven"}}
+	first := Credential{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Secret: "test-secret"}
+	second := Credential{Name: "OTHER_TOKEN", Hosts: []string{"api.other.test"}, Secret: "test-secret"}
+	dind := DindSpec{Enabled: true, Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
+
 	// Act
 	result := NewRunSpec("agentic-claude").
 		WithToolHome("/home/user/.agentic").
@@ -21,6 +27,10 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithToolArgs("--example", "value").
 		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
 		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
+		WithEgress(egress).
+		WithCredentials(first).
+		WithCredentials(second).
+		WithDind(dind).
 		Build()
 
 	// Assert
@@ -35,40 +45,9 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
 	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
 	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
-}
-
-func TestRunSpecBuilder_WithEgress(t *testing.T) {
-	// Arrange
-	policy := EgressPolicy{Mode: EgressMonitor, Rules: []AllowRule{{Host: ".anthropic.com"}}, Integrations: []string{"maven"}}
-
-	// Act
-	result := NewRunSpec("agentic-claude").WithEgress(policy).Build()
-
-	// Assert
-	assert.Equal(t, policy, result.Egress)
-}
-
-func TestRunSpecBuilder_WithCredentials(t *testing.T) {
-	// Arrange
-	first := Credential{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Secret: "test-secret"}
-	second := Credential{Name: "OTHER_TOKEN", Hosts: []string{"api.other.test"}, Secret: "test-secret"}
-
-	// Act
-	result := NewRunSpec("agentic-claude").WithCredentials(first).WithCredentials(second).Build()
-
-	// Assert
+	assert.Equal(t, egress, result.Egress)
 	assert.Equal(t, []Credential{first, second}, result.Credentials)
-}
-
-func TestRunSpecBuilder_WithDind(t *testing.T) {
-	// Arrange
-	spec := DindSpec{Enabled: true, Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
-
-	// Act
-	result := NewRunSpec("agentic-claude").WithDind(spec).Build()
-
-	// Assert
-	assert.Equal(t, spec, result.Dind)
+	assert.Equal(t, dind, result.Dind)
 }
 
 func TestRunSpecBuilder_WithVolumes(t *testing.T) {
@@ -95,12 +74,4 @@ func TestRunSpecBuilder_WithVolumes(t *testing.T) {
 			assert.Equal(t, tc.want, result.Volumes)
 		})
 	}
-}
-
-func TestRunSpecBuilder_WithEphemeralDirs(t *testing.T) {
-	// Act
-	result := NewRunSpec("img").WithEphemeralDirs().Build()
-
-	// Assert
-	assert.Nil(t, result.EphemeralDirs)
 }

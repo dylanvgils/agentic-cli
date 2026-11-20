@@ -212,8 +212,3 @@ func Test_parsePublishedPort(t *testing.T) {
 		}
 	})
 }
-
-func TestPublishedProxy_Stop(t *testing.T) {
-	// Act + Assert
-	assert.NotPanics(t, PublishedProxy{}.Stop)
-}

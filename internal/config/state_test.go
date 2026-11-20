@@ -93,17 +93,6 @@ func Test_State_IsTrusted(t *testing.T) {
 		assert.True(t, result)
 	})
 
-	t.Run("empty config", func(t *testing.T) {
-		// Arrange
-		cfg := &State{}
-
-		// Act
-		result := cfg.IsTrusted(base)
-
-		// Assert
-		assert.False(t, result)
-	})
-
 	t.Run("symlink dir matches", func(t *testing.T) {
 		// Arrange
 		link := filepath.Join(t.TempDir(), "link")

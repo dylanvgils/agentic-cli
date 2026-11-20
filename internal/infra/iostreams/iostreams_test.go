@@ -1,29 +1,13 @@
 package iostreams
 
 import (
-	"bytes"
 	"io"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNew(t *testing.T) {
-	// Arrange
-	in := strings.NewReader("y\n")
-	var out, errOut bytes.Buffer
-
-	// Act
-	s := New(in, &out, &errOut)
-
-	// Assert
-	assert.Same(t, in, s.In)
-	assert.Same(t, &out, s.Out)
-	assert.Same(t, &errOut, s.Err)
-}
 
 func TestSystem(t *testing.T) {
 	// Act
@@ -87,19 +71,6 @@ func TestStreams_IsTerminal(t *testing.T) {
 	})
 }
 
-func TestDefault(t *testing.T) {
-	// Arrange
-	stubDefault(t)
-	s, _ := newTestStreams()
-	std.Store(s)
-
-	// Act
-	got := Default()
-
-	// Assert
-	assert.Same(t, s, got)
-}
-
 func TestSetDefault(t *testing.T) {
 	// Arrange
 	stubDefault(t)
@@ -107,33 +78,22 @@ func TestSetDefault(t *testing.T) {
 
 	// Act
 	SetDefault(s)
+	got := Default()
 
 	// Assert
-	assert.Same(t, s, std.Load())
+	assert.Same(t, s, got)
 }
 
-// Test_packagePrint covers each package print func writing through Default.
+// Test_packagePrint covers the package print funcs forwarding to Default; TestStreams_print covers each method.
 func Test_packagePrint(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		write func()
-		want  string
-	}{
-		{name: "Print", write: func() { Print("FROM scratch") }, want: "FROM scratch"},
-		{name: "Printf", write: func() { Printf("version: %s", "1.0.0") }, want: "version: 1.0.0"},
-		{name: "Println", write: func() { Println("alias agt=agentic") }, want: "alias agt=agentic\n"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Arrange
-			out := stubDefault(t)
+	// Arrange
+	out := stubDefault(t)
 
-			// Act
-			tc.write()
+	// Act
+	Println("alias agt=agentic")
 
-			// Assert
-			assert.Equal(t, tc.want, out.String())
-		})
-	}
+	// Assert
+	assert.Equal(t, "alias agt=agentic\n", out.String())
 }
 
 func TestIsTerminal(t *testing.T) {

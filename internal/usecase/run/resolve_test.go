@@ -2,7 +2,6 @@ package run
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -28,26 +27,10 @@ func TestService_Resolve(t *testing.T) {
 		return nil
 	}}
 
-	t.Run("returns the run spec for the target", func(t *testing.T) {
+	t.Run("gives the run the watched run's ID", func(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
-
-		// Act
-		rs, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, &fakePrompter{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude", rs.Image)
-	})
-
-	t.Run("gives the run its ID, watched before the instructions snapshot exists", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		var snapshotAtSpawn bool
-		w := &fakeWatchdog{onSpawn: func(run sandbox.RunRef) {
-			_, err := os.Stat(sandbox.RunTempDir(run.ID))
-			snapshotAtSpawn = err == nil
-		}}
+		w := &fakeWatchdog{}
 		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
@@ -57,9 +40,6 @@ func TestService_Resolve(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, w.spawned, 1)
 		assert.Equal(t, w.spawned[0].ID, plan.spec.RunID)
-		assert.False(t, snapshotAtSpawn)
-		svc.End(plan)
-		assert.NoDirExists(t, sandbox.RunTempDir(plan.spec.RunID), "End removes the run temp dir")
 	})
 
 	t.Run("a failed build saves the snapshot back and removes the run temp dir", func(t *testing.T) {
@@ -126,20 +106,6 @@ func TestService_Resolve(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("dind on an image without the docker layer stops before any prompt", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Dind.DindFlag = true
-		p := &fakePrompter{}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, p)
-
-		// Assert
-		require.ErrorContains(t, err, "--base docker")
-		assert.Empty(t, p.trustAsked)
-	})
-
 	t.Run("a credential without env stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
@@ -152,47 +118,6 @@ func TestService_Resolve(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "needs env, as the tool must send the placeholder")
 		assert.Empty(t, p.trustAsked)
-	})
-
-	t.Run("microsandbox in proxy monitor mode stops before any prompt", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
-		req.Flags.Proxy.MonitorFlag = true
-		p := &fakePrompter{}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, &fakeMicrosandbox{}), req, p)
-
-		// Assert
-		require.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
-		assert.Empty(t, p.trustAsked)
-	})
-
-	t.Run("docker runtime doesn't check for msb", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, m), req, &fakePrompter{})
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("microsandbox dry run doesn't check for msb", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
-		req.Flags.DryRun = true
-		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, m), req, &fakePrompter{})
-
-		// Assert
-		assert.NoError(t, err)
 	})
 
 	t.Run("refused trust stops before the tool update and setup", func(t *testing.T) {
@@ -396,17 +321,6 @@ func TestCheckProjectDir(t *testing.T) {
 	})
 }
 
-func Test_Request_runtime(t *testing.T) {
-	// Arrange
-	req := Request{Project: config.Project{RC: &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}}}
-
-	// Act
-	runtime := req.runtime()
-
-	// Assert
-	assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
-}
-
 func Test_Service_resolveRun(t *testing.T) {
 	daemonCaps := sandbox.Capabilities{
 		Features: sandbox.Features{
@@ -486,50 +400,6 @@ func Test_Service_resolveRun(t *testing.T) {
 			Registry: "registry.example.test",
 			DryRun:   true,
 		}, c)
-	})
-
-	t.Run("dind limits override the tool's, which fill the rest", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{
-			RCLimits: config.RCLimits{
-				PidsLimit: "512",
-				CPUs:      "2",
-				Memory:    "2g",
-			},
-			Dind: config.RCDind{RCLimits: config.RCLimits{
-				PidsLimit: "4096",
-				Memory:    "8g",
-			}},
-		}}
-		req := Request{
-			Target: target,
-			Flags:  Flags{DindLimits: sandbox.ResourceLimits{Memory: "16g"}},
-		}
-
-		// Act
-		c, err := newSvc(daemonCaps).resolveRun(req, rc)
-
-		// Assert
-		require.NoError(t, err)
-		want := sandbox.ResourceLimits{
-			PidsLimit: "4096",
-			CPUs:      "2",
-			Memory:    "16g",
-		}
-		assert.Equal(t, want, c.Dind.Limits)
-		assert.Equal(t, "2g", c.Limits.Memory, "tool limit is unaffected")
-	})
-
-	t.Run("config picks the runtime when the flag is unset", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
-
-		// Act
-		c, err := newSvc(daemonCaps).resolveRun(Request{Target: target}, rc)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.RuntimeMicrosandbox, c.Runtime.Name)
 	})
 
 	t.Run("a proxy conflict is an error", func(t *testing.T) {

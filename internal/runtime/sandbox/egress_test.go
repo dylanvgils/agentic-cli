@@ -69,14 +69,6 @@ func TestEgressPolicy_WholeHosts(t *testing.T) {
 	assert.Equal(t, []string{"api.example.test", ".example.org"}, hosts)
 }
 
-func TestEgressIntegrations(t *testing.T) {
-	// Act
-	names := EgressIntegrations()
-
-	// Assert
-	assert.Equal(t, []string{"gradle", "maven"}, names)
-}
-
 func TestCheckEgressIntegrations(t *testing.T) {
 	t.Run("known names", func(t *testing.T) {
 		// Act

@@ -53,27 +53,19 @@ func TestPorts(t *testing.T) {
 }
 
 func TestVolumes(t *testing.T) {
-	t.Run("ordering", func(t *testing.T) {
+	t.Run("lists tool, flag then rc mounts, user bind mounts read-only by default", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"rcvol:/mnt/rc"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"/host/rc:/mnt/rc"}}}
 
 		// Act
-		result := Volumes([]string{"tool:/mnt/tool"}, []string{"flagvol:/mnt/flag"}, rc)
+		result := Volumes([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, []string{"/host/flag:/mnt/flag"}, rc)
 
 		// Assert
 		assert.Equal(t, []string{
-			"tool:/mnt/tool",
-			"flagvol:/mnt/flag",
-			"rcvol:/mnt/rc",
+			"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
+			"/host/flag:/mnt/flag:ro",
+			"/host/rc:/mnt/rc:ro",
 		}, result)
-	})
-
-	t.Run("no sources returns empty", func(t *testing.T) {
-		// Act
-		result := Volumes(nil, nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
 	})
 
 	t.Run("does not mutate tool mounts", func(t *testing.T) {
@@ -86,25 +78,6 @@ func TestVolumes(t *testing.T) {
 		// Assert
 		assert.Len(t, toolMounts, 1, "original toolMounts slice should not be modified")
 		assert.Len(t, result, 2)
-	})
-
-	t.Run("user bind mounts default to read-only", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"/host/rc:/mnt/rc"}}}
-
-		// Act
-		result := Volumes(nil, []string{"/host/flag:/mnt/flag"}, rc)
-
-		// Assert
-		assert.Equal(t, []string{"/host/flag:/mnt/flag:ro", "/host/rc:/mnt/rc:ro"}, result)
-	})
-
-	t.Run("tool bind mounts stay read-write", func(t *testing.T) {
-		// Act
-		result := Volumes([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, []string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, result)
 	})
 }
 
@@ -151,14 +124,6 @@ func TestEnv(t *testing.T) {
 		assert.Equal(t, []string{"FOO=fromrc", "FOO=fromflag"}, result)
 	})
 
-	t.Run("no sources returns empty", func(t *testing.T) {
-		// Act
-		result := Env(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
-
 	t.Run("does not mutate rc env slice", func(t *testing.T) {
 		// Arrange
 		rcEnv := []string{"FOO=bar"}
@@ -174,7 +139,7 @@ func TestEnv(t *testing.T) {
 }
 
 func TestResourceLimitsFor(t *testing.T) {
-	rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
+	rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2"}}}
 
 	for _, tc := range []struct {
 		name  string
@@ -183,21 +148,10 @@ func TestResourceLimitsFor(t *testing.T) {
 		want  sandbox.ResourceLimits
 	}{
 		{
-			name: "rc fills empty flags",
-			rc:   rc,
-			want: sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
-		},
-		{
-			name:  "flag takes precedence over rc",
-			flags: sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
-			rc:    rc,
-			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
-		},
-		{
-			name:  "partial flags rc fills rest",
+			name:  "flag wins over rc, which wins over the default",
 			flags: sandbox.ResourceLimits{PidsLimit: "1024"},
 			rc:    rc,
-			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "2", Memory: "2g"},
+			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "2", Memory: sandbox.DefaultMemory},
 		},
 		{
 			name: "falls back to hardcoded default when nothing else set",

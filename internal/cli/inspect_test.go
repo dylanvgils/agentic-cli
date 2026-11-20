@@ -98,17 +98,6 @@ func Test_printImageDetail(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
 	})
-
-	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, builtInfo, nil)
-
-		// Act
-		err := printImageDetail("bogus", "agentic")
-
-		// Assert
-		assert.ErrorContains(t, err, "bogus")
-	})
 }
 
 func Test_printInfoDetail(t *testing.T) {

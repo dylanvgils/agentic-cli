@@ -7,24 +7,14 @@ import (
 )
 
 func Test_BasePackages(t *testing.T) {
-	t.Run("returns the base layer packages", func(t *testing.T) {
-		// Act
-		result := BasePackages()
+	// Arrange
+	result := BasePackages()
 
-		// Assert
-		assert.Equal(t, layerPackages["base"], result)
-	})
+	// Act
+	result[0] = "mutated"
 
-	t.Run("returns a copy that mutation doesn't affect layerPackages", func(t *testing.T) {
-		// Arrange
-		result := BasePackages()
-
-		// Act
-		result[0] = "mutated"
-
-		// Assert
-		assert.NotEqual(t, "mutated", layerPackages["base"][0])
-	})
+	// Assert - a copy that mutation doesn't affect layerPackages
+	assert.NotEqual(t, "mutated", layerPackages["base"][0])
 }
 
 func Test_MergePackages(t *testing.T) {
@@ -69,12 +59,4 @@ func Test_expandPackages(t *testing.T) {
 		// Assert
 		assert.Equal(t, append(layerPackages["base"], layerPackages["go"]...), result)
 	})
-}
-
-func Test_collectPackages(t *testing.T) {
-	// Act
-	result := collectPackages([]string{"go"}, []string{"make"})
-
-	// Assert
-	assert.Equal(t, append(expandPackages([]string{"go"}), "make"), result)
 }

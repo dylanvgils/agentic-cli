@@ -105,27 +105,6 @@ func TestPrune(t *testing.T) {
 		assert.NotContains(t, updated.Marketplaces, "untracked-clone")
 	})
 
-	t.Run("multiple projects: kept when at least one still references it", func(t *testing.T) {
-		// Arrange
-		baseDir := t.TempDir()
-		projA := t.TempDir()
-		projB := t.TempDir() // no longer references it
-		writeMarketplaceRC(t, projA, "acme", "git@example.com:acme.git")
-		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
-		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
-			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{projA, projB}}},
-		}}
-
-		// Act
-		updated, _, err := Prune(baseDir, reg)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, filepath.Join(baseDir, dirName))
-		require.Len(t, updated.Marketplaces[dirName], 1)
-		assert.Equal(t, []string{projA}, updated.Marketplaces[dirName][0].Projects)
-	})
-
 	t.Run("drops a dead name-entry but keeps the shared dir when a sibling name is still live", func(t *testing.T) {
 		// Arrange
 		baseDir := t.TempDir()

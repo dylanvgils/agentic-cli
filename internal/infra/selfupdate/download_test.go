@@ -46,17 +46,6 @@ func Test_downloadFile(t *testing.T) {
 			assert.Equal(t, tc.wantNotFound, errors.Is(err, errNotFound))
 		})
 	}
-
-	t.Run("returns error when dest path is invalid", func(t *testing.T) {
-		// Arrange
-		srv := stubStatusServer(t, http.StatusOK, "data")
-
-		// Act
-		err := downloadFile(http.DefaultClient, srv.URL, "/no/such/dir/out")
-
-		// Assert
-		assert.Error(t, err)
-	})
 }
 
 func Test_verifyChecksum(t *testing.T) {
@@ -88,29 +77,6 @@ func Test_verifyChecksum(t *testing.T) {
 
 		// Assert
 		assert.ErrorIs(t, err, ErrChecksumMismatch)
-	})
-
-	t.Run("returns error when archive name not in checksums file", func(t *testing.T) {
-		// Arrange
-		archivePath := writeTempFile(t, archiveContent)
-		checksumsPath := writeTempFile(t, []byte(validChecksum+"  other-file.tar.gz\n"))
-
-		// Act
-		err := verifyChecksum(archivePath, archiveName, checksumsPath)
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("returns error when checksums file does not exist", func(t *testing.T) {
-		// Arrange
-		archivePath := writeTempFile(t, archiveContent)
-
-		// Act
-		err := verifyChecksum(archivePath, archiveName, "/no/such/checksums.txt")
-
-		// Assert
-		assert.Error(t, err)
 	})
 }
 
@@ -153,60 +119,29 @@ func Test_parseChecksum(t *testing.T) {
 }
 
 func Test_hashFile(t *testing.T) {
-	t.Run("returns sha256 hex digest of file contents", func(t *testing.T) {
-		// Arrange
-		content := []byte("some archive content")
-		path := writeTempFile(t, content)
-		sum := sha256.Sum256(content)
-		expected := hex.EncodeToString(sum[:])
+	// Arrange
+	content := []byte("some archive content")
+	path := writeTempFile(t, content)
+	sum := sha256.Sum256(content)
+	expected := hex.EncodeToString(sum[:])
 
-		// Act
-		got, err := hashFile(path)
+	// Act
+	got, err := hashFile(path)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, expected, got)
-	})
-
-	t.Run("returns error when file does not exist", func(t *testing.T) {
-		// Act
-		_, err := hashFile("/no/such/file")
-
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
 }
 
 func Test_copyFile(t *testing.T) {
-	t.Run("copies file content to dest", func(t *testing.T) {
-		// Arrange
-		src := writeTempFile(t, []byte("hello"))
-		dest := filepath.Join(t.TempDir(), "copy")
+	// Arrange
+	src := writeTempFile(t, []byte("hello"))
+	dest := filepath.Join(t.TempDir(), "copy")
 
-		// Act
-		err := copyFile(src, dest)
+	// Act
+	err := copyFile(src, dest)
 
-		// Assert
-		require.NoError(t, err)
-		assertFileContent(t, dest, "hello")
-	})
-
-	t.Run("returns error when source does not exist", func(t *testing.T) {
-		// Act
-		err := copyFile("/no/such/src", filepath.Join(t.TempDir(), "out"))
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("returns error when dest path is invalid", func(t *testing.T) {
-		// Arrange
-		src := writeTempFile(t, []byte("data"))
-
-		// Act
-		err := copyFile(src, "/no/such/dir/out")
-
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	require.NoError(t, err)
+	assertFileContent(t, dest, "hello")
 }

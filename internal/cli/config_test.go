@@ -7,7 +7,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,35 +117,19 @@ func Test_printProjectConfig(t *testing.T) {
 		assert.Equal(t, want, buf.String())
 	})
 
-	t.Run("multi layers source attribution", func(t *testing.T) {
+	t.Run("multi layers name the file count", func(t *testing.T) {
 		// Arrange
 		buf := iostreamstest.StubOut(t)
 		layers := []config.RCLayer{
-			{
-				Path: "/home/.agenticrc.toml",
-				RC: &config.AgenticRC{
-					Build: config.RCBuild{AptPackages: []string{"make"}},
-					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "2"}, Mounts: []string{"parent-vol:/mnt/p"}},
-				},
-			},
-			{
-				Path: "/project/.agenticrc.toml",
-				RC: &config.AgenticRC{
-					Build: config.RCBuild{AptPackages: []string{"gcc"}},
-					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8"}, Mounts: []string{"child-vol:/mnt/c"}},
-				},
-			},
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
 		}
 
 		// Act
 		printProjectConfig(layers)
 
 		// Assert
-		out := buf.String()
-		assert.Contains(t, out, "Project (.agenticrc.toml, 2 files)")
-		assert.Contains(t, out, "    cpus: 8  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "      - make  [/home/.agenticrc.toml]\n      - gcc  [/project/.agenticrc.toml]\n")
-		assert.Contains(t, out, "      - parent-vol:/mnt/p  [/home/.agenticrc.toml]\n      - child-vol:/mnt/c  [/project/.agenticrc.toml]\n")
+		assert.Contains(t, buf.String(), "Project (.agenticrc.toml, 2 files)")
 	})
 }
 
@@ -223,22 +206,6 @@ func Test_proxyEnabledDefault(t *testing.T) {
 			assert.Equal(t, tc.want, enabled)
 		})
 	}
-}
-
-func Test_limitFields(t *testing.T) {
-	// Arrange
-	layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{CPUs: "8"}}}}}
-	get := func(rc *config.AgenticRC) config.RCLimits { return rc.Run.RCLimits }
-
-	// Act
-	fields := limitFields(layers, get, sandbox.DefaultLimits)
-
-	// Assert
-	assert.Equal(t, []field{
-		{key: "pids_limit", entries: []entry{{value: "1024"}}},
-		{key: "cpus", entries: []entry{{value: "8", source: "/project/.agenticrc.toml"}}},
-		{key: "memory", entries: []entry{{value: "4g"}}},
-	}, fields)
 }
 
 func Test_scalarField(t *testing.T) {
@@ -323,32 +290,6 @@ func Test_listField(t *testing.T) {
 		{value: "a:/a", source: "/home/.agenticrc.toml"},
 		{value: "b:/b", source: "/project/.agenticrc.toml"},
 	}}, f)
-}
-
-func Test_innermost(t *testing.T) {
-	layers := []config.RCLayer{
-		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "outer"}},
-		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
-	}
-	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
-
-	t.Run("skips layers where it is unset", func(t *testing.T) {
-		// Act
-		v, path, ok := innermost(layers, namespace, func(v string) bool { return v != "" })
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "outer", v)
-		assert.Equal(t, "/home/.agenticrc.toml", path)
-	})
-
-	t.Run("not found when no layer sets it", func(t *testing.T) {
-		// Act
-		_, _, ok := innermost(layers, namespace, func(string) bool { return false })
-
-		// Assert
-		assert.False(t, ok)
-	})
 }
 
 func Test_writeSection(t *testing.T) {

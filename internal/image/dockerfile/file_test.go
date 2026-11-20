@@ -32,8 +32,11 @@ func TestFile_render(t *testing.T) {
 		f := File{
 			Stages: []Stage{
 				{
-					GlobalArgs: []Arg{{Key: "NODE_VERSION", Default: "24"}},
-					From:       From{Image: "node:${NODE_VERSION}-bookworm-slim", As: "base"},
+					GlobalArgs: []Arg{
+						{Key: "NODE_VERSION", Default: "24"},
+						{Key: "TARGETARCH"},
+					},
+					From: From{Image: "node:${NODE_VERSION}-bookworm-slim", As: "base"},
 				},
 				{
 					From:         From{Image: "base", As: "tool"},
@@ -48,31 +51,9 @@ func TestFile_render(t *testing.T) {
 		// Assert
 		divider := strings.Repeat("#", dividerWidth)
 		assert.Equal(t,
-			divider+"\n# base\n"+divider+"\nARG NODE_VERSION=24\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\n"+
+			divider+"\n# base\n"+divider+"\nARG NODE_VERSION=24\nARG TARGETARCH\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\n"+
 				divider+"\n# tool\n"+divider+"\nFROM base AS tool\n\nUSER app\n",
 			result,
 		)
-	})
-
-	t.Run("global args before FROM", func(t *testing.T) {
-		// Arrange
-		f := File{
-			Stages: []Stage{
-				{
-					GlobalArgs: []Arg{
-						{Key: "NODE_VERSION", Default: "24"},
-						{Key: "TARGETARCH"},
-					},
-					From: From{Image: "node:${NODE_VERSION}-slim", As: "base"},
-				},
-			},
-		}
-
-		// Act
-		result := f.Render()
-
-		// Assert
-		divider := strings.Repeat("#", dividerWidth)
-		assert.Equal(t, divider+"\n# base\n"+divider+"\nARG NODE_VERSION=24\nARG TARGETARCH\nFROM node:${NODE_VERSION}-slim AS base\n", result)
 	})
 }

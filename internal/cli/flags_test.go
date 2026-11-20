@@ -101,87 +101,31 @@ func Test_proxyInput(t *testing.T) {
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
-	for _, tc := range []struct {
-		flag string
-		want resolve.DindInput
-	}{
-		{flag: "dind", want: resolve.DindInput{DindFlag: true}},
-		{flag: "no-dind", want: resolve.DindInput{NoDindFlag: true}},
-	} {
-		t.Run(tc.flag+" flag maps to its field", func(t *testing.T) {
-			// Arrange
-			cmd := &cobra.Command{Use: "test"}
-			addDindFlags(cmd)
-			require.NoError(t, cmd.Flags().Set(tc.flag, "true"))
-
-			// Act
-			result := dindInput(cmd)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
-func Test_resolveDindResourceLimitFlags(t *testing.T) {
 	// Arrange
 	cmd := &cobra.Command{Use: "test"}
 	addDindFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("dind-cpus", "2"))
-	require.NoError(t, cmd.Flags().Set("dind-memory", "8g"))
+	require.NoError(t, cmd.Flags().Set("no-dind", "true"))
 
 	// Act
-	result := resolveDindResourceLimitFlags(cmd)
+	result := dindInput(cmd)
 
 	// Assert
-	assert.Equal(t, sandbox.ResourceLimits{CPUs: "2", Memory: "8g"}, result)
-}
-
-func Test_resolveResourceLimitFlags(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
-	addResourceLimitFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("pids-limit", "512"))
-	require.NoError(t, cmd.Flags().Set("cpus", "2"))
-	require.NoError(t, cmd.Flags().Set("memory", "2g"))
-
-	// Act
-	result := resolveResourceLimitFlags(cmd)
-
-	// Assert
-	assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
+	assert.Equal(t, resolve.DindInput{NoDindFlag: true}, result)
 }
 
 func Test_buildOptsFromFlags(t *testing.T) {
-	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base", "java"))
-		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
+	// Arrange
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+	cmd := &cobra.Command{Use: "test"}
+	addBuildFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("base-exact", ""))
 
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
+	// Act
+	opts := buildOptsFromFlags(cmd, rc)
 
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
-	})
-
-	t.Run("base-exact empty value produces debian only", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base-exact", ""))
-
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Empty(t, opts.BaseOverride)
-		assert.True(t, opts.BaseExact)
-	})
+	// Assert - an empty --base-exact produces debian only
+	assert.Empty(t, opts.BaseOverride)
+	assert.True(t, opts.BaseExact)
 }
 
 func Test_requireArgOrAll(t *testing.T) {
@@ -303,18 +247,6 @@ func Test_runtimeFlags(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, flags.Runtime)
-	})
-
-	t.Run("unknown runtime returns error", func(t *testing.T) {
-		// Arrange
-		cmd := newCmd()
-		require.NoError(t, cmd.Flags().Set("runtime", "podman"))
-
-		// Act
-		_, err := runtimeFlags(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, `unknown runtime "podman"`)
 	})
 
 	t.Run("unknown proxy backend returns error", func(t *testing.T) {

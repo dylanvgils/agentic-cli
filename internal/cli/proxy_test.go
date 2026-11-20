@@ -27,10 +27,10 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 			// Arrange
 			logBuf := iostreamstest.StubErr(t)
 			var capturedOpts tools.BuildOptions
-			stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
+			stubDocker(t, &fakeDocker{buildProxyImage: func(_, _, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
-			})
+			}})
 			if tc.noCacheFlag {
 				stubFlag(t, tc.cmd, "no-cache", "true")
 			}
@@ -48,10 +48,10 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 	t.Run("dry run prints dockerfile and skips build", func(t *testing.T) {
 		// Arrange
 		var built bool
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildProxyImage: func(_, _, _ string, _ tools.BuildOptions) error {
 			built = true
 			return nil
-		})
+		}})
 		stubFlag(t, proxyBuildCmd, "dry-run", "true")
 
 		// Act
@@ -67,14 +67,16 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 }
 
 func Test_runProxyClean(t *testing.T) {
-	t.Run("removes the proxy image", func(t *testing.T) {
+	t.Run("removes the proxy image and leaves logs alone without --logs", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
+		withTempToolHome(t)
 		var cleaned string
 		stubCleanImage(t, func(image string) error {
 			cleaned = image
 			return nil
 		})
+		log := writeProxyLog(t)
 
 		// Act
 		err := runProxyClean(proxyCleanCmd, nil)
@@ -83,19 +85,6 @@ func Test_runProxyClean(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tools.ProxyImage, cleaned)
 		assert.Contains(t, logBuf.String(), "agentic: removing agentic-proxy")
-	})
-
-	t.Run("leaves logs alone without --logs", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		stubCleanImage(t, func(string) error { return nil })
-		log := writeProxyLog(t)
-
-		// Act
-		err := runProxyClean(proxyCleanCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
 		assert.FileExists(t, log)
 	})
 

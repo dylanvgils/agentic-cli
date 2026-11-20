@@ -378,11 +378,10 @@ func stubRunImage(m *fakeMicrosandbox) *string {
 	return &image
 }
 
-// fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
+// fakePrompter implements Prompter, recording what it was asked; a nil field approves and tool updates are declined.
 type fakePrompter struct {
 	trustDir        func(string) error
 	approveSettings func(config.RCLayer, []config.GuardedSetting) error
-	offerToolUpdate func(tool, installed, latest string) bool
 
 	trustAsked     []string
 	settingsAsked  [][]string
@@ -409,12 +408,9 @@ func (f *fakePrompter) ApproveSettings(layer config.RCLayer, changed []config.Gu
 	return f.approveSettings(layer, changed)
 }
 
-func (f *fakePrompter) OfferToolUpdate(tool, installed, latest string) bool {
+func (f *fakePrompter) OfferToolUpdate(tool, _, _ string) bool {
 	f.updatesOffered = append(f.updatesOffered, tool)
-	if f.offerToolUpdate == nil {
-		return false
-	}
-	return f.offerToolUpdate(tool, installed, latest)
+	return false
 }
 
 // symlinkWorkspace is a cwd with real/, link -> real and escape -> outside.

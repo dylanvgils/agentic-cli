@@ -53,25 +53,14 @@ func TestDindResourceLimitsFor(t *testing.T) {
 		assert.Equal(t, tool, result)
 	})
 
-	t.Run("rc takes precedence over tool limits", func(t *testing.T) {
+	t.Run("flag wins over rc, which wins over the tool's", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, rc, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{Memory: "16g"}, rc, tool)
 
 		// Assert
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
-	})
-
-	t.Run("flag takes precedence over rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}}
-
-		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)
-
-		// Assert
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "16g"}, result)
 	})
 }

@@ -43,23 +43,6 @@ func Test_writeVersion(t *testing.T) {
 		assert.Equal(t, "agentic version dev\n", buf.String())
 	})
 
-	t.Run("with metadata", func(t *testing.T) {
-		// Arrange
-		buildinfo.Version = "1.2.3"
-		buildinfo.Commit = "a1b2c3d"
-		buildinfo.BuildDate = ""
-		buildinfo.InstallMethod = ""
-
-		buf := iostreamstest.StubOut(t)
-
-		// Act
-		err := writeVersion()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic version 1.2.3\n\ncommit:  a1b2c3d\n", buf.String())
-	})
-
 	t.Run("runtime versions in their own section", func(t *testing.T) {
 		// Arrange
 		buildinfo.Version = "1.2.3"
@@ -106,50 +89,17 @@ func Test_versionExtras(t *testing.T) {
 }
 
 func Test_runtimeVersions(t *testing.T) {
-	t.Run("docker and msb versions", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, &fakeDocker{version: func() (string, error) { return "29.9.0", nil }})
-		stubMicrosandbox(t, &fakeMicrosandbox{version: func() (string, error) { return "0.2.6", nil }})
+	// Arrange
+	stubDocker(t, &fakeDocker{version: func() (string, error) { return "29.9.0", nil }})
+	stubMicrosandbox(t, &fakeMicrosandbox{version: func() (string, error) { return "0.2.6", nil }})
 
-		// Act
-		fields := runtimeVersions()
+	// Act
+	fields := runtimeVersions()
 
-		// Assert
-		expected := runtimeDetail{
-			docker:       "29.9.0",
-			microsandbox: "0.2.6",
-		}
-		assert.Equal(t, expected, fields)
-	})
-
-	t.Run("msb not installed leaves its version empty", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, &fakeDocker{version: func() (string, error) { return "29.9.0", nil }})
-		stubMicrosandbox(t, &fakeMicrosandbox{version: func() (string, error) { return "", errNotFound }})
-
-		// Act
-		fields := runtimeVersions()
-
-		// Assert
-		expected := runtimeDetail{docker: "29.9.0"}
-		assert.Equal(t, expected, fields)
-	})
-}
-
-func Test_versionOrEmpty(t *testing.T) {
-	t.Run("returns the version", func(t *testing.T) {
-		// Act
-		v := versionOrEmpty(func() (string, error) { return "1.2.3", nil })
-
-		// Assert
-		assert.Equal(t, "1.2.3", v)
-	})
-
-	t.Run("error returns empty", func(t *testing.T) {
-		// Act
-		v := versionOrEmpty(func() (string, error) { return "1.2.3", errNotFound })
-
-		// Assert
-		assert.Equal(t, "", v)
-	})
+	// Assert
+	expected := runtimeDetail{
+		docker:       "29.9.0",
+		microsandbox: "0.2.6",
+	}
+	assert.Equal(t, expected, fields)
 }

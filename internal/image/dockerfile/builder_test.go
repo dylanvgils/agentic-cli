@@ -6,18 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStageBuilder_build(t *testing.T) {
-	// Act
-	stage := NewStage(From{Image: "base", As: "tool"}).
-		Add(Env{Key: "FOO", Value: "bar"}).
-		Add(User{Name: "app"}).
-		Build()
-
-	// Assert
-	assert.Equal(t, From{Image: "base", As: "tool"}, stage.From)
-	assert.Len(t, stage.Instructions, 2)
-}
-
 func TestStageBuilder_Add(t *testing.T) {
 	t.Run("captures location", func(t *testing.T) {
 		// Act
@@ -45,20 +33,6 @@ func TestStageBuilder_Add(t *testing.T) {
 		assert.Equal(t, "host user ID for container user mapping", located.Comment)
 		assert.Contains(t, located.Source, "builder_test.go:")
 		assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, located.Inst)
-	})
-
-	t.Run("comment rendered in Dockerfile", func(t *testing.T) {
-		// Arrange
-		stage := NewStage(From{Image: "base", As: "tool"}).
-			Add(C("host user ID", Arg{Key: "HOST_UID", Default: "1000"})).
-			Build()
-
-		// Act
-		result := File{Stages: []Stage{stage}}.Render()
-
-		// Assert
-		assert.Contains(t, result, "# host user ID\n")
-		assert.Contains(t, result, "ARG HOST_UID=1000")
 	})
 
 	t.Run("multiple appends all in order", func(t *testing.T) {

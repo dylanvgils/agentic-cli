@@ -217,20 +217,6 @@ func Test_sweepableResources(t *testing.T) {
 	assert.Equal(t, []ownedResource{gone}, sweepable)
 }
 
-func Test_containerNames(t *testing.T) {
-	// Arrange
-	resources := []ownedResource{
-		{name: "agentic-claude-abc"},
-		{name: "agentic-run-abc", network: true},
-	}
-
-	// Act
-	names := containerNames(resources)
-
-	// Assert
-	assert.Equal(t, map[string]bool{"agentic-claude-abc": true}, names)
-}
-
 func Test_sweepDindRunDirs(t *testing.T) {
 	client := newTestClient()
 

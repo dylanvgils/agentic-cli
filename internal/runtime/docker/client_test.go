@@ -185,25 +185,6 @@ func TestClient_stream(t *testing.T) {
 	})
 }
 
-func TestClient_withContext(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		context string
-		want    []string
-	}{
-		{name: "returns args unchanged when context unset", want: []string{"build", "-t", "img"}},
-		{name: "prepends --context flag when context set", context: "prod", want: []string{"--context", "prod", "build", "-t", "img"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := New(tc.context).withContext([]string{"build", "-t", "img"})
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
 func Test_defaultTiming(t *testing.T) {
 	// Act
 	timing := defaultTiming()

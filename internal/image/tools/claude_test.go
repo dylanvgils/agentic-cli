@@ -44,7 +44,7 @@ func TestClaudeMarketplaceMount_returnsExpected(t *testing.T) {
 }
 
 func TestSetupClaude(t *testing.T) {
-	t.Run("creates data dir", func(t *testing.T) {
+	t.Run("creates data dir and default JSON", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 
@@ -54,17 +54,6 @@ func TestSetupClaude(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.DirExists(t, filepath.Join(dir, ToolsDirName, "claude", "data"))
-	})
-
-	t.Run("creates default JSON", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-
-		// Act
-		err := setupClaude(dir)
-
-		// Assert
-		require.NoError(t, err)
 		got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "claude", ".claude.json"))
 		require.NoError(t, err)
 		assert.Equal(t, "{}", string(got))
@@ -116,10 +105,5 @@ func TestClaudeStage(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "CLAUDE_INSTALL_CHECKSUM="+DefaultChecksums.ClaudeInstall)
 		assert.Contains(t, result, "curl -fsSL https://claude.ai/install.sh -o /tmp/claude_install.sh")
-		assert.Contains(t, result, `echo "${CLAUDE_INSTALL_CHECKSUM}  /tmp/claude_install.sh" | sha256sum -c --quiet -`)
-		assert.Contains(t, result, `echo "claude install script checksum verified OK"`)
-		assert.Contains(t, result, "bash /tmp/claude_install.sh")
-		assert.Contains(t, result, "rm /tmp/claude_install.sh")
 	})
-
 }

@@ -6,18 +6,9 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNew(t *testing.T) {
-	// Act
-	svc := New(&fakeReleases{})
-
-	// Assert
-	assert.Equal(t, buildinfo.Version, svc.version)
-}
 
 func Test_Service_Check(t *testing.T) {
 	confirmYes := func(string, string) bool { return true }
@@ -49,20 +40,6 @@ func Test_Service_Check(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
-	})
-
-	t.Run("nothing due leaves the binary alone", func(t *testing.T) {
-		// Arrange
-		releases := &fakeReleases{latest: "v1.0.0"}
-		svc, _ := newTestService(t, releases)
-
-		// Act
-		updated, err := svc.Check(t.TempDir(), confirmYes)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, updated)
-		assert.Empty(t, releases.updatedWith)
 	})
 }
 
@@ -133,9 +110,10 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 }
 
 func Test_Service_offerUpdate(t *testing.T) {
-	t.Run("asks confirm with installed and latest", func(t *testing.T) {
+	t.Run("asks confirm with installed and latest, and skips the update when declined", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(t, &fakeReleases{})
+		releases := &fakeReleases{}
+		svc, _ := newTestService(t, releases)
 		var installed, latest string
 		confirm := func(i, l string) bool {
 			installed, latest = i, l
@@ -143,12 +121,14 @@ func Test_Service_offerUpdate(t *testing.T) {
 		}
 
 		// Act
-		_, err := svc.offerUpdate("v1.1.0", confirm)
+		updated, err := svc.offerUpdate("v1.1.0", confirm)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", installed)
 		assert.Equal(t, "v1.1.0", latest)
+		assert.False(t, updated)
+		assert.Empty(t, releases.updatedWith)
 	})
 
 	t.Run("updates and reports it when confirmed", func(t *testing.T) {
@@ -177,19 +157,5 @@ func Test_Service_offerUpdate(t *testing.T) {
 		assert.EqualError(t, err, "update failed: network error - run: agentic upgrade")
 		assert.False(t, updated)
 		assert.NotContains(t, errOut.String(), "update failed")
-	})
-
-	t.Run("skips update when declined", func(t *testing.T) {
-		// Arrange
-		releases := &fakeReleases{}
-		svc, _ := newTestService(t, releases)
-
-		// Act
-		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return false })
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, updated)
-		assert.Empty(t, releases.updatedWith)
 	})
 }

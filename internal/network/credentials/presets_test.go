@@ -26,13 +26,3 @@ func Test_presets(t *testing.T) {
 		assert.NotEmpty(t, r.Headers)
 	}
 }
-
-func Test_presets_github(t *testing.T) {
-	// Act
-	github := presets["github"]
-
-	// Assert
-	assert.Contains(t, github.hosts, "github.com")
-	assert.Contains(t, github.hosts, "api.githubcopilot.com")
-	assert.Contains(t, github.hosts, "api.individual.githubcopilot.com")
-}

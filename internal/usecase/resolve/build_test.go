@@ -32,21 +32,11 @@ func TestBases(t *testing.T) {
 }
 
 func TestBasesExact(t *testing.T) {
-	t.Run("returns sorted flag values only", func(t *testing.T) {
-		// Act
-		result := BasesExact([]string{"java", "dotnet"})
+	// Act
+	result := BasesExact([]string{"java", "dotnet"})
 
-		// Assert - sorted by canonical extras order
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-
-	t.Run("empty flag list returns empty", func(t *testing.T) {
-		// Act
-		result := BasesExact(nil)
-
-		// Assert
-		assert.Empty(t, result)
-	})
+	// Assert - sorted by canonical extras order
+	assert.Equal(t, []string{"dotnet", "java"}, result)
 }
 
 func TestVersions(t *testing.T) {
@@ -97,21 +87,11 @@ func TestAptPackages(t *testing.T) {
 }
 
 func TestAptPackagesExact(t *testing.T) {
-	t.Run("returns deduplicated flag values only", func(t *testing.T) {
-		// Act
-		result := AptPackagesExact([]string{"make", "gcc", "make"})
+	// Act
+	result := AptPackagesExact([]string{"make", "gcc", "make"})
 
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty flag list returns empty", func(t *testing.T) {
-		// Act
-		result := AptPackagesExact(nil)
-
-		// Assert
-		assert.Empty(t, result)
-	})
+	// Assert
+	assert.Equal(t, []string{"make", "gcc"}, result)
 }
 
 func TestBuildOptions(t *testing.T) {

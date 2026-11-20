@@ -55,14 +55,6 @@ func TestImageName(t *testing.T) {
 	})
 }
 
-func TestVersionScript_returnsAgenticPrefixedName(t *testing.T) {
-	// Act
-	result := versionScript("node")
-
-	// Assert
-	assert.Equal(t, "agentic-version-node", result)
-}
-
 func TestParseImageName(t *testing.T) {
 	t.Run("default namespace and known tool", func(t *testing.T) {
 		// Act

@@ -94,13 +94,3 @@ func TestTrimPath(t *testing.T) {
 		})
 	}
 }
-
-func TestC_setsCommentField(t *testing.T) {
-	// Act
-	located := C("host user ID for container user mapping", Arg{Key: "HOST_UID", Default: "1000"})
-
-	// Assert
-	assert.Equal(t, "host user ID for container user mapping", located.Comment)
-	assert.Equal(t, "", located.Source)
-	assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, located.Inst)
-}

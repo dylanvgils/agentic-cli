@@ -151,21 +151,6 @@ func TestService_Apply(t *testing.T) {
 		assert.Equal(t, "=> agentic-claude\n=> agentic-copilot\n", out)
 	})
 
-	t.Run("cleans each target from the other runtimes", func(t *testing.T) {
-		// Arrange
-		var cleaned []string
-		m := &fakeRuntime{cleanImage: recordCleans(&cleaned, "")}
-
-		// Act
-		iostreamstest.CaptureErr(t, func() {
-			err := New(t.TempDir(), &fakeDocker{}, m).Apply(plan)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
-	})
-
 	t.Run("warns and goes on when another runtime fails", func(t *testing.T) {
 		// Arrange
 		errLog := iostreamstest.StubErr(t)

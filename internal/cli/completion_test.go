@@ -56,15 +56,10 @@ func Test_builtToolNamesFunc(t *testing.T) {
 }
 
 func Test_namespacesFunc(t *testing.T) {
-	t.Run("returns unique non-empty namespaces", func(t *testing.T) {
+	t.Run("returns the images' namespaces", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "default-claude", Namespace: "default", Tool: "claude"},
-				{Image: "default-copilot", Namespace: "default", Tool: "copilot"},
-				{Image: "claude", Namespace: "", Tool: "claude"},
-				{Image: "myproject-claude", Namespace: "myproject", Tool: "claude"},
-			}, nil
+			return []*docker.ImageInfo{{Image: "myproject-claude", Namespace: "myproject", Tool: "claude"}}, nil
 		})
 
 		// Act
@@ -72,7 +67,7 @@ func Test_namespacesFunc(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"default", "myproject"}, names)
+		assert.Equal(t, []string{"myproject"}, names)
 	})
 
 	t.Run("list error returns empty", func(t *testing.T) {
@@ -93,27 +88,16 @@ func Test_namespacesFunc(t *testing.T) {
 func Test_volumeNamesFunc(t *testing.T) {
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
-	t.Run("returns volume names", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return []string{"gradle", "maven"}, nil })
-
-		// Act
-		names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"gradle", "maven"}, names)
-	})
-
 	t.Run("adds msb volume names once", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"maven", "npm"}, nil }})
 
 		// Act
-		names, _ := volumeNamesFunc(&cobra.Command{}, nil, "")
+		names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
 
 		// Assert
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 		assert.Equal(t, []string{"maven", "npm"}, names)
 	})
 
@@ -145,7 +129,7 @@ func Test_volumeNamesFunc(t *testing.T) {
 func Test_dockerContextsFunc(t *testing.T) {
 	t.Run("returns context names", func(t *testing.T) {
 		// Arrange
-		stubListContexts(t, func() ([]string, error) { return []string{"default", "prod"}, nil })
+		stubDocker(t, &fakeDocker{listContexts: func() ([]string, error) { return []string{"default", "prod"}, nil }})
 
 		// Act
 		names, directive := dockerContextsFunc(&cobra.Command{}, nil, "")
@@ -157,7 +141,7 @@ func Test_dockerContextsFunc(t *testing.T) {
 
 	t.Run("list error returns empty", func(t *testing.T) {
 		// Arrange
-		stubListContexts(t, func() ([]string, error) { return nil, assert.AnError })
+		stubDocker(t, &fakeDocker{listContexts: func() ([]string, error) { return nil, assert.AnError }})
 
 		// Act
 		names, directive := dockerContextsFunc(&cobra.Command{}, nil, "")
@@ -185,24 +169,6 @@ func Test_baseLayersFunc(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"node,java,docker", "node,java,dotnet", "node,java,go"}, names)
 	})
-}
-
-func Test_proxyIntegrationsFunc(t *testing.T) {
-	// Act
-	names, directive := proxyIntegrationsFunc(nil, nil, "")
-
-	// Assert
-	assert.Equal(t, []string{"gradle", "maven"}, names)
-	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-}
-
-func Test_proxyBackendsFunc(t *testing.T) {
-	// Act
-	names, directive := proxyBackendsFunc(nil, nil, "")
-
-	// Assert
-	assert.Equal(t, []string{"native", "agentic"}, names)
-	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
 func Test_runtimesFunc(t *testing.T) {

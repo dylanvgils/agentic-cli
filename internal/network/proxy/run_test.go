@@ -159,7 +159,7 @@ func Test_loadInjector(t *testing.T) {
 		assert.ErrorContains(t, err, "must be set together")
 	})
 
-	t.Run("loads the ca and credentials", func(t *testing.T) {
+	t.Run("loads the ca and credentials, then removes the key and credentials files", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
 		want := testPlaceholderCredential("api.example.test", testPlaceholder)
@@ -173,18 +173,6 @@ func Test_loadInjector(t *testing.T) {
 		cred, ok := inject.credentialFor("api.example.test", "443")
 		require.True(t, ok)
 		assert.Equal(t, want, cred)
-	})
-
-	t.Run("removes the key and credentials files once loaded", func(t *testing.T) {
-		// Arrange
-		caDir := writeTestCADir(t)
-		ownCredsPath := writeCredentials(t, testPlaceholderCredential("api.example.test", testPlaceholder))
-
-		// Act
-		_, err := loadInjector(caDir, ownCredsPath, false)
-
-		// Assert
-		require.NoError(t, err)
 		assert.NoFileExists(t, filepath.Join(caDir, CAKeyFile))
 		assert.NoFileExists(t, ownCredsPath)
 		assert.FileExists(t, filepath.Join(caDir, CACertFile), "the cert holds no secret")

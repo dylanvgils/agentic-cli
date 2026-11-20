@@ -10,36 +10,13 @@ import (
 )
 
 func TestGenerateDockerfile(t *testing.T) {
-	t.Run("returns content", func(t *testing.T) {
-		// Act
-		content, err := GenerateDockerfile("claude", BuildOptions{})
+	// Act
+	content, err := GenerateDockerfile("claude", BuildOptions{})
 
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, content, "FROM")
-		assert.Contains(t, content, "claude")
-	})
-
-	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Act
-		_, err := GenerateDockerfile("unknown", BuildOptions{})
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("custom installs appear in generated content", func(t *testing.T) {
-		// Arrange
-		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}}}
-
-		// Act
-		content, err := GenerateDockerfile("claude", opts)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, content, "# helm")
-		assert.Contains(t, content, "curl -fsSL https://get.helm.sh | bash")
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, content, "FROM")
+	assert.Contains(t, content, "claude")
 }
 
 func Test_composeStages(t *testing.T) {

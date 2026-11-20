@@ -7,18 +7,15 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 func Test_runVolumeCreate(t *testing.T) {
 	t.Run("creates the volume and says so", func(t *testing.T) {
 		// Arrange
 		var got string
-		stubCreateVolume(t, func(name string) error { got = name; return nil })
+		stubDocker(t, &fakeDocker{createVolume: func(name string) error { got = name; return nil }})
 		logBuf := iostreamstest.StubErr(t)
 
 		// Act
@@ -32,7 +29,7 @@ func Test_runVolumeCreate(t *testing.T) {
 
 	t.Run("error propagates", func(t *testing.T) {
 		// Arrange
-		stubCreateVolume(t, func(string) error { return fmt.Errorf("docker daemon not running") })
+		stubDocker(t, &fakeDocker{createVolume: func(string) error { return fmt.Errorf("docker daemon not running") }})
 
 		// Act
 		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
@@ -195,32 +192,17 @@ func Test_runVolumeRemove(t *testing.T) {
 }
 
 func Test_newVolumeService(t *testing.T) {
-	t.Run("includes microsandbox when it's installed", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
-		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil }})
-
-		// Act
-		all, err := newVolumeService().List()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []volumes.Volume{{Name: "gradle", Runtime: sandbox.RuntimeMicrosandbox}}, all)
+	// Arrange
+	stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
+	stubMicrosandbox(t, &fakeMicrosandbox{
+		available:       func() error { return errors.New("msb not found on PATH") },
+		listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil },
 	})
 
-	t.Run("leaves microsandbox out when it isn't installed", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
-		stubMicrosandbox(t, &fakeMicrosandbox{
-			available:       func() error { return errors.New("msb not found on PATH") },
-			listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil },
-		})
+	// Act
+	all, err := newVolumeService().List()
 
-		// Act
-		all, err := newVolumeService().List()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, all)
-	})
+	// Assert - msb isn't installed, so its volumes are left out
+	require.NoError(t, err)
+	assert.Empty(t, all)
 }

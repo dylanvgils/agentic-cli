@@ -186,7 +186,7 @@ func TestFinalizeSnapshot(t *testing.T) {
 		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
-	t.Run("persists the snapshot's organic content, stripping the managed block", func(t *testing.T) {
+	t.Run("persists the snapshot's organic content, stripping the managed block, and removes the snapshot", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		snapshotPath := writeTemp(t, "snapshot.md", managed("block")+"\nuser note\n")
@@ -197,6 +197,8 @@ func TestFinalizeSnapshot(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "user note\n", readFile(t, hostPath))
+		_, statErr := os.Stat(snapshotPath)
+		assert.True(t, os.IsNotExist(statErr))
 	})
 
 	t.Run("writes an empty host file rather than removing it when nothing but the managed block remains", func(t *testing.T) {
@@ -224,20 +226,6 @@ func TestFinalizeSnapshot(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "", readFile(t, hostPath))
-	})
-
-	t.Run("always removes the snapshot file", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		snapshotPath := writeTemp(t, "snapshot.md", "user note\n")
-
-		// Act
-		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
-
-		// Assert
-		require.NoError(t, err)
-		_, statErr := os.Stat(snapshotPath)
-		assert.True(t, os.IsNotExist(statErr))
 	})
 }
 

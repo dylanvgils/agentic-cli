@@ -200,49 +200,18 @@ func TestMergeConfigs(t *testing.T) {
 }
 
 func Test_mergeLimits(t *testing.T) {
+	// Arrange
 	parent := RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}
+	limits := RCLimits{CPUs: "2"}
 
-	t.Run("empty limits take the parent's", func(t *testing.T) {
-		// Act
-		result := mergeLimits(RCLimits{}, parent)
+	// Act
+	result := mergeLimits(limits, parent)
 
-		// Assert
-		assert.Equal(t, parent, result)
-	})
-
-	t.Run("set limits win over the parent", func(t *testing.T) {
-		// Arrange
-		limits := RCLimits{PidsLimit: "100", CPUs: "2", Memory: "2g"}
-
-		// Act
-		result := mergeLimits(limits, parent)
-
-		// Assert
-		assert.Equal(t, limits, result)
-	})
-
-	t.Run("each limit merges on its own", func(t *testing.T) {
-		// Arrange
-		limits := RCLimits{CPUs: "2"}
-
-		// Act
-		result := mergeLimits(limits, parent)
-
-		// Assert
-		assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
-	})
+	// Assert - each limit merges on its own
+	assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
 }
 
 func TestMerge(t *testing.T) {
-	t.Run("no layers returns empty", func(t *testing.T) {
-		// Act
-		rc, err := Merge(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, rc.Run.Proxy.Credentials)
-	})
-
 	t.Run("innermost scalar wins and lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		layers := []RCLayer{

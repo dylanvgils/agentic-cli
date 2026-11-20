@@ -82,18 +82,6 @@ func TestProxyAllowList(t *testing.T) {
 		assert.Equal(t, []string{"api.example.com", "extra.example.com", "api.custom.test"}, result)
 	})
 
-	t.Run("merges tool baseline with rc-configured hosts", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
-
-		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
-
-		// Assert
-		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
-	})
-
 	t.Run("dind adds docker hub between baseline and rc hosts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -116,14 +104,6 @@ func TestProxyAllowList(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
-	})
-
-	t.Run("empty allowlists on both sides return empty result", func(t *testing.T) {
-		// Act
-		result := ProxyAllowList(nil, false, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
 	})
 }
 

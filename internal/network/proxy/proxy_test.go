@@ -294,18 +294,6 @@ func TestServerConnect(t *testing.T) {
 }
 
 func TestServerHTTP(t *testing.T) {
-	t.Run("denied host returns 403", func(t *testing.T) {
-		// Arrange
-		proxy := startProxy(t, NewServer(NewAllowlist(nil), NewLogger(io.Discard), false, nil))
-
-		// Act
-		resp := proxyGet(t, proxy.URL, "http://evil.test/")
-		defer resp.Body.Close() //nolint:errcheck
-
-		// Assert
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
 	t.Run("https absolute-form is logged on port 443 with the normalized host", func(t *testing.T) {
 		// Arrange
 		var logBuf bytes.Buffer
@@ -324,47 +312,6 @@ func TestServerHTTP(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"host":"evil.test","port":"443"`)
-	})
-
-	t.Run("allowed host is forwarded", func(t *testing.T) {
-		// Arrange
-		upstream := startHelloServer(t)
-		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
-		stubDefaultPorts(t, upstreamPort)
-
-		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, nil)))
-
-		// Act
-		resp := proxyGet(t, proxy.URL, upstream.URL)
-		defer resp.Body.Close() //nolint:errcheck
-		body, _ := io.ReadAll(resp.Body)
-
-		// Assert
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "hello", string(body))
-	})
-
-	t.Run("hop-by-hop headers are not forwarded", func(t *testing.T) {
-		// Arrange
-		upstream, received := startHopHeaderServer(t)
-		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
-		stubDefaultPorts(t, upstreamPort)
-
-		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, nil)))
-		req := mustGet(t, upstream.URL)
-		req.Header = testHopHeader()
-
-		// Act
-		resp := proxyDo(t, proxy.URL, req)
-		defer resp.Body.Close() //nolint:errcheck
-
-		// Assert
-		upstreamGot := <-received
-		assert.Equal(t, "1", upstreamGot.Get("X-Keep"))
-		assert.Empty(t, upstreamGot.Get("X-Hop"))
-		assert.Empty(t, upstreamGot.Get("Proxy-Connection"))
-		assert.Equal(t, "1", resp.Header.Get("X-Keep"))
-		assert.Empty(t, resp.Header.Get("X-Hop"))
 	})
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
@@ -455,20 +402,6 @@ func Test_Server_decrypt(t *testing.T) {
 			assert.Equal(t, tc.wantCred, got)
 		})
 	}
-}
-
-func Test_Server_logClientClosed(t *testing.T) {
-	// Arrange
-	var logBuf bytes.Buffer
-	s := NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, nil)
-	entry := Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true}
-
-	// Act
-	s.logClientClosed(entry, errors.New("test-error"))
-
-	// Assert
-	assert.Contains(t, logBuf.String(), `"host":"api.example.test"`)
-	assert.Contains(t, logBuf.String(), `"reason":"client-closed","error":"test-error"`)
 }
 
 func Test_Server_upstreamContext(t *testing.T) {

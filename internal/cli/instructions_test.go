@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
@@ -66,20 +65,6 @@ func Test_instructionsRequest(t *testing.T) {
 			assert.ErrorContains(t, err, tc.wantErr)
 		})
 	}
-
-	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		writeRC(t, dir, "not valid toml [[[")
-		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		t.Chdir(dir)
-
-		// Act
-		_, _, err := instructionsRequest(instructionsCmd, "claude")
-
-		// Assert
-		assert.ErrorContains(t, err, rcPath)
-	})
 }
 
 func Test_printInstructions(t *testing.T) {

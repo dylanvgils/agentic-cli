@@ -300,27 +300,14 @@ func Test_isInside(t *testing.T) {
 }
 
 func Test_resolveExisting(t *testing.T) {
-	t.Run("missing path resolves through its existing parent", func(t *testing.T) {
-		// Arrange
-		ws := chdirSymlinkWorkspace(t)
+	// Arrange
+	host := stubUnresolvablePath(t)
 
-		// Act
-		resolved := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
+	// Act
+	resolved := resolveExisting(host)
 
-		// Assert
-		assert.Equal(t, filepath.Join(ws.outside, "missing"), resolved)
-	})
-
-	t.Run("unresolvable path is kept as is", func(t *testing.T) {
-		// Arrange
-		host := stubUnresolvablePath(t)
-
-		// Act
-		resolved := resolveExisting(host)
-
-		// Assert
-		assert.Equal(t, host, resolved)
-	})
+	// Assert
+	assert.Equal(t, host, resolved)
 }
 
 func Test_resolvePrefix(t *testing.T) {

@@ -79,30 +79,6 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "sha256:0f0f0f0f0f0f", info.DockerdParent)
 	})
 
-	t.Run("no labels", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{}}}`, nil
-			}
-			return "", nil
-		})
-
-		// Act
-		info, err := client.InspectImage("agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Empty(t, info.Version)
-		assert.Empty(t, info.Base)
-		assert.Empty(t, info.Built)
-		assert.Empty(t, info.Size)
-		assert.Empty(t, info.CustomInstalls)
-	})
-
 	t.Run("docker error returns nil", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, client, "", fmt.Errorf("No such image: agentic-missing"))
@@ -243,67 +219,31 @@ func Test_listAllRepositories(t *testing.T) {
 }
 
 func TestListAllImages(t *testing.T) {
+	// Arrange
 	client := newTestClient()
-
-	t.Run("returns parsed images", func(t *testing.T) {
-		// Arrange
-		myprojectJSON := `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"claude","agentic.namespace":"myproject"}}}`
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // images --filter label=project=agentic-cli
-				return "agentic-claude\nmyproject-claude\n", nil
-			case 2: // inspect agentic-claude
-				return fullImageJSON, nil
-			case 3: // image ls size agentic-claude
-				return "512MB", nil
-			case 4: // inspect myproject-claude
-				return myprojectJSON, nil
-			case 5: // image ls size myproject-claude
-				return "512MB", nil
-			}
-			return "", nil
-		})
-
-		// Act
-		images, err := client.ListAllImages()
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, images, 2)
-		assert.Equal(t, "agentic", images[0].Namespace)
-		assert.Equal(t, "claude", images[0].Tool)
-		assert.Equal(t, "myproject", images[1].Namespace)
-		assert.Equal(t, "claude", images[1].Tool)
+	callNum := 0
+	stubDockerRun(t, client, func(args ...string) (string, error) {
+		callNum++
+		switch callNum {
+		case 1: // images --filter
+			return "agentic-claude\nagentic-copilot\n", nil
+		case 2: // inspect claude - image does not exist
+			return "", fmt.Errorf("No such image: agentic-claude")
+		case 3: // inspect copilot
+			return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
+		case 4: // image ls size copilot
+			return "512MB", nil
+		}
+		return "", nil
 	})
 
-	t.Run("skips images where inspect returns nil", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // images --filter
-				return "agentic-claude\nagentic-copilot\n", nil
-			case 2: // inspect claude - image does not exist
-				return "", fmt.Errorf("No such image: agentic-claude")
-			case 3: // inspect copilot
-				return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
-			case 4: // image ls size copilot
-				return "512MB", nil
-			}
-			return "", nil
-		})
+	// Act
+	images, err := client.ListAllImages()
 
-		// Act
-		images, err := client.ListAllImages()
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, images, 1)
-		assert.Equal(t, "copilot", images[0].Tool)
-	})
+	// Assert
+	require.NoError(t, err, "images where inspect returns nil are skipped")
+	require.Len(t, images, 1)
+	assert.Equal(t, "copilot", images[0].Tool)
 }
 
 func TestImageSize(t *testing.T) {

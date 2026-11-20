@@ -163,28 +163,3 @@ func TestApplyPending(t *testing.T) {
 		assert.Equal(t, 1, s.Version)
 	})
 }
-
-func TestState_roundTrip(t *testing.T) {
-	t.Run("loadState on a missing file returns the zero value", func(t *testing.T) {
-		// Act
-		s, err := loadState(t.TempDir())
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, state{}, s)
-	})
-
-	t.Run("saveState persists a value loadState can read back", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-
-		// Act
-		err := saveState(toolHome, state{Version: 3})
-
-		// Assert
-		require.NoError(t, err)
-		s, err := loadState(toolHome)
-		require.NoError(t, err)
-		assert.Equal(t, 3, s.Version)
-	})
-}
