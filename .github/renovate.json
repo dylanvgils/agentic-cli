@@ -19,7 +19,6 @@
       "groupName": "GitHub Actions"
     },
     {
-      "matchManagers": ["dockerfile"],
       "matchDepNames": ["debian"],
       "versioning": "regex:^(?<major>\\d+)-slim$"
     },
@@ -37,11 +36,6 @@
     {
       "matchDepNames": ["golangci/golangci-lint"],
       "groupName": "golangci-lint"
-    },
-    {
-      "matchDepNames": ["java-jdk"],
-      "matchDatasources": ["java-version"],
-      "extractVersion": "^(?<version>\\d+)"
     }
   ],
   "customManagers": [
@@ -65,7 +59,8 @@
       "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "java-jdk",
-      "datasourceTemplate": "java-version"
+      "datasourceTemplate": "java-version",
+      "extractVersionTemplate": "^(?<version>\\d+)"
     },
     {
       "customType": "regex",
@@ -77,8 +72,14 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
-      "matchStrings": ["\"go\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^internal/image/tools/versions\\.json$/",
+        "/^build/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "\"go\":\\s*\"(?<currentValue>[^\"]+)\"",
+        "ARG GO_VERSION=(?<currentValue>[^\\s]+)"
+      ],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"
     },
@@ -102,15 +103,7 @@
       "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "debian",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "regex:^(?<major>\\d+)-slim$"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["/^build/Dockerfile$/"],
-      "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
-      "depNameTemplate": "go",
-      "datasourceTemplate": "golang-version"
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
