@@ -48,24 +48,6 @@ func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.
 	return sandbox.EgressEnforce, nil
 }
 
-// ProxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on,
-// keeping the first of any duplicates.
-func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []string {
-	allow := append([]string{}, toolAllowedHosts...)
-	if dindEnabled {
-		allow = append(allow, dindRegistryHosts...)
-	}
-	allow = append(allow, rc.Run.Proxy.AllowedHosts...)
-	allow = append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
-
-	seen := make(map[string]bool, len(allow))
-	return slices.DeleteFunc(allow, func(host string) bool {
-		dup := seen[host]
-		seen[host] = true
-		return dup
-	})
-}
-
 // ProxyBackend returns the proxy backend --proxy-backend or rc picks, or "" for the runtime's default.
 func ProxyBackend(in ProxyInput, rc *config.AgenticRC) string {
 	if in.Backend != "" {
@@ -80,13 +62,13 @@ func ProxyIntegrations(in ProxyInput, rc *config.AgenticRC) []string {
 	return slices.Compact(slices.Sorted(slices.Values(names)))
 }
 
-// ProxyRules returns the hosts ProxyAllowList merges, allowed whole unless path rules name them, then rc's path rules.
+// ProxyRules returns the hosts proxyAllowList merges, allowed whole unless path rules name them, then rc's path rules.
 // Path rules also limit a host a wildcard allows, as the proxy lets them win.
 func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []sandbox.AllowRule {
 	pathRules := mergePathRules(rc.Run.Proxy.AllowedPaths)
 
 	var rules []sandbox.AllowRule
-	for _, host := range ProxyAllowList(toolAllowedHosts, dindEnabled, rc) {
+	for _, host := range proxyAllowList(toolAllowedHosts, dindEnabled, rc) {
 		if ruleIndex(pathRules, normalizeHost(host)) < 0 {
 			rules = append(rules, sandbox.AllowRule{Host: host})
 		}
@@ -118,6 +100,24 @@ func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.EgressMode 
 	}
 
 	return sandbox.EgressOff
+}
+
+// proxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on,
+// keeping the first of any duplicates.
+func proxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []string {
+	allow := append([]string{}, toolAllowedHosts...)
+	if dindEnabled {
+		allow = append(allow, dindRegistryHosts...)
+	}
+	allow = append(allow, rc.Run.Proxy.AllowedHosts...)
+	allow = append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
+
+	seen := make(map[string]bool, len(allow))
+	return slices.DeleteFunc(allow, func(host string) bool {
+		dup := seen[host]
+		seen[host] = true
+		return dup
+	})
 }
 
 // mergePathRules merges rules per normalized host in first-seen order, without duplicate paths.

@@ -23,7 +23,7 @@ func (b *StageBuilder) AddGlobalArg(arg Arg) *StageBuilder {
 	return b
 }
 
-// Add appends instructions, tagging each with the call site's Go source location. Wrap with C() first to attach a human-readable comment.
+// Add appends instructions, tagging each with the call site's Go source location.
 func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 	_, file, line, ok := runtime.Caller(1)
 	source := ""
@@ -37,12 +37,8 @@ func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 	return b
 }
 
-// withSource tags inst with source, avoiding double-wrapping an already-Located instruction (e.g. from C()).
+// withSource tags inst with source, or returns it as is when source is empty.
 func withSource(source string, inst Instruction) Instruction {
-	if located, isLocated := inst.(Located); isLocated {
-		located.Source = source
-		return located
-	}
 	if source != "" {
 		return Located{Source: source, Inst: inst}
 	}

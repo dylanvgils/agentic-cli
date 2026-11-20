@@ -2,40 +2,20 @@ package dockerfile
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 )
 
-// Located wraps an Instruction, prepending an optional human-readable Comment and Go Source location when rendered.
+// Located wraps an Instruction, prepending its Go Source location as a comment when rendered.
 type Located struct {
-	Comment string
-	Source  string
-	Inst    Instruction
+	Source string
+	Inst   Instruction
 }
 
 func (l Located) Render() string {
-	var s string
-	if l.Comment != "" {
-		s += fmt.Sprintf("# %s\n", l.Comment)
+	if l.Source == "" {
+		return l.Inst.Render()
 	}
-	if l.Source != "" {
-		s += fmt.Sprintf("# %s\n", l.Source)
-	}
-	return s + l.Inst.Render()
-}
-
-// C wraps inst with a human-readable comment; pass the result to StageBuilder.Add to fill in its source location.
-func C(comment string, inst Instruction) Located {
-	return Located{Comment: comment, Inst: inst}
-}
-
-// Locate wraps inst and records the Go source location of the call site as a Dockerfile comment.
-func Locate(inst Instruction) Located {
-	_, file, line, ok := runtime.Caller(1)
-	if !ok {
-		return Located{Inst: inst}
-	}
-	return Located{Source: fmt.Sprintf("%s:%d", trimPath(file), line), Inst: inst}
+	return fmt.Sprintf("# %s\n", l.Source) + l.Inst.Render()
 }
 
 func trimPath(file string) string {

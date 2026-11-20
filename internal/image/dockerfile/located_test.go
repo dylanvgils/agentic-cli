@@ -22,20 +22,6 @@ func TestLocated_render(t *testing.T) {
 			located: Located{Inst: Env{Key: "FOO", Value: "bar"}},
 			want:    "ENV FOO=bar",
 		},
-		{
-			name: "with comment",
-			located: Located{
-				Comment: "host user ID for container user mapping",
-				Source:  "internal/image/tools/claude.go:45",
-				Inst:    Arg{Key: "HOST_UID", Default: "1000"},
-			},
-			want: "# host user ID for container user mapping\n# internal/image/tools/claude.go:45\nARG HOST_UID=1000",
-		},
-		{
-			name:    "with comment no source",
-			located: Located{Comment: "set noninteractive mode", Inst: Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}},
-			want:    "# set noninteractive mode\nENV DEBIAN_FRONTEND=noninteractive",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
@@ -45,15 +31,6 @@ func TestLocated_render(t *testing.T) {
 			assert.Equal(t, tc.want, result)
 		})
 	}
-}
-
-func TestLocate_capturesSource(t *testing.T) {
-	// Act
-	located := Locate(Env{Key: "FOO", Value: "bar"})
-
-	// Assert
-	assert.Contains(t, located.Source, "located_test.go:")
-	assert.IsType(t, Env{}, located.Inst)
 }
 
 func TestTrimPath(t *testing.T) {

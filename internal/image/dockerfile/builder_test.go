@@ -17,22 +17,7 @@ func TestStageBuilder_Add(t *testing.T) {
 		located, ok := stage.Instructions[0].(Located)
 		assert.True(t, ok)
 		assert.Contains(t, located.Source, "builder_test.go:")
-		assert.Empty(t, located.Comment)
 		assert.Equal(t, Env{Key: "FOO", Value: "bar"}, located.Inst)
-	})
-
-	t.Run("with comment", func(t *testing.T) {
-		// Act
-		stage := NewStage(From{Image: "base", As: "tool"}).
-			Add(C("host user ID for container user mapping", Arg{Key: "HOST_UID", Default: "1000"})).
-			Build()
-
-		// Assert
-		located, ok := stage.Instructions[0].(Located)
-		assert.True(t, ok)
-		assert.Equal(t, "host user ID for container user mapping", located.Comment)
-		assert.Contains(t, located.Source, "builder_test.go:")
-		assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, located.Inst)
 	})
 
 	t.Run("multiple appends all in order", func(t *testing.T) {
@@ -72,21 +57,6 @@ func TestWithSource(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, "tools/bases.go:42", located.Source)
 		assert.Equal(t, inst, located.Inst)
-	})
-
-	t.Run("already located fills source without double wrap", func(t *testing.T) {
-		// Arrange
-		inst := C("a comment", Env{Key: "FOO", Value: "bar"})
-
-		// Act
-		result := withSource("tools/bases.go:42", inst)
-
-		// Assert
-		located, ok := result.(Located)
-		assert.True(t, ok)
-		assert.Equal(t, "tools/bases.go:42", located.Source)
-		assert.Equal(t, "a comment", located.Comment)
-		assert.IsType(t, Env{}, located.Inst)
 	})
 
 	t.Run("empty source returns unwrapped", func(t *testing.T) {

@@ -14,14 +14,6 @@ func TestRun_renderCommand(t *testing.T) {
 	assert.Equal(t, "RUN apt-get update", result)
 }
 
-func TestRun_renderLines(t *testing.T) {
-	// Act
-	result := Run{Lines: []string{"apt-get update", "&& apt-get install curl"}}.renderLines()
-
-	// Assert
-	assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl", result)
-}
-
 func TestRun_renderBlocks(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -65,36 +57,32 @@ func TestRun_renderBlocks(t *testing.T) {
 	}
 }
 
-func TestRun_render_dispatchesCorrectly(t *testing.T) {
-	tests := []struct {
-		name     string
-		run      Run
-		expected string
+func TestRun_Render(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		run  Run
+		want string
 	}{
 		{
-			name:     "dispatches to renderBlocks",
-			run:      Run{Blocks: []Block{{Lines: []string{"apt-get update"}}}},
-			expected: Run{Blocks: []Block{{Lines: []string{"apt-get update"}}}}.renderBlocks(),
+			name: "blocks win over command",
+			run: Run{
+				Command: "ignored",
+				Blocks:  []Block{{Lines: []string{"apt-get update"}}},
+			},
+			want: "RUN apt-get update",
 		},
 		{
-			name:     "dispatches to renderLines",
-			run:      Run{Lines: []string{"apt-get update"}},
-			expected: Run{Lines: []string{"apt-get update"}}.renderLines(),
+			name: "command without blocks",
+			run:  Run{Command: "apt-get update"},
+			want: "RUN apt-get update",
 		},
-		{
-			name:     "dispatches to renderCommand",
-			run:      Run{Command: "apt-get update"},
-			expected: Run{Command: "apt-get update"}.renderCommand(),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := tt.run.Render()
+			result := tc.run.Render()
 
 			// Assert
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }

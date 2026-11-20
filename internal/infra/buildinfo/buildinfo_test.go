@@ -29,31 +29,6 @@ func TestIsDev(t *testing.T) {
 	}
 }
 
-func TestIsDevBuild(t *testing.T) {
-	orig := Version
-	t.Cleanup(func() { Version = orig })
-
-	for _, tc := range []struct {
-		name    string
-		version string
-		want    bool
-	}{
-		{name: "dev build", version: "dev", want: true},
-		{name: "released build", version: "v1.2.3"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Arrange
-			Version = tc.version
-
-			// Act
-			result := IsDevBuild()
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
 func TestDevSourceDir(t *testing.T) {
 	orig := Version
 	t.Cleanup(func() { Version = orig })

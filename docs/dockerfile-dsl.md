@@ -32,14 +32,11 @@ type Instruction interface {
 
 ### Run
 
-`Run` (`run.go`) has three modes - use the one that fits:
+`Run` (`run.go`) has two modes:
 
 ```go
 // Single pre-formatted string
 Run{Command: "npm ci --omit=dev"}
-
-// Flat sequence, joined with backslash continuation
-Run{Lines: []string{"apt-get install -y", "curl", "git"}}
 
 // Grouped blocks, && joined; each block can carry an optional shell comment
 Run{Blocks: []Block{
@@ -88,21 +85,7 @@ EOF
 
 ### Located
 
-`Located` (`located.go`) wraps any `Instruction` with Dockerfile comments. `StageBuilder.Add()` creates one automatically for each instruction, capturing the Go `file:line` of the call site, so the rendered Dockerfile always shows where each instruction came from.
-
-To attach a human-readable annotation on top of the source location, wrap the instruction with `C()` before passing it to `Add()`:
-
-```go
-Add(df.C("Create container user", df.Run{Lines: []string{"useradd -m claude"}}))
-```
-
-Renders as:
-
-```dockerfile
-# Create container user
-# internal/image/tools/claude.go:41
-RUN useradd -m claude
-```
+`Located` (`located.go`) wraps an `Instruction` with a comment naming its source. `StageBuilder.Add()` creates one automatically for each instruction, capturing the Go `file:line` of the call site, so the rendered Dockerfile always shows where each instruction came from. For a human-readable note, use a `Block`'s `Comment` (see [Run](#run)).
 
 ## Stage and File
 

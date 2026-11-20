@@ -21,19 +21,15 @@ type Block struct {
 	Chain   bool
 }
 
-// Run is a RUN directive: use Blocks for && logical groups (blank-line separated), Lines for a flat sequence, or Command for a single pre-formatted string.
+// Run is a RUN directive: use Blocks for && logical groups (blank-line separated) or Command for a single pre-formatted string.
 type Run struct {
 	Command string
-	Lines   []string
 	Blocks  []Block
 }
 
 func (r Run) Render() string {
 	if len(r.Blocks) > 0 {
 		return r.renderBlocks()
-	}
-	if len(r.Lines) > 0 {
-		return r.renderLines()
 	}
 	return r.renderCommand()
 }
@@ -64,10 +60,6 @@ func (r Run) renderBlocks() string {
 	}
 
 	return sb.String()
-}
-
-func (r Run) renderLines() string {
-	return "RUN " + strings.Join(r.Lines, continuation)
 }
 
 func (r Run) renderCommand() string {
