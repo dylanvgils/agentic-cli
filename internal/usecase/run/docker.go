@@ -61,9 +61,7 @@ func (r dockerRunner) Check(req Request) error {
 	return requireVersion("Docker Engine", version, minDockerEngine)
 }
 
-// Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
-// before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
-// prints.
+// Run readies the host, starts the sidecars and runs the tool, rechecking the mounts right before each starts.
 func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {

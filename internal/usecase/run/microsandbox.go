@@ -25,7 +25,7 @@ type microsandboxRunner struct {
 	agenticProxy bool
 }
 
-// Capabilities reports what msb runs offer, plus agentic-proxy's features; integrations would need its token, so not yet.
+// Capabilities reports what msb offers, plus agentic-proxy's features when it's the backend.
 func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
 	caps := r.microsandbox.Capabilities()
 	if r.agenticProxy {
@@ -37,7 +37,7 @@ func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
 	return caps
 }
 
-// Check refuses a missing msb or one older than minMicrosandbox; a dry run makes no msb calls, so it skips the check.
+// Check refuses a missing or too old msb; a dry run skips it.
 func (r microsandboxRunner) Check(req Request) error {
 	if req.Flags.DryRun {
 		return nil
@@ -53,9 +53,7 @@ func (r microsandboxRunner) Check(req Request) error {
 	return requireVersion("msb", version, minMicrosandbox)
 }
 
-// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image; with dind
-// it runs the image's dockerd image, built first when needed, and with agenticProxy it goes through agentic-proxy. The
-// mounts are checked again right before the VM starts. A dry run only prints.
+// Run loads rs's image into msb when needed and runs it, rechecking the mounts right before the VM starts.
 func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
@@ -89,8 +87,7 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	return r.microsandbox.Run(rs, nil)
 }
 
-// runThroughProxy runs rs through a published agentic-proxy, its image built from registry when missing, rechecking
-// mounts after its start, then prints its summary.
+// runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {
@@ -130,8 +127,7 @@ func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
 	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
 }
 
-// microsandboxRef returns image tagged with its Docker image ID, which pins a run to this exact image; a dry run names a
-// missing image untagged, since a real run builds it first.
+// microsandboxRef returns image tagged with its Docker image ID, pinning the run to this build.
 func (r microsandboxRunner) microsandboxRef(image string, dryRun bool) (string, error) {
 	info, err := r.docker.InspectImage(image)
 	if err != nil {
@@ -146,8 +142,7 @@ func (r microsandboxRunner) microsandboxRef(image string, dryRun bool) (string, 
 	return image + ":" + info.ID, nil
 }
 
-// ensureDockerdImage builds dockerd, image's dockerd image, when it's missing, built by another agentic version or
-// derived from an older build of image.
+// ensureDockerdImage builds image's dockerd image when it's missing or stale.
 func (r microsandboxRunner) ensureDockerdImage(image, dockerd string) error {
 	parent, err := r.docker.InspectImage(image)
 	if err != nil {
@@ -171,8 +166,7 @@ func (r microsandboxRunner) ensureDockerdImage(image, dockerd string) error {
 	return r.docker.BuildDockerdImage(dockerd, parent)
 }
 
-// ensureMicrosandboxImage loads image into msb as ref unless msb already holds ref, then removes image's older refs; a
-// failed listing only skips that cleanup.
+// ensureMicrosandboxImage loads image into msb as ref unless msb holds it, then removes older refs.
 func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
 	have, err := r.microsandbox.HasImage(ref)
 	if err != nil {
@@ -195,8 +189,7 @@ func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
 	return nil
 }
 
-// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagging the result as ref; a failed save is reported over the
-// load error it causes.
+// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagged as ref.
 func (r microsandboxRunner) loadIntoMicrosandbox(image, ref string) error {
 	logging.Infof("loading %s into microsandbox", image)
 
@@ -221,7 +214,7 @@ func (r microsandboxRunner) loadIntoMicrosandbox(image, ref string) error {
 	return loadErr
 }
 
-// removeStaleRefs removes refs to image other than keep and latest; a ref msb can't remove (e.g. in use) is skipped.
+// removeStaleRefs removes image's refs other than keep and latest, skipping ones in use.
 func (r microsandboxRunner) removeStaleRefs(refs []string, image, keep string) {
 	repo, _ := microsandbox.SplitRef(image)
 	for _, ref := range refs {
@@ -235,7 +228,7 @@ func (r microsandboxRunner) removeStaleRefs(refs []string, image, keep string) {
 	}
 }
 
-// dockerdRefreshReason says why the dockerd image current needs a rebuild from parent, or "" if it's current.
+// dockerdRefreshReason says why current needs a rebuild from parent, or "" if it's current.
 func dockerdRefreshReason(current, parent *docker.ImageInfo) string {
 	if reason := docker.ImageRefreshReason(current, 0); reason != "" {
 		return reason
