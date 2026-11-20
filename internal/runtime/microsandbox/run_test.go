@@ -49,22 +49,6 @@ func TestClient_Run(t *testing.T) {
 		assert.Equal(t, []string{"agentic-claude", "--", "--help"}, call.args[len(call.args)-3:])
 	})
 
-	t.Run("dry run prints the command without running it or its secrets", func(t *testing.T) {
-		// Arrange
-		client := newTestClient(&fakeRunner{})
-		rs := sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude", DryRun: true, Credentials: creds}
-
-		// Act
-		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
-
-		// Assert
-		require.NoError(t, err)
-		assert.Regexp(t, `(?s)^msb run \\\n.*  agentic-claude\n$`, out)
-		assert.Contains(t, out, "--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test")
-		assert.NotContains(t, out, "test-secret")
-	})
-
 	t.Run("passes credential secrets in msb's env, never in its args", func(t *testing.T) {
 		// Arrange
 		client, call := stubRunInteractive()
@@ -156,6 +140,58 @@ func TestClient_Run(t *testing.T) {
 		assert.NotContains(t, call.env, "HTTPS_PROXY=http://agentic:test-token@host.microsandbox.internal:49153", "msb's own calls skip the guest proxy")
 		assert.NotContains(t, strings.Join(call.env, " "), "test-secret")
 	})
+}
+
+func TestClient_DryRun(t *testing.T) {
+	t.Run("prints the command without running it or its secrets", func(t *testing.T) {
+		// Arrange
+		client := newTestClient(&fakeRunner{})
+		creds := []sandbox.Credential{
+			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
+		}
+		rs := sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude", Credentials: creds}
+
+		// Act
+		var err error
+		out := iostreamstest.CaptureOut(t, func() { err = client.DryRun(rs) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Regexp(t, `(?s)^msb run \\\n.*  agentic-claude\n$`, out)
+		assert.Contains(t, out, "--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test")
+		assert.NotContains(t, out, "test-secret")
+	})
+
+	t.Run("shows a placeholder for the env file and writes none", func(t *testing.T) {
+		// Arrange
+		stubRunTempDir(t)
+		t.Setenv("EXAMPLE_TOKEN", "test-secret")
+		rs := sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}}
+
+		// Act
+		var err error
+		out := iostreamstest.CaptureOut(t, func() { err = newTestClient(&fakeRunner{}).DryRun(rs) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, out, "--runtime-conf="+dryRunEnvConfPlaceholder)
+		assert.NoFileExists(t, envConfPath(testRunID))
+	})
+}
+
+func TestClient_DryRunThroughProxy(t *testing.T) {
+	// Arrange
+	rs := sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
+	route := ProxyRoute{Port: "49153", Token: "test-token"}
+
+	// Act
+	var err error
+	out := iostreamstest.CaptureOut(t, func() { err = newTestClient(&fakeRunner{}).DryRunThroughProxy(rs, route) })
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, out, "--net-rule=allow@host:tcp:49153")
+	assert.NotContains(t, out, "test-token")
 }
 
 func Test_buildRunArgs(t *testing.T) {

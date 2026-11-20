@@ -26,26 +26,14 @@ type envRef struct {
 	source string
 }
 
-// buildEnvArgs returns the --env flags plus a --runtime-conf file for forwarded vars and hidden entries, kept out of args.
-func buildEnvArgs(rs sandbox.RunSpec, hidden []string) ([]string, error) {
-	flags, refs := splitEnv(sandbox.ResolveEnv(rs.Env))
+// buildEnvArgs returns rs's --env flags, and the forwarded and hidden entries a --runtime-conf file must carry.
+func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (flags []string, refs []envRef) {
+	flags, refs = splitEnv(sandbox.ResolveEnv(rs.Env))
 	for _, entry := range hidden {
 		key, _, _ := strings.Cut(entry, "=")
 		refs = append(refs, envRef{guest: key, source: guestEnvName(key)})
 	}
-	if len(refs) == 0 {
-		return flags, nil
-	}
-
-	if rs.DryRun {
-		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), nil
-	}
-
-	path, err := writeEnvConf(rs.RunID, refs)
-	if err != nil {
-		return nil, err
-	}
-	return append(flags, arg("runtime-conf", path)), nil
+	return flags, refs
 }
 
 // splitEnv splits resolved env into --env flags and the forwarded bare keys msb's --env can't take; a key's last

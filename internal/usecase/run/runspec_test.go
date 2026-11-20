@@ -51,7 +51,6 @@ func Test_Service_build(t *testing.T) {
 		assert.Equal(t, platform.HostUser(), *rs.User)
 		assert.Equal(t, iostreams.IsTerminal(), rs.TTY, "a TTY only when stdin is a terminal")
 		assert.Equal(t, flags.ToolHome, rs.ToolHome)
-		assert.True(t, rs.DryRun)
 		assert.NotEmpty(t, rs.EphemeralDirs)
 		assert.Equal(t, []string{"--from-rc", "--from-cli"}, rs.ToolArgs)
 		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)

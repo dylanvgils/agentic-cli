@@ -186,18 +186,6 @@ func (c *Client) createProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
 	return h, nil
 }
 
-// setupProxy starts rs's proxy if enabled and returns the tool's proxy env and CA trust args.
-func (c *Client) setupProxy(rs toolRun, interrupt <-chan os.Signal) (proxyEnv []string, err error) {
-	if !rs.Egress.Mode.Enabled() {
-		return nil, nil
-	}
-
-	if rs.DryRun {
-		return c.dryRunProxy(rs)
-	}
-	return c.launchProxy(rs, interrupt)
-}
-
 // dryRunProxy prints the proxy command and returns the tool's proxy env without provisioning anything.
 func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, err error) {
 	handle, err := c.newProxyHandle(rs)

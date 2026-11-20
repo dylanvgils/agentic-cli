@@ -11,38 +11,22 @@ import (
 )
 
 func Test_buildEnvArgs(t *testing.T) {
-	t.Setenv("EXAMPLE_TOKEN", "test-secret")
-
-	t.Run("only flags without forwarded vars", func(t *testing.T) {
+	t.Run("pairs become flags", func(t *testing.T) {
 		// Act
-		args, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
+		flags, refs := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, args, "--env=MAVEN_OPTS=-Xmx1g")
-		assert.NotContains(t, args, "--runtime-conf="+dryRunEnvConfPlaceholder)
+		assert.Contains(t, flags, "--env=MAVEN_OPTS=-Xmx1g")
+		assert.Empty(t, refs)
 	})
 
 	t.Run("hidden entries are forwarded, not flags", func(t *testing.T) {
 		// Act
-		args, err := buildEnvArgs(
-			sandbox.RunSpec{DryRun: true},
-			[]string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"},
-		)
+		flags, refs := buildEnvArgs(sandbox.RunSpec{}, []string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"})
 
 		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, args, "--runtime-conf="+dryRunEnvConfPlaceholder)
-		assert.NotContains(t, strings.Join(args, " "), "test-token")
-	})
-
-	t.Run("dry run shows a placeholder and writes nothing", func(t *testing.T) {
-		// Act
-		args, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"EXAMPLE_TOKEN"}, DryRun: true}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, args, "--runtime-conf="+dryRunEnvConfPlaceholder)
+		assert.NotContains(t, strings.Join(flags, " "), "test-token")
+		assert.Equal(t, []envRef{{guest: "HTTPS_PROXY", source: guestEnvName("HTTPS_PROXY")}}, refs)
 	})
 }
 

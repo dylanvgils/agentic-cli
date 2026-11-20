@@ -33,6 +33,7 @@ func init() {
 	buildCmd.Flags().Bool("pull", false, "pull the latest base images from the registry before building")
 
 	addBuildFlags(buildCmd)
+	addDryRunFlag(buildCmd, "print the generated Dockerfile instead of building")
 	addNamespaceFlag(buildCmd)
 	addAllFlag(buildCmd, "build every tool")
 }

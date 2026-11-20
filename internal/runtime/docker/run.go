@@ -32,43 +32,69 @@ type Sidecars struct {
 	// args point the tool at the sidecars
 	args []string
 
-	// guard tears the run down; nil on a dry run
+	// guard tears the run down
 	guard *runGuard
 }
 
-// StartSidecars starts spec's run network and sidecars, the proxy logging to proxyLog; a dry run only prints them.
-func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars, error) {
-	if spec.User == nil {
-		return Sidecars{}, errNoHostUser
+// DryRun prints the network, sidecar and tool commands of spec's run, starting nothing.
+func (c *Client) DryRun(spec sandbox.RunSpec, proxyLog string) error {
+	rs, err := newToolRun(spec, proxyLog)
+	if err != nil {
+		return err
 	}
-	if _, err := sandbox.ParseRunID(spec.RunID.String()); err != nil {
+
+	sandbox.PrintDryRun("run network", "docker", runNetworkArgs(rs))
+	var sidecarArgs []string
+	if rs.Egress.Mode.Enabled() {
+		proxyEnv, err := c.dryRunProxy(rs)
+		if err != nil {
+			return err
+		}
+		sidecarArgs = append(sidecarArgs, proxyEnv...)
+	}
+	if rs.Dind.Enabled {
+		dindArgs, err := c.dryRunDind(rs)
+		if err != nil {
+			return err
+		}
+		sidecarArgs = append(sidecarArgs, dindArgs...)
+	}
+
+	// No owner labels: the sweep would tear down a printed command once this process exits
+	args, err := buildRunArgs(rs, sidecarArgs, nil)
+	if err != nil {
+		return err
+	}
+	sandbox.PrintDryRun("tool container", "docker", args)
+	return nil
+}
+
+// StartSidecars sweeps orphans, then starts spec's run network and sidecars, the proxy logging to proxyLog; it tears the
+// run down on failure.
+func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars, error) {
+	rs, err := newToolRun(spec, proxyLog)
+	if err != nil {
 		return Sidecars{}, err
 	}
 
-	rs := toolRun{
-		RunSpec:   spec,
-		container: spec.Image + "-" + spec.RunID.String(),
-		network:   runNetworkName(spec.RunID),
-		proxyLog:  proxyLog,
-	}
+	warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
 
-	args, guard, err := c.setupSidecars(rs)
+	// Only sidecars have a startup to interrupt
+	guard := c.guardRun(rs.ToolHome, rs.RunID, rs.Egress.Mode.Enabled() || rs.Dind.Enabled)
+	args, err := c.startSidecars(rs, guard.signals)
 	if err != nil {
+		guard.release()
 		return Sidecars{}, err
 	}
 	return Sidecars{run: rs, args: args, guard: guard}, nil
 }
 
-// RunTool runs the tool container of sc's run; a dry run only prints it.
+// RunTool runs the tool container of sc's run.
 func (c *Client) RunTool(sc Sidecars) error {
-	args, err := buildRunArgs(sc.run, sc.args)
+	owner := ownerLabels(pidOwner(sandbox.RuntimeDocker, os.Getpid()), sc.run.RunID)
+	args, err := buildRunArgs(sc.run, sc.args, owner)
 	if err != nil {
 		return err
-	}
-
-	if sc.run.DryRun {
-		sandbox.PrintDryRun("tool container", "docker", args)
-		return nil
 	}
 
 	// Set agentic startup messages apart from the tool output
@@ -108,4 +134,21 @@ func (c *Client) removeOnSignal(name string, signals <-chan os.Signal, done <-ch
 // removeToolContainer force-removes name, which --rm already did once it exited; errors are ignored for that reason.
 func (c *Client) removeToolContainer(name string) {
 	_, _ = c.run("rm", arg("force"), name)
+}
+
+// newToolRun checks spec and derives its run's Docker names.
+func newToolRun(spec sandbox.RunSpec, proxyLog string) (toolRun, error) {
+	if spec.User == nil {
+		return toolRun{}, errNoHostUser
+	}
+	if _, err := sandbox.ParseRunID(spec.RunID.String()); err != nil {
+		return toolRun{}, err
+	}
+
+	return toolRun{
+		RunSpec:   spec,
+		container: spec.Image + "-" + spec.RunID.String(),
+		network:   runNetworkName(spec.RunID),
+		proxyLog:  proxyLog,
+	}, nil
 }

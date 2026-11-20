@@ -58,22 +58,21 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
-		if !rs.DryRun {
-			if err := r.ensureDockerdImage(rs.Image, image); err != nil {
-				return err
-			}
+		if err := r.ensureDockerdImage(rs.Image, image); err != nil {
+			return err
 		}
 	}
 
-	ref, err := r.microsandboxRef(image, rs.DryRun)
+	ref, found, err := r.microsandboxRef(image)
 	if err != nil {
 		return err
 	}
+	if !found {
+		return fmt.Errorf("image %s not found", image)
+	}
 
-	if !rs.DryRun {
-		if err := r.ensureMicrosandboxImage(image, ref); err != nil {
-			return err
-		}
+	if err := r.ensureMicrosandboxImage(image, ref); err != nil {
+		return err
 	}
 
 	rs.Image = ref
@@ -87,16 +86,42 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 	return r.microsandbox.Run(rs)
 }
 
+// DryRun prints the msb command Run would run, plus the proxy command with agentic-proxy; a missing image is named
+// untagged, as a real run builds it first.
+func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
+	image := rs.Image
+	if rs.Dind.Enabled {
+		image = tools.DockerdImage(rs.Image)
+	}
+
+	ref, found, err := r.microsandboxRef(image)
+	if err != nil {
+		return err
+	}
+	if !found {
+		ref = image
+	}
+	rs.Image = ref
+
+	if !r.agenticProxy || !rs.Egress.Mode.Enabled() {
+		return r.microsandbox.DryRun(rs)
+	}
+
+	published, err := r.docker.DryRunPublishedProxy(rs, proxyLogFile(rs), sandbox.RuntimeMicrosandbox)
+	if err != nil {
+		return err
+	}
+	return r.microsandbox.DryRunThroughProxy(rs, proxyRoute(published))
+}
+
 // runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string) error {
 	proxyLog := proxyLogFile(rs)
-	if !rs.DryRun {
-		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
-			return err
-		}
-		if err := r.sidecarImages.Ensure(true, false, registry); err != nil {
-			return err
-		}
+	if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
+		return err
+	}
+	if err := r.sidecarImages.Ensure(true, false, registry); err != nil {
+		return err
 	}
 
 	published, err := r.docker.StartPublishedProxy(rs, proxyLog, sandbox.RuntimeMicrosandbox)
@@ -106,20 +131,13 @@ func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string)
 	defer func() {
 		// Stop first, so requests the proxy logs while stopping make the summary
 		published.Stop()
-		if !rs.DryRun {
-			printProxySummary(proxyLog, rs.Egress.Mode)
-		}
+		printProxySummary(proxyLog, rs.Egress.Mode)
 	}()
 
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.microsandbox.RunThroughProxy(rs, microsandbox.ProxyRoute{
-		Port:  published.Port,
-		Token: published.Token,
-		CAPEM: published.CAPEM,
-		Env:   published.Env,
-	})
+	return r.microsandbox.RunThroughProxy(rs, proxyRoute(published))
 }
 
 // Teardown stops run id's VM and removes its published proxy.
@@ -127,19 +145,17 @@ func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
 	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
 }
 
-// microsandboxRef returns image tagged with its Docker image ID, pinning the run to this build.
-func (r microsandboxRunner) microsandboxRef(image string, dryRun bool) (string, error) {
+// microsandboxRef returns image tagged with its Docker image ID, pinning the run to this build; found is false when
+// image is missing.
+func (r microsandboxRunner) microsandboxRef(image string) (ref string, found bool, err error) {
 	info, err := r.docker.InspectImage(image)
 	if err != nil {
-		return "", fmt.Errorf("inspect %s: %w", image, err)
-	}
-	if info == nil && dryRun {
-		return image, nil
+		return "", false, fmt.Errorf("inspect %s: %w", image, err)
 	}
 	if info == nil {
-		return "", fmt.Errorf("image %s not found", image)
+		return "", false, nil
 	}
-	return image + ":" + info.ID, nil
+	return image + ":" + info.ID, true, nil
 }
 
 // ensureDockerdImage builds image's dockerd image when it's missing or stale.
@@ -225,6 +241,16 @@ func (r microsandboxRunner) removeStaleRefs(refs []string, image, keep string) {
 		if err := r.microsandbox.RemoveImage(ref); err != nil {
 			logging.Warnf("kept old microsandbox image %s: %v", ref, err)
 		}
+	}
+}
+
+// proxyRoute routes msb through published.
+func proxyRoute(published docker.PublishedProxy) microsandbox.ProxyRoute {
+	return microsandbox.ProxyRoute{
+		Port:  published.Port,
+		Token: published.Token,
+		CAPEM: published.CAPEM,
+		Env:   published.Env,
 	}
 }
 

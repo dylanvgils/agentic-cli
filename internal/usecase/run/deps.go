@@ -16,10 +16,12 @@ type Docker interface {
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
 	BuildDockerdImage(image string, parent *docker.ImageInfo) error
+	DryRun(rs sandbox.RunSpec, proxyLog string) error
 	StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
 	Teardown(toolHome string, id sandbox.RunID) error
+	DryRunPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
@@ -37,6 +39,8 @@ type Microsandbox interface {
 	RemoveImage(ref string) error
 	Run(rs sandbox.RunSpec) error
 	RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
+	DryRun(rs sandbox.RunSpec) error
+	DryRunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	Teardown(id sandbox.RunID) error
 }
 

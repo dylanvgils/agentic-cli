@@ -31,7 +31,7 @@ Then every action command (`build`, `update`, `clean`, `run`) calls its usecase 
 1. `Resolve` checks what to do and returns a `Plan`.
 2. `DryRun(plan)` prints it with `--dry-run`, else `Apply(plan)` does it.
 
-`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow, and `Apply` handles its dry run. Errors are returned, and `cli.Execute` prints them once.
+`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow. Errors are returned, and `cli.Execute` prints them once.
 
 ## agentic run
 
@@ -129,7 +129,7 @@ How to read it:
 
 #### Apply
 
-`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked:
+`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked; `DryRun` does the same checks, then the runner's `DryRun` prints the docker or msb commands, starting nothing:
 
 | Step | Code | Why |
 | --- | --- | --- |
@@ -143,9 +143,9 @@ How to read it:
 | Step | Code | Why |
 | --- | --- | --- |
 | Host | `prepareDockerHost` | Creates the named volumes and the proxy log dir and builds missing sidecar images. |
-| Sidecars | `StartSidecars` → `setupSidecars` in `sidecar.go` | Sweeps orphans, installs the `runGuard`, then creates the run network, the proxy and the dind sidecar. |
-| Proxy | `setupProxy` in `proxy.go` | Starts the proxy when enabled and returns the tool's proxy env. |
-| Docker | `setupDind` in `dind.go` | Starts the dind sidecar when enabled and returns the tool's Docker args. |
+| Sidecars | `StartSidecars` in `run.go` → `startSidecars` in `sidecar.go` | Sweeps orphans, installs the `runGuard`, then creates the run network and starts the enabled sidecars. |
+| Proxy | `launchProxy` in `proxy.go` | Starts the proxy and returns the tool's proxy env. |
+| Docker | `startDind` in `dind.go` | Starts the dind sidecar and waits for its dockerd. |
 | Tool | `RunTool` → `buildRunArgs` in `runargs.go`, `attachTool` in `run.go` | Runs the tool container attached to the terminal, removing it on a signal. |
 | Stop | `StopSidecars` in `run.go` | Releases the `runGuard`, which tears the run down. |
 | Summary | `printProxySummary` in `proxysummary.go` | Reports the blocked hosts from the proxy log, after the proxy stops. |

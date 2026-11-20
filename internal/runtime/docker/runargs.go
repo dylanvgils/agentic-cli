@@ -1,18 +1,16 @@
 package docker
 
 import (
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// buildRunArgs assembles the tool container's `docker run` args.
-func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
+// buildRunArgs assembles the tool container's `docker run` args, labelled with owner.
+func buildRunArgs(rs toolRun, sidecarArgs, owner []string) ([]string, error) {
 	if rs.User == nil {
 		return nil, errNoHostUser
 	}
 
-	args := buildBaseArgs(rs)
+	args := buildBaseArgs(rs, owner)
 	args = append(args, buildTTYArgs(rs.RunSpec)...)
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, sidecarArgs...)
@@ -29,7 +27,7 @@ func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 }
 
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
-func buildBaseArgs(rs toolRun) []string {
+func buildBaseArgs(rs toolRun, owner []string) []string {
 	args := []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
@@ -37,10 +35,7 @@ func buildBaseArgs(rs toolRun) []string {
 		arg("name", rs.container),
 		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 	}
-	// The sweep tears the run down if this process dies; a dry run's printed command would outlive it
-	if !rs.DryRun {
-		args = append(args, ownerLabels(pidOwner(sandbox.RuntimeDocker, os.Getpid()), rs.RunID)...)
-	}
+	args = append(args, owner...)
 	return append(args,
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", rs.Limits.PidsLimit),

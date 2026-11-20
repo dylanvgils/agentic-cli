@@ -37,36 +37,32 @@ type PublishedProxy struct {
 	// Env is the tool's KEY=VALUE credential placeholders and proxy integration env.
 	Env []string
 
-	// guard tears the run down; nil on a dry run
+	// guard tears the run down; nil when only printed
 	guard *runGuard
 }
 
-// Stop removes the proxy and its volume; safe to defer, including on a zero or dry-run PublishedProxy.
+// Stop removes the proxy and its volume; safe to defer, including on a zero or printed PublishedProxy.
 func (p PublishedProxy) Stop() {
 	p.guard.release()
 }
 
-// StartPublishedProxy starts spec's proxy on a random 127.0.0.1 port with a fresh auth token, logging to proxyLog; a
-// dry run only prints it. This process owns it, labelled with owner's runtime.
-func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (PublishedProxy, error) {
-	if _, err := sandbox.ParseRunID(spec.RunID.String()); err != nil {
-		return PublishedProxy{}, err
-	}
-
-	rs := toolRun{RunSpec: spec, proxyLog: proxyLog}
-	h, err := c.newPublishedHandle(rs, owner)
+// DryRunPublishedProxy prints spec's published proxy command, starting nothing, and returns it with placeholder values.
+func (c *Client) DryRunPublishedProxy(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (PublishedProxy, error) {
+	rs, h, err := c.publishedRun(spec, proxyLog, owner)
 	if err != nil {
 		return PublishedProxy{}, err
 	}
 
-	if spec.DryRun {
-		sandbox.PrintDryRun("egress proxy", "docker", h.createArgs(rs, ""))
-		published := h.publishedProxy(dryRunPortPlaceholder)
-		published.Token = dryRunTokenPlaceholder
-		if h.decrypts() {
-			published.CAPEM = []byte(dryRunCAPlaceholder)
-		}
-		return published, nil
+	sandbox.PrintDryRun("egress proxy", "docker", h.createArgs(rs, ""))
+	return h.printedProxy(), nil
+}
+
+// StartPublishedProxy starts spec's proxy on a random 127.0.0.1 port with a fresh auth token, logging to proxyLog. This
+// process owns it, labelled with owner's runtime.
+func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (PublishedProxy, error) {
+	rs, h, err := c.publishedRun(spec, proxyLog, owner)
+	if err != nil {
+		return PublishedProxy{}, err
 	}
 
 	if err := c.RequireLocalContext("microsandbox can't reach a proxy published on it"); err != nil {
@@ -85,6 +81,26 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owne
 	return published, nil
 }
 
+// publishedRun returns spec's run and its proxy handle with a fresh auth token, owned by this process's run on owner.
+func (c *Client) publishedRun(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (toolRun, proxyHandle, error) {
+	rs, err := newToolRun(spec, proxyLog)
+	if err != nil {
+		return toolRun{}, proxyHandle{}, err
+	}
+
+	h, err := c.newProxyHandle(rs)
+	if err != nil {
+		return toolRun{}, proxyHandle{}, err
+	}
+
+	h.token, err = authToken()
+	if err != nil {
+		return toolRun{}, proxyHandle{}, err
+	}
+	h.owner = pidOwner(owner, os.Getpid())
+	return rs, h, nil
+}
+
 // startPublished starts h's proxy and reads its published port.
 func (c *Client) startPublished(h proxyHandle, rs toolRun, interrupt <-chan os.Signal) (PublishedProxy, error) {
 	h, err := c.startProxy(h, rs, interrupt)
@@ -99,19 +115,14 @@ func (c *Client) startPublished(h proxyHandle, rs toolRun, interrupt <-chan os.S
 	return h.publishedProxy(port), nil
 }
 
-// newPublishedHandle returns rs's proxy handle with a fresh auth token, owned by this process's run on owner.
-func (c *Client) newPublishedHandle(rs toolRun, owner sandbox.Runtime) (proxyHandle, error) {
-	h, err := c.newProxyHandle(rs)
-	if err != nil {
-		return proxyHandle{}, err
+// printedProxy returns h as a dry run's PublishedProxy, with placeholders for what only exists once started.
+func (h proxyHandle) printedProxy() PublishedProxy {
+	published := h.publishedProxy(dryRunPortPlaceholder)
+	published.Token = dryRunTokenPlaceholder
+	if h.decrypts() {
+		published.CAPEM = []byte(dryRunCAPlaceholder)
 	}
-
-	h.token, err = authToken()
-	if err != nil {
-		return proxyHandle{}, err
-	}
-	h.owner = pidOwner(owner, os.Getpid())
-	return h, nil
+	return published
 }
 
 // publishedProxy returns h as a PublishedProxy on port.

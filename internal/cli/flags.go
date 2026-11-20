@@ -38,6 +38,11 @@ func addRegistryFlag(cmd *cobra.Command) {
 	cmd.Flags().String("registry", "", "registry prefix for base images (e.g. myregistry.example.com); overrides agentic.json registry")
 }
 
+// addDryRunFlag registers the --dry-run flag on the given command with usage.
+func addDryRunFlag(cmd *cobra.Command, usage string) {
+	cmd.Flags().Bool(dryRunFlagName, false, usage)
+}
+
 // addAllFlag registers the --all flag on the given command with usage.
 func addAllFlag(cmd *cobra.Command, usage string) {
 	cmd.Flags().BoolP(allFlagName, "a", false, usage)
@@ -68,7 +73,6 @@ func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice(baseExactFlagName, nil, "extra runtime(s) to layer on top of debian, replacing .agenticrc.toml's bases entirely instead of merging with it; repeatable or comma-separated; pass --base-exact= for debian only")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().StringSlice(aptExactFlagName, nil, "apt packages to install in the base stage, replacing .agenticrc.toml's apt_packages entirely instead of merging with it; repeatable or comma-separated; pass --apt-exact= for none")
-	cmd.Flags().Bool(dryRunFlagName, false, "print generated Dockerfile without building")
 	cmd.Flags().Bool("skip-install-checksum", false, "bypass checksum verification of Claude/Copilot/OpenCode install scripts; only use if a build is broken by a stale pinned checksum")
 
 	cmd.MarkFlagsMutuallyExclusive("base", baseExactFlagName)
