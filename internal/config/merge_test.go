@@ -254,50 +254,65 @@ func TestMerge(t *testing.T) {
 }
 
 func Test_fillUnset(t *testing.T) {
-	t.Run("fills an empty string", func(t *testing.T) {
-		// Arrange
-		dst := ""
+	disabled := false
+	enabled := true
 
-		// Act
-		fillUnset(&dst, "agentic")
+	for _, tc := range []struct {
+		name string
+		dst  string
+		src  string
+		want string
+	}{
+		{
+			name: "fills an empty string",
+			dst:  "",
+			src:  "agentic",
+			want: "agentic",
+		},
+		{
+			name: "keeps a set string",
+			dst:  "inner",
+			src:  "outer",
+			want: "inner",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			dst := tc.dst
 
-		// Assert
-		assert.Equal(t, "agentic", dst)
-	})
+			// Act
+			fillUnset(&dst, tc.src)
 
-	t.Run("keeps a set string", func(t *testing.T) {
-		// Arrange
-		dst := "inner"
+			// Assert
+			assert.Equal(t, tc.want, dst)
+		})
+	}
 
-		// Act
-		fillUnset(&dst, "outer")
+	for _, tc := range []struct {
+		name string
+		dst  *bool
+		want *bool
+	}{
+		{
+			name: "fills a nil pointer",
+			dst:  nil,
+			want: &enabled,
+		},
+		{
+			name: "keeps an explicit false",
+			dst:  &disabled,
+			want: &disabled,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			dst := tc.dst
 
-		// Assert
-		assert.Equal(t, "inner", dst)
-	})
+			// Act
+			fillUnset(&dst, &enabled)
 
-	t.Run("fills a nil pointer", func(t *testing.T) {
-		// Arrange
-		var dst *bool
-		enabled := true
-
-		// Act
-		fillUnset(&dst, &enabled)
-
-		// Assert
-		assert.Same(t, &enabled, dst)
-	})
-
-	t.Run("keeps an explicit false", func(t *testing.T) {
-		// Arrange
-		disabled := false
-		enabled := true
-		dst := &disabled
-
-		// Act
-		fillUnset(&dst, &enabled)
-
-		// Assert
-		assert.Same(t, &disabled, dst)
-	})
+			// Assert
+			assert.Same(t, tc.want, dst)
+		})
+	}
 }

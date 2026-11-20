@@ -18,17 +18,20 @@ func Test_startDind(t *testing.T) {
 	client := newTestClient()
 
 	stubDindReadyTimeout(t, client)
+	newSpec := func(t *testing.T) sandbox.RunSpec {
+		return sandbox.RunSpec{
+			RunID:    testRunID,
+			User:     &testUser,
+			ToolHome: t.TempDir(),
+			Dind:     sandbox.DindSpec{},
+		}
+	}
 
 	t.Run("joins the run network with a clear address pool, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: t.TempDir(),
-				Dind:     sandbox.DindSpec{},
-			},
+			RunSpec:   newSpec(t),
 			container: "agentic-claude-abc",
 			network:   "agentic-run-abc",
 		}
@@ -54,12 +57,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")
 		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: t.TempDir(),
-				Dind:     sandbox.DindSpec{},
-			},
+			RunSpec: newSpec(t),
 			network: "agentic-run-abc",
 		}
 
@@ -74,14 +72,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("fails when the sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: t.TempDir(),
-				Dind:     sandbox.DindSpec{},
-			},
-		}
+		rs := toolRun{RunSpec: newSpec(t)}
 
 		// Act
 		_, err := client.startDind(rs, nil)

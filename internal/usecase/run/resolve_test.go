@@ -58,32 +58,52 @@ func TestService_Resolve(t *testing.T) {
 		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
 	})
 
-	t.Run("missing image stops before any prompt", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		p := &fakePrompter{}
+	for _, tc := range []struct {
+		name    string
+		request func(t *testing.T) Request
+		docker  *fakeDocker
+		wantErr string
+	}{
+		{
+			name:    "missing image stops before any prompt",
+			request: newResolveRequest,
+			docker:  &fakeDocker{},
+			wantErr: "agentic build claude",
+		},
+		{
+			name: "a port in use stops before any prompt",
+			request: func(t *testing.T) Request {
+				req := newResolveRequest(t)
+				req.Flags.Ports = []string{strconv.Itoa(int(busyPort(t)))}
+				return req
+			},
+			docker:  &fakeDocker{inspectImage: built},
+			wantErr: "is in use",
+		},
+		{
+			name: "a credential without env stops before any prompt",
+			request: func(t *testing.T) Request {
+				req := newCredentialRequest(t)
+				req.Project.RC.Run.Proxy.Credentials[0].Env = nil
+				return req
+			},
+			docker:  &fakeDocker{inspectImage: built},
+			wantErr: "needs env, as the tool must send the placeholder",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			req := tc.request(t)
+			p := &fakePrompter{}
 
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{}, nil), req, p)
+			// Act
+			_, err := resolvePlan(t, newTestService(tc.docker, nil), req, p)
 
-		// Assert
-		require.ErrorContains(t, err, "agentic build claude")
-		assert.Empty(t, p.trustAsked)
-	})
-
-	t.Run("a port in use stops before any prompt", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Ports = []string{strconv.Itoa(int(busyPort(t)))}
-		p := &fakePrompter{}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, p)
-
-		// Assert
-		require.ErrorContains(t, err, "is in use")
-		assert.Empty(t, p.trustAsked)
-	})
+			// Assert
+			require.ErrorContains(t, err, tc.wantErr)
+			assert.Empty(t, p.trustAsked)
+		})
+	}
 
 	t.Run("missing msb stops before the image check and any prompt", func(t *testing.T) {
 		// Arrange
@@ -103,20 +123,6 @@ func TestService_Resolve(t *testing.T) {
 		// Assert
 		require.EqualError(t, err, "msb not found on PATH")
 		assert.False(t, inspected)
-		assert.Empty(t, p.trustAsked)
-	})
-
-	t.Run("a credential without env stops before any prompt", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		req.Project.RC.Run.Proxy.Credentials[0].Env = nil
-		p := &fakePrompter{}
-
-		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, p)
-
-		// Assert
-		require.ErrorContains(t, err, "needs env, as the tool must send the placeholder")
 		assert.Empty(t, p.trustAsked)
 	})
 

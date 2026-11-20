@@ -134,27 +134,27 @@ func Test_installScriptRun(t *testing.T) {
 		assert.NotContains(t, out, "installed")
 	})
 
-	t.Run("fails when the install script fails", func(t *testing.T) {
-		// Arrange
-		script := "exit 3"
+	for _, tc := range []struct {
+		name   string
+		script string
+	}{
+		{
+			name:   "fails when the install script fails",
+			script: "exit 3",
+		},
+		{
+			name:   "fails when the install leaves no tool on PATH",
+			script: "echo installed",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, err := runInstall(t, tc.script, sum(tc.script), "false")
 
-		// Act
-		_, err := runInstall(t, script, sum(script), "false")
-
-		// Assert
-		require.Error(t, err)
-	})
-
-	t.Run("fails when the install leaves no tool on PATH", func(t *testing.T) {
-		// Arrange
-		script := "echo installed"
-
-		// Act
-		_, err := runInstall(t, script, sum(script), "false")
-
-		// Assert
-		require.Error(t, err)
-	})
+			// Assert
+			require.Error(t, err)
+		})
+	}
 
 	t.Run("runs the after steps before the PATH check", func(t *testing.T) {
 		// Arrange

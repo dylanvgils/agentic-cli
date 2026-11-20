@@ -41,6 +41,20 @@ func Test_Service_Check(t *testing.T) {
 		assert.True(t, updated)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
 	})
+
+	t.Run("nothing due leaves the binary alone", func(t *testing.T) {
+		// Arrange
+		releases := &fakeReleases{latest: "v1.0.0"}
+		svc, _ := newTestService(t, releases)
+
+		// Act
+		updated, err := svc.Check(t.TempDir(), confirmYes)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, updated)
+		assert.Empty(t, releases.updatedWith)
+	})
 }
 
 func Test_Service_fetchUpdateIfDue(t *testing.T) {

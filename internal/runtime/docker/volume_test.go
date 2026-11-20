@@ -82,27 +82,33 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Equal(t, []string{"chown", testUser.String(), "/vol"}, calls[2].args[len(calls[2].args)-3:], "owned by the run's user")
 	})
 
-	t.Run("create fails returns error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "volume inspect", "volume create")
+	for _, tc := range []struct {
+		name    string
+		failing string
+		wantErr string
+	}{
+		{
+			name:    "create fails returns error",
+			failing: "volume create",
+			wantErr: "create volume maven: stub: volume create failed",
+		},
+		{
+			name:    "chown fails returns error",
+			failing: "run",
+			wantErr: "chown volume maven: stub: run failed",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubDockerRunCapture(t, client, "volume inspect", tc.failing)
 
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
+			// Act
+			err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
 
-		// Assert
-		assert.ErrorContains(t, err, "create volume maven")
-	})
-
-	t.Run("chown fails returns error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "volume inspect", "run")
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
-
-		// Assert
-		assert.ErrorContains(t, err, "chown volume maven")
-	})
+			// Assert
+			assert.EqualError(t, err, tc.wantErr)
+		})
+	}
 
 	t.Run("multiple volumes", func(t *testing.T) {
 		// Arrange
@@ -230,27 +236,31 @@ func TestRemoveVolume(t *testing.T) {
 		assert.Equal(t, "maven", calls[1].args[2])
 	})
 
-	t.Run("inspect fails returns error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "volume inspect")
+	for _, tc := range []struct {
+		name       string
+		inspectOut string
+		inspectErr error
+	}{
+		{
+			name:       "inspect fails returns error",
+			inspectErr: fmt.Errorf("stub: volume inspect failed"),
+		},
+		{
+			name:       "wrong label returns error",
+			inspectOut: "other-project\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubDockerRunFixed(t, client, tc.inspectOut, tc.inspectErr)
 
-		// Act
-		err := client.RemoveVolume("maven")
+			// Act
+			err := client.RemoveVolume("maven")
 
-		// Assert
-		assert.ErrorContains(t, err, "not an agentic-managed volume")
-	})
-
-	t.Run("wrong label returns error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "other-project\n", nil)
-
-		// Act
-		err := client.RemoveVolume("maven")
-
-		// Assert
-		assert.ErrorContains(t, err, "not an agentic-managed volume")
-	})
+			// Assert
+			assert.EqualError(t, err, "'maven' is not an agentic-managed volume")
+		})
+	}
 
 	t.Run("rm fails propagates error", func(t *testing.T) {
 		// Arrange

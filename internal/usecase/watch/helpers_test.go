@@ -47,6 +47,25 @@ func startChild(t *testing.T) *exec.Cmd {
 	return cmd
 }
 
+// goneProcess runs this test binary to completion and returns its pid, a process already gone.
+func goneProcess(t *testing.T) int {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	require.NoError(t, cmd.Run())
+	return cmd.Process.Pid
+}
+
+// testRun returns a claude run on runtime with a temp tool home.
+func testRun(t *testing.T, runtime sandbox.Runtime) sandbox.RunRef {
+	t.Helper()
+	return sandbox.RunRef{
+		ID:       testRunID,
+		Runtime:  runtime,
+		Tool:     "claude",
+		ToolHome: t.TempDir(),
+	}
+}
+
 // TestHelperChild is the child startChild starts; it does nothing in a normal run.
 func TestHelperChild(t *testing.T) {
 	if os.Getenv("AGENTIC_TEST_CHILD") != "1" {

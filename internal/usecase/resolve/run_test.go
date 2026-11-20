@@ -172,27 +172,35 @@ func TestResourceLimitsFor(t *testing.T) {
 func TestRuntime(t *testing.T) {
 	rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
 
-	t.Run("flag takes precedence over rc", func(t *testing.T) {
-		// Act
-		runtime := Runtime(sandbox.RuntimeDocker, rc)
+	for _, tc := range []struct {
+		name string
+		flag sandbox.Runtime
+		rc   *config.AgenticRC
+		want sandbox.Runtime
+	}{
+		{
+			name: "flag takes precedence over rc",
+			flag: sandbox.RuntimeDocker,
+			rc:   rc,
+			want: sandbox.RuntimeDocker,
+		},
+		{
+			name: "rc fills an unset flag",
+			rc:   rc,
+			want: sandbox.RuntimeMicrosandbox,
+		},
+		{
+			name: "defaults to docker",
+			rc:   &config.AgenticRC{},
+			want: sandbox.RuntimeDocker,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			runtime := Runtime(tc.flag, tc.rc)
 
-		// Assert
-		assert.Equal(t, sandbox.RuntimeDocker, runtime)
-	})
-
-	t.Run("rc fills an unset flag", func(t *testing.T) {
-		// Act
-		runtime := Runtime("", rc)
-
-		// Assert
-		assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
-	})
-
-	t.Run("defaults to docker", func(t *testing.T) {
-		// Act
-		runtime := Runtime("", &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, sandbox.RuntimeDocker, runtime)
-	})
+			// Assert
+			assert.Equal(t, tc.want, runtime)
+		})
+	}
 }

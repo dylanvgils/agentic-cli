@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
@@ -67,11 +66,12 @@ func Test_runImageList(t *testing.T) {
 }
 
 func Test_runImageTable(t *testing.T) {
-	t.Run("results are sorted by tool name", func(t *testing.T) {
+	t.Run("results are sorted by tool, then namespace", func(t *testing.T) {
 		// Arrange
 		opencode := &docker.ImageInfo{Image: "agentic-opencode", Namespace: "agentic", Tool: "opencode", Version: "0.1.0"}
+		workClaude := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{opencode, builtInfo}, nil
+			return []*docker.ImageInfo{opencode, workClaude, builtInfo}, nil
 		})
 
 		// Act
@@ -81,7 +81,7 @@ func Test_runImageTable(t *testing.T) {
 		})
 
 		// Assert
-		assert.Less(t, strings.Index(out, "claude"), strings.Index(out, "opencode"))
+		assert.Regexp(t, `(?s)claude\s+agentic.*claude\s+work.*opencode`, out)
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {

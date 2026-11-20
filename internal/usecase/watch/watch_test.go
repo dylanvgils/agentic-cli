@@ -2,8 +2,6 @@ package watch
 
 import (
 	"errors"
-	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -20,32 +18,21 @@ func TestService_Watch(t *testing.T) {
 	t.Run("tears the run down once after the process exits", func(t *testing.T) {
 		// Arrange
 		out := iostreamstest.StubOut(t)
-		toolHome := t.TempDir()
+		run := testRun(t, sandbox.RuntimeDocker)
 		runs := &fakeRuns{}
 		child := startChild(t)
 		start := time.Now()
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunRef: sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  sandbox.RuntimeDocker,
-				Tool:     "claude",
-				ToolHome: toolHome,
-			},
-			PID: child.Process.Pid,
+			RunRef: run,
+			PID:    child.Process.Pid,
 		})
 
 		// Assert
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, time.Since(start), childLifetime/2, "waits for the exit")
 		assert.Equal(t, ReadyLine+"\n", out.String())
-		run := sandbox.RunRef{
-			ID:       testRunID,
-			Runtime:  sandbox.RuntimeDocker,
-			Tool:     "claude",
-			ToolHome: toolHome,
-		}
 		assert.Equal(t, []sandbox.RunRef{run}, runs.calls)
 	})
 
@@ -53,18 +40,12 @@ func TestService_Watch(t *testing.T) {
 		// Arrange
 		out := iostreamstest.StubOut(t)
 		runs := &fakeRuns{}
-		gone := exec.Command(os.Args[0], "-test.run=^$")
-		require.NoError(t, gone.Run())
+		pid := goneProcess(t)
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunRef: sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  sandbox.RuntimeMicrosandbox,
-				Tool:     "claude",
-				ToolHome: t.TempDir(),
-			},
-			PID: gone.Process.Pid,
+			RunRef: testRun(t, sandbox.RuntimeMicrosandbox),
+			PID:    pid,
 		})
 
 		// Assert
@@ -76,20 +57,13 @@ func TestService_Watch(t *testing.T) {
 	t.Run("returns the teardown's error", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubOut(t)
-		toolHome := t.TempDir()
 		runs := &fakeRuns{err: errors.New("stub: teardown failed")}
-		gone := exec.Command(os.Args[0], "-test.run=^$")
-		require.NoError(t, gone.Run())
+		pid := goneProcess(t)
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunRef: sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  sandbox.RuntimeDocker,
-				Tool:     "claude",
-				ToolHome: toolHome,
-			},
-			PID: gone.Process.Pid,
+			RunRef: testRun(t, sandbox.RuntimeDocker),
+			PID:    pid,
 		})
 
 		// Assert
@@ -103,18 +77,13 @@ func TestService_Watch(t *testing.T) {
 		runs := &fakeRuns{}
 		svc := newTestService(runs)
 		svc.reapGrace = grace
-		gone := exec.Command(os.Args[0], "-test.run=^$")
-		require.NoError(t, gone.Run())
+		pid := goneProcess(t)
 		start := time.Now()
 
 		// Act
 		err := svc.Watch(Target{
-			RunRef: sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  sandbox.RuntimeDocker,
-				ToolHome: t.TempDir(),
-			},
-			PID: gone.Process.Pid,
+			RunRef: testRun(t, sandbox.RuntimeDocker),
+			PID:    pid,
 		})
 
 		// Assert
@@ -130,18 +99,12 @@ func TestService_Watch(t *testing.T) {
 		t.Cleanup(func() { close(runs.release) })
 		svc := newTestService(runs)
 		svc.teardownTimeout = 50 * time.Millisecond
-		gone := exec.Command(os.Args[0], "-test.run=^$")
-		require.NoError(t, gone.Run())
+		pid := goneProcess(t)
 
 		// Act
 		err := svc.Watch(Target{
-			RunRef: sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  sandbox.RuntimeDocker,
-				Tool:     "claude",
-				ToolHome: t.TempDir(),
-			},
-			PID: gone.Process.Pid,
+			RunRef: testRun(t, sandbox.RuntimeDocker),
+			PID:    pid,
 		})
 
 		// Assert

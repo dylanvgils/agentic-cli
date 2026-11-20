@@ -246,32 +246,35 @@ func Test_scalarField(t *testing.T) {
 
 func Test_boolField(t *testing.T) {
 	enabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+	on, off := true, false
 
-	t.Run("innermost layer that sets it wins", func(t *testing.T) {
-		// Arrange
-		on, off := true, false
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &on}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &off}}}},
-		}
+	for _, tc := range []struct {
+		name   string
+		layers []config.RCLayer
+		want   field
+	}{
+		{
+			name: "innermost layer that sets it wins",
+			layers: []config.RCLayer{
+				{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &on}}}},
+				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &off}}}},
+			},
+			want: field{key: "enabled", entries: []entry{{value: "false", source: "/project/.agenticrc.toml"}}},
+		},
+		{
+			name:   "default when no layer sets it",
+			layers: []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}},
+			want:   field{key: "enabled", entries: []entry{{value: "true"}}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			f := boolField(tc.layers, "enabled", enabled, true)
 
-		// Act
-		f := boolField(layers, "enabled", enabled, true)
-
-		// Assert
-		assert.Equal(t, field{key: "enabled", entries: []entry{{value: "false", source: "/project/.agenticrc.toml"}}}, f)
-	})
-
-	t.Run("default when no layer sets it", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
-
-		// Act
-		f := boolField(layers, "enabled", enabled, true)
-
-		// Assert
-		assert.Equal(t, field{key: "enabled", entries: []entry{{value: "true"}}}, f)
-	})
+			// Assert
+			assert.Equal(t, tc.want, f)
+		})
+	}
 }
 
 func Test_listField(t *testing.T) {
@@ -295,52 +298,76 @@ func Test_listField(t *testing.T) {
 func Test_writeSection(t *testing.T) {
 	fields := []field{{key: "enabled", entries: []entry{{value: "true"}}}}
 
-	t.Run("top level has no header", func(t *testing.T) {
-		// Arrange
-		var b strings.Builder
-
-		// Act
-		writeSection(&b, section{fields: fields})
-
-		// Assert
-		assert.Equal(t, "  enabled: true  (default)\n", b.String())
-	})
-
-	t.Run("table indents its fields under the header", func(t *testing.T) {
-		// Arrange
-		var b strings.Builder
-
-		// Act
-		writeSection(&b, section{header: "run.proxy", fields: fields})
-
-		// Assert
-		assert.Equal(t, "\n  [run.proxy]\n    enabled: true  (default)\n", b.String())
-	})
-}
-
-func Test_writeField(t *testing.T) {
-	tests := []struct {
-		name string
-		f    field
-		want string
+	for _, tc := range []struct {
+		name    string
+		section section
+		want    string
 	}{
-		{"scalar from a layer", field{key: "cpus", entries: []entry{{value: "8", source: "/p/.agenticrc.toml"}}}, "  cpus: 8  [/p/.agenticrc.toml]\n"},
-		{"scalar default", field{key: "cpus", entries: []entry{{value: "4"}}}, "  cpus: 4  (default)\n"},
-		{"scalar not set", field{key: "docker_context"}, "  docker_context: (not set)\n"},
-		{"empty list", field{key: "mounts", list: true}, "  mounts: (none)\n"},
-		{"list entries", field{key: "mounts", list: true, entries: []entry{{value: "a", source: "/p/.agenticrc.toml"}}}, "  mounts:\n    - a  [/p/.agenticrc.toml]\n"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		{
+			name:    "top level has no header",
+			section: section{fields: fields},
+			want:    "  enabled: true  (default)\n",
+		},
+		{
+			name:    "table indents its fields under the header",
+			section: section{header: "run.proxy", fields: fields},
+			want:    "\n  [run.proxy]\n    enabled: true  (default)\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			var b strings.Builder
 
 			// Act
-			writeField(&b, tt.f, "  ")
+			writeSection(&b, tc.section)
 
 			// Assert
-			assert.Equal(t, tt.want, b.String())
+			assert.Equal(t, tc.want, b.String())
+		})
+	}
+}
+
+func Test_writeField(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		f    field
+		want string
+	}{
+		{
+			name: "scalar from a layer",
+			f:    field{key: "cpus", entries: []entry{{value: "8", source: "/p/.agenticrc.toml"}}},
+			want: "  cpus: 8  [/p/.agenticrc.toml]\n",
+		},
+		{
+			name: "scalar default",
+			f:    field{key: "cpus", entries: []entry{{value: "4"}}},
+			want: "  cpus: 4  (default)\n",
+		},
+		{
+			name: "scalar not set",
+			f:    field{key: "docker_context"},
+			want: "  docker_context: (not set)\n",
+		},
+		{
+			name: "empty list",
+			f:    field{key: "mounts", list: true},
+			want: "  mounts: (none)\n",
+		},
+		{
+			name: "list entries",
+			f:    field{key: "mounts", list: true, entries: []entry{{value: "a", source: "/p/.agenticrc.toml"}}},
+			want: "  mounts:\n    - a  [/p/.agenticrc.toml]\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var b strings.Builder
+
+			// Act
+			writeField(&b, tc.f, "  ")
+
+			// Assert
+			assert.Equal(t, tc.want, b.String())
 		})
 	}
 }
@@ -427,26 +454,34 @@ func Test_marketplaceNames(t *testing.T) {
 }
 
 func Test_customInstructions(t *testing.T) {
-	tests := []struct {
+	for _, tc := range []struct {
 		name   string
 		custom string
 		want   []string
 	}{
-		{"unset", "", nil},
-		{"one line", "Use make.\n", []string{"(1 line)"}},
-		{"several lines", "Use make.\nRun lint.\n", []string{"(2 lines)"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		{
+			name: "unset",
+		},
+		{
+			name:   "one line",
+			custom: "Use make.\n",
+			want:   []string{"(1 line)"},
+		},
+		{
+			name:   "several lines",
+			custom: "Use make.\nRun lint.\n",
+			want:   []string{"(2 lines)"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: tt.custom}}}
+			rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: tc.custom}}}
 
 			// Act
 			result := customInstructions(rc)
 
 			// Assert
-			assert.Equal(t, tt.want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }

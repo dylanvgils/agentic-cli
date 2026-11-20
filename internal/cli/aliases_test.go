@@ -105,105 +105,128 @@ func Test_shellFromEnv(t *testing.T) {
 }
 
 func Test_defaultShell(t *testing.T) {
-	for goos, want := range map[string]string{
-		"windows": "powershell",
-		"linux":   "bash",
+	for _, tc := range []struct {
+		goos string
+		want string
+	}{
+		{goos: "windows", want: "powershell"},
+		{goos: "linux", want: "bash"},
 	} {
-		t.Run(goos, func(t *testing.T) {
+		t.Run(tc.goos, func(t *testing.T) {
 			// Act
-			result := defaultShell(goos)
+			result := defaultShell(tc.goos)
 
 			// Assert
-			assert.Equal(t, want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
 
 func Test_detectShell(t *testing.T) {
-	t.Run("prefers SHELL over OS default", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/usr/bin/bash")
+	for _, tc := range []struct {
+		name  string
+		shell string
+		want  string
+	}{
+		{
+			name:  "prefers SHELL over OS default",
+			shell: "/usr/bin/bash",
+			want:  "bash",
+		},
+		{
+			name: "falls back to OS default when SHELL unset",
+			want: "powershell",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			t.Setenv("SHELL", tc.shell)
 
-		// Act
-		result := detectShell("windows")
+			// Act
+			result := detectShell("windows")
 
-		// Assert
-		assert.Equal(t, "bash", result)
-	})
-
-	t.Run("falls back to OS default when SHELL unset", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "")
-
-		// Act
-		result := detectShell("windows")
-
-		// Assert
-		assert.Equal(t, "powershell", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_preambleFor(t *testing.T) {
-	for shell, want := range map[string]string{
-		"bash":       "# agentic tool aliases - source with: source <(agentic aliases)",
-		"fish":       "# agentic tool aliases - source with: agentic aliases | source",
-		"powershell": "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression",
+	for _, tc := range []struct {
+		shell string
+		want  string
+	}{
+		{shell: "bash", want: "# agentic tool aliases - source with: source <(agentic aliases)"},
+		{shell: "fish", want: "# agentic tool aliases - source with: agentic aliases | source"},
+		{shell: "powershell", want: "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression"},
 	} {
-		t.Run(shell, func(t *testing.T) {
+		t.Run(tc.shell, func(t *testing.T) {
 			// Act
-			result := preambleFor(shell)
+			result := preambleFor(tc.shell)
 
 			// Assert
-			assert.Equal(t, want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
 
 func Test_aliasLineFor(t *testing.T) {
-	for shell, want := range map[string]string{
-		"bash":       "alias claude='agentic run claude'",
-		"powershell": "function claude { agentic run claude @args }",
+	for _, tc := range []struct {
+		shell string
+		want  string
+	}{
+		{shell: "bash", want: "alias claude='agentic run claude'"},
+		{shell: "powershell", want: "function claude { agentic run claude @args }"},
 	} {
-		t.Run(shell, func(t *testing.T) {
+		t.Run(tc.shell, func(t *testing.T) {
 			// Act
-			result := aliasLineFor(shell, "claude")
+			result := aliasLineFor(tc.shell, "claude")
 
 			// Assert
-			assert.Equal(t, want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
 
 func Test_reloadLineFor(t *testing.T) {
-	for shell, want := range map[string]string{
-		"bash":       "alias agentic-reload='source <(agentic aliases)'",
-		"fish":       "function agentic-reload; agentic aliases | source; end",
-		"powershell": "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }",
+	for _, tc := range []struct {
+		shell string
+		want  string
+	}{
+		{shell: "bash", want: "alias agentic-reload='source <(agentic aliases)'"},
+		{shell: "fish", want: "function agentic-reload; agentic aliases | source; end"},
+		{shell: "powershell", want: "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }"},
 	} {
-		t.Run(shell, func(t *testing.T) {
+		t.Run(tc.shell, func(t *testing.T) {
 			// Act
-			result := reloadLineFor(shell)
+			result := reloadLineFor(tc.shell)
 
 			// Assert
-			assert.Equal(t, want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
 
 func Test_shortAliasFor(t *testing.T) {
-	for shell, want := range map[string]string{
-		"bash": "alias agt=agentic\n" + `c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`,
-		"zsh":  "alias agt=agentic",
-		"fish": "function agt --wraps agentic; agentic $argv; end",
-		"powershell": "Set-Alias agt agentic\n" +
-			"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }",
+	for _, tc := range []struct {
+		shell string
+		want  string
+	}{
+		{shell: "bash", want: "alias agt=agentic\n" + `c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`},
+		{shell: "zsh", want: "alias agt=agentic"},
+		{shell: "fish", want: "function agt --wraps agentic; agentic $argv; end"},
+		{
+			shell: "powershell",
+			want: "Set-Alias agt agentic\n" +
+				"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }",
+		},
 	} {
-		t.Run(shell, func(t *testing.T) {
+		t.Run(tc.shell, func(t *testing.T) {
 			// Act
-			result := shortAliasFor(shell)
+			result := shortAliasFor(tc.shell)
 
 			// Assert
-			assert.Equal(t, want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }

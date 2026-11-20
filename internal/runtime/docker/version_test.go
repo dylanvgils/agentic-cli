@@ -108,23 +108,37 @@ func TestClient_ServerVersion(t *testing.T) {
 }
 
 func Test_engineComponent(t *testing.T) {
-	t.Run("picks a component named like an engine", func(t *testing.T) {
-		// Act
-		got, err := engineComponent([]serverComponent{{"Conmon", "2.1.12"}, {"Podman Engine", "5.2.0"}})
+	for _, tc := range []struct {
+		name       string
+		components []serverComponent
+		want       serverComponent
+	}{
+		{
+			name: "picks a component named like an engine",
+			components: []serverComponent{
+				{"Conmon", "2.1.12"},
+				{"Podman Engine", "5.2.0"},
+			},
+			want: serverComponent{"Podman Engine", "5.2.0"},
+		},
+		{
+			name: "falls back to the first component",
+			components: []serverComponent{
+				{"Daemon", "1.0.0"},
+				{"runtime", "2.0.0"},
+			},
+			want: serverComponent{"Daemon", "1.0.0"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got, err := engineComponent(tc.components)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, serverComponent{"Podman Engine", "5.2.0"}, got)
-	})
-
-	t.Run("falls back to the first component", func(t *testing.T) {
-		// Act
-		got, err := engineComponent([]serverComponent{{"Daemon", "1.0.0"}, {"runtime", "2.0.0"}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, serverComponent{"Daemon", "1.0.0"}, got)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 
 	t.Run("no components is an error", func(t *testing.T) {
 		// Act

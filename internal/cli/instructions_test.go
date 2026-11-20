@@ -68,19 +68,27 @@ func Test_instructionsRequest(t *testing.T) {
 }
 
 func Test_printInstructions(t *testing.T) {
-	t.Run("content is printed under its heading", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureOut(t, func() { printInstructions("agentic/claude", "## Filesystem\n") })
+	for _, tc := range []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "content is printed under its heading",
+			content: "## Filesystem\n",
+			want:    "=> agentic/claude\n## Filesystem\n",
+		},
+		{
+			name: "empty content prints the disabled notice",
+			want: "=> agentic/claude\n   (environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			out := iostreamstest.CaptureOut(t, func() { printInstructions("agentic/claude", tc.content) })
 
-		// Assert
-		assert.Equal(t, "=> agentic/claude\n## Filesystem\n", out)
-	})
-
-	t.Run("empty content prints the disabled notice", func(t *testing.T) {
-		// Act
-		logs := iostreamstest.CaptureOut(t, func() { printInstructions("agentic/claude", "") })
-
-		// Assert
-		assert.Contains(t, logs, "disabled via .agenticrc.toml")
-	})
+			// Assert
+			assert.Equal(t, tc.want, out)
+		})
+	}
 }

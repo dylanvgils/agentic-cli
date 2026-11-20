@@ -11,47 +11,44 @@ import (
 func Test_proxyHandle_trustArgs(t *testing.T) {
 	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}}}
 
-	t.Run("without credentials adds nothing", func(t *testing.T) {
-		// Arrange
-		handle := proxyHandle{caPEM: []byte("test-ca")}
+	for _, tc := range []struct {
+		name   string
+		handle proxyHandle
+		want   []string
+	}{
+		{
+			name:   "without credentials adds nothing",
+			handle: proxyHandle{caPEM: []byte("test-ca")},
+			want:   nil,
+		},
+		{
+			name: "passes the CA cert to the tool",
+			handle: proxyHandle{
+				credentials: creds,
+				caPEM:       []byte("test-ca"),
+			},
+			want: []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"},
+		},
+		{
+			name: "path rules pass the CA cert to the tool",
+			handle: proxyHandle{
+				rules: []proxy.Rule{{Host: "raw.example.test", Paths: []string{"/a"}}},
+				caPEM: []byte("test-ca"),
+			},
+			want: []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"},
+		},
+		{
+			name:   "before start shows a placeholder",
+			handle: proxyHandle{credentials: creds},
+			want:   []string{"--env=" + tools.ProxyCAEnvName + "=" + dryRunCAPlaceholder},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args := tc.handle.trustArgs()
 
-		// Act
-		args := handle.trustArgs()
-
-		// Assert
-		assert.Nil(t, args)
-	})
-
-	t.Run("passes the CA cert to the tool", func(t *testing.T) {
-		// Arrange
-		handle := proxyHandle{credentials: creds, caPEM: []byte("test-ca")}
-
-		// Act
-		args := handle.trustArgs()
-
-		// Assert
-		assert.Equal(t, []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"}, args)
-	})
-
-	t.Run("path rules pass the CA cert to the tool", func(t *testing.T) {
-		// Arrange
-		handle := proxyHandle{rules: []proxy.Rule{{Host: "raw.example.test", Paths: []string{"/a"}}}, caPEM: []byte("test-ca")}
-
-		// Act
-		args := handle.trustArgs()
-
-		// Assert
-		assert.Equal(t, []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"}, args)
-	})
-
-	t.Run("before start shows a placeholder", func(t *testing.T) {
-		// Arrange
-		handle := proxyHandle{credentials: creds}
-
-		// Act
-		args := handle.trustArgs()
-
-		// Assert
-		assert.Equal(t, []string{"--env=" + tools.ProxyCAEnvName + "=" + dryRunCAPlaceholder}, args)
-	})
+			// Assert
+			assert.Equal(t, tc.want, args)
+		})
+	}
 }

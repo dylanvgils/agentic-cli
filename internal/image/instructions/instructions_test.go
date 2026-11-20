@@ -230,46 +230,40 @@ func TestFinalizeSnapshot(t *testing.T) {
 }
 
 func Test_stripManaged(t *testing.T) {
-	t.Run("no markers returns content unchanged", func(t *testing.T) {
-		// Act
-		rest := stripManaged("just my own notes\n")
+	for _, tc := range []struct {
+		name     string
+		existing string
+		want     string
+	}{
+		{
+			name:     "no markers returns content unchanged",
+			existing: "just my own notes\n",
+			want:     "just my own notes\n",
+		},
+		{
+			name:     "strips the managed block and trims the blank line after it",
+			existing: managed("block") + "\nuser note\n",
+			want:     "user note\n",
+		},
+		{
+			name:     "preserves content that precedes the begin marker",
+			existing: "before\n" + managed("block") + "after\n",
+			want:     "before\nafter\n",
+		},
+		{
+			name:     "missing end marker falls back to preserving everything",
+			existing: instructionsBeginMarker + "\nblock, never closed\n",
+			want:     instructionsBeginMarker + "\nblock, never closed\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			rest := stripManaged(tc.existing)
 
-		// Assert
-		assert.Equal(t, "just my own notes\n", rest)
-	})
-
-	t.Run("strips the managed block and trims the blank line after it", func(t *testing.T) {
-		// Arrange
-		existing := managed("block") + "\nuser note\n"
-
-		// Act
-		rest := stripManaged(existing)
-
-		// Assert
-		assert.Equal(t, "user note\n", rest)
-	})
-
-	t.Run("preserves content that precedes the begin marker", func(t *testing.T) {
-		// Arrange
-		existing := "before\n" + managed("block") + "after\n"
-
-		// Act
-		rest := stripManaged(existing)
-
-		// Assert
-		assert.Equal(t, "before\nafter\n", rest)
-	})
-
-	t.Run("missing end marker falls back to preserving everything", func(t *testing.T) {
-		// Arrange
-		existing := instructionsBeginMarker + "\nblock, never closed\n"
-
-		// Act
-		rest := stripManaged(existing)
-
-		// Assert
-		assert.Equal(t, existing, rest)
-	})
+			// Assert
+			assert.Equal(t, tc.want, rest)
+		})
+	}
 }
 
 func Test_readInstructions(t *testing.T) {

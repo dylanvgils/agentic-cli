@@ -15,15 +15,18 @@ import (
 )
 
 func Test_addBuildFlags(t *testing.T) {
-	for _, args := range [][]string{
-		{"--base", "java", "--base-exact", "node"},
-		{"--apt", "make", "--apt-exact", "gcc"},
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "--base and --base-exact are mutually exclusive", args: []string{"--base", "java", "--base-exact", "node"}},
+		{name: "--apt and --apt-exact are mutually exclusive", args: []string{"--apt", "make", "--apt-exact", "gcc"}},
 	} {
-		t.Run(args[0]+" and "+args[2]+" are mutually exclusive", func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
 			addBuildFlags(cmd)
-			cmd.SetArgs(args)
+			cmd.SetArgs(tc.args)
 
 			// Act
 			err := cmd.Execute()
@@ -159,45 +162,57 @@ func Test_requireArgOrAll(t *testing.T) {
 }
 
 func Test_argOrAllExclusive(t *testing.T) {
-	t.Run("an arg with all is refused", func(t *testing.T) {
-		// Act
-		err := argOrAllExclusive(newTestAllCmd(t, true), []string{"claude"})
+	for _, tc := range []struct {
+		name    string
+		all     bool
+		wantErr string
+	}{
+		{name: "an arg with all is refused", all: true, wantErr: "an argument and --all can't be used together"},
+		{name: "an arg alone passes"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			cmd := newTestAllCmd(t, tc.all)
 
-		// Assert
-		assert.EqualError(t, err, "an argument and --all can't be used together")
-	})
+			// Act
+			err := argOrAllExclusive(cmd, []string{"claude"})
 
-	t.Run("an arg alone passes", func(t *testing.T) {
-		// Act
-		err := argOrAllExclusive(newTestAllCmd(t, false), []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-	})
+			// Assert
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func Test_warnSkipInstallChecksum(t *testing.T) {
-	t.Run("warns when the checksum is skipped", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name    string
+		opts    tools.BuildOptions
+		wantLog string
+	}{
+		{
+			name:    "warns when the checksum is skipped",
+			opts:    tools.BuildOptions{SkipInstallChecksum: true},
+			wantLog: "agentic: warning: --skip-install-checksum disables install script integrity verification\n",
+		},
+		{
+			name: "stays quiet otherwise",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		warnSkipInstallChecksum(tools.BuildOptions{SkipInstallChecksum: true})
+			// Act
+			warnSkipInstallChecksum(tc.opts)
 
-		// Assert
-		assert.Contains(t, logs.String(), "--skip-install-checksum disables install script integrity verification")
-	})
-
-	t.Run("stays quiet otherwise", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		warnSkipInstallChecksum(tools.BuildOptions{})
-
-		// Assert
-		assert.Empty(t, logs.String())
-	})
+			// Assert
+			assert.Equal(t, tc.wantLog, logs.String())
+		})
+	}
 }
 
 func Test_runtimeFlags(t *testing.T) {

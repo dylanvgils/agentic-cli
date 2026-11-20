@@ -322,35 +322,38 @@ func TestPreviewInstructions(t *testing.T) {
 }
 
 func Test_instructionsEnabled(t *testing.T) {
-	t.Run("unset defaults to enabled", func(t *testing.T) {
-		// Act
-		enabled := instructionsEnabled(&config.AgenticRC{})
+	on := true
+	off := false
 
-		// Assert
-		assert.True(t, enabled)
-	})
+	for _, tc := range []struct {
+		name    string
+		enabled *bool
+		want    bool
+	}{
+		{
+			name: "unset defaults to enabled",
+			want: true,
+		},
+		{
+			name:    "explicit true is enabled",
+			enabled: &on,
+			want:    true,
+		},
+		{
+			name:    "explicit false is disabled",
+			enabled: &off,
+			want:    false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: tc.enabled}}}
 
-	t.Run("explicit true is enabled", func(t *testing.T) {
-		// Arrange
-		on := true
-		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &on}}}
+			// Act
+			enabled := instructionsEnabled(rc)
 
-		// Act
-		enabled := instructionsEnabled(rc)
-
-		// Assert
-		assert.True(t, enabled)
-	})
-
-	t.Run("explicit false is disabled", func(t *testing.T) {
-		// Arrange
-		off := false
-		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &off}}}
-
-		// Act
-		enabled := instructionsEnabled(rc)
-
-		// Assert
-		assert.False(t, enabled)
-	})
+			// Assert
+			assert.Equal(t, tc.want, enabled)
+		})
+	}
 }

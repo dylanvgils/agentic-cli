@@ -48,31 +48,37 @@ func Test_proxyRules(t *testing.T) {
 func Test_proxyIntegrations(t *testing.T) {
 	rc := &config.AgenticRC{}
 	flags := resolve.ProxyInput{Integrations: []string{"maven"}}
-	caps := sandbox.Features{ProxyIntegrations: true}
 
-	t.Run("returns them with the proxy on a runtime that supports them", func(t *testing.T) {
-		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.EgressEnforce, caps)
+	for _, tc := range []struct {
+		name     string
+		mode     sandbox.EgressMode
+		features sandbox.Features
+		want     []string
+	}{
+		{
+			name:     "returns them with the proxy on a runtime that supports them",
+			mode:     sandbox.EgressEnforce,
+			features: sandbox.Features{ProxyIntegrations: true},
+			want:     []string{"maven"},
+		},
+		{
+			name:     "none without the proxy",
+			mode:     sandbox.EgressOff,
+			features: sandbox.Features{ProxyIntegrations: true},
+		},
+		{
+			name: "none on a runtime without them",
+			mode: sandbox.EgressEnforce,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			integrations := proxyIntegrations(flags, rc, tc.mode, tc.features)
 
-		// Assert
-		assert.Equal(t, []string{"maven"}, integrations)
-	})
-
-	t.Run("none without the proxy", func(t *testing.T) {
-		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.EgressOff, caps)
-
-		// Assert
-		assert.Empty(t, integrations)
-	})
-
-	t.Run("none on a runtime without them", func(t *testing.T) {
-		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.EgressEnforce, sandbox.Features{})
-
-		// Assert
-		assert.Empty(t, integrations)
-	})
+			// Assert
+			assert.Equal(t, tc.want, integrations)
+		})
+	}
 }
 
 func Test_proxyLogFile(t *testing.T) {

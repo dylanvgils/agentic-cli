@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,4 +93,12 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "fail on agentic-claude")
 	})
+}
+
+func Test_logCleanSummary(t *testing.T) {
+	// Act
+	out := iostreamstest.CaptureErr(t, func() { logCleanSummary(clean.Plan{}) })
+
+	// Assert
+	assert.Empty(t, out)
 }

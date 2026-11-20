@@ -522,31 +522,45 @@ func Test_credentialFor(t *testing.T) {
 		assert.Equal(t, cred, got)
 	})
 
-	t.Run("subdomain of a credentialed host has no credential", func(t *testing.T) {
-		// Act
-		_, ok := inject.credentialFor("evil.api.example.test", "443")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("unmatched host has no credential", func(t *testing.T) {
-		// Act
-		_, ok := inject.credentialFor("example-test.evil", "443")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("credentialed host on another port has no credential", func(t *testing.T) {
-		for _, port := range []string{"80", "8443", ""} {
+	for _, tc := range []struct {
+		name string
+		host string
+		port string
+	}{
+		{
+			name: "subdomain of a credentialed host has no credential",
+			host: "evil.api.example.test",
+			port: "443",
+		},
+		{
+			name: "unmatched host has no credential",
+			host: "example-test.evil",
+			port: "443",
+		},
+		{
+			name: "credentialed host on port 80 has no credential",
+			host: "api.example.test",
+			port: "80",
+		},
+		{
+			name: "credentialed host on port 8443 has no credential",
+			host: "api.example.test",
+			port: "8443",
+		},
+		{
+			name: "credentialed host without a port has no credential",
+			host: "api.example.test",
+			port: "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			_, ok := inject.credentialFor("api.example.test", port)
+			_, ok := inject.credentialFor(tc.host, tc.port)
 
 			// Assert
-			assert.False(t, ok, port)
-		}
-	})
+			assert.False(t, ok)
+		})
+	}
 }
 
 func Test_reverseProxy(t *testing.T) {

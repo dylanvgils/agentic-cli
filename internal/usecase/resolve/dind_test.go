@@ -10,36 +10,39 @@ import (
 
 func TestDindEnabled(t *testing.T) {
 	enabled := true
+	rcEnabled := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
 
-	t.Run("no flag and no config defaults off", func(t *testing.T) {
-		// Act
-		result := DindEnabled(DindInput{}, &config.AgenticRC{})
+	for _, tc := range []struct {
+		name string
+		in   DindInput
+		rc   *config.AgenticRC
+		want bool
+	}{
+		{
+			name: "no flag and no config defaults off",
+			rc:   &config.AgenticRC{},
+			want: false,
+		},
+		{
+			name: "config enabled is honored",
+			rc:   rcEnabled,
+			want: true,
+		},
+		{
+			name: "no-dind flag overrides config enabled",
+			in:   DindInput{NoDindFlag: true},
+			rc:   rcEnabled,
+			want: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := DindEnabled(tc.in, tc.rc)
 
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("config enabled is honored", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
-
-		// Act
-		result := DindEnabled(DindInput{}, rc)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("no-dind flag overrides config enabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Enabled: &enabled}}}
-
-		// Act
-		result := DindEnabled(DindInput{NoDindFlag: true}, rc)
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestDindResourceLimitsFor(t *testing.T) {
