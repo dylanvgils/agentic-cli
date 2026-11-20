@@ -7,13 +7,11 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
-
-// defaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
-const defaultProxyLogRetentionDays = 3
 
 // proxyRules resolves the proxy's allow rules, allowing path rule hosts whole on a runtime that can't match paths.
 func proxyRules(c runConfig) []sandbox.AllowRule {
@@ -32,28 +30,24 @@ func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sand
 	return resolve.ProxyIntegrations(flags, rc)
 }
 
-// proxyLogFile returns rs's access-log path in the tool home's logs dir when the proxy is enabled, else "".
-func proxyLogFile(rs sandbox.RunSpec) string {
+// proxyLogFile returns rs's access-log path in its run log dir, started at start, when the proxy is enabled, else "".
+func proxyLogFile(rs sandbox.RunSpec, start time.Time) string {
 	if !rs.Egress.Mode.Enabled() {
 		return ""
 	}
-	return filepath.Join(rs.ToolHome, config.LogsDirName, proxy.LogFilePrefix+rs.RunID.String()+".jsonl")
+	return filepath.Join(logging.Dir(rs.ToolHome, rs.RunID.String(), start), proxy.LogFileName)
 }
 
-// prepareProxyLogDir creates dir and prunes the proxy logs in it older than toolHome's retention window.
-func prepareProxyLogDir(dir, toolHome string) error {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+// prepareProxyLogDir creates runDir and prunes the log dirs older than agentic.json's retention, the default if unreadable.
+func prepareProxyLogDir(runDir, toolHome string) error {
+	if err := os.MkdirAll(runDir, 0o750); err != nil {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 
-	proxy.PruneLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
-	return nil
-}
-
-// proxyRetentionDays resolves the proxy log retention window from agentic.json (a host-level setting, not .agenticrc.toml/a flag), falling back to the default when unset.
-func proxyRetentionDays(toolHome string) int {
-	if cfg, err := config.LoadConfig(toolHome); err == nil && cfg.ProxyLogRetentionDays > 0 {
-		return cfg.ProxyLogRetentionDays
+	cfg, err := config.LoadConfig(toolHome)
+	if err != nil {
+		cfg = &config.CliConfig{}
 	}
-	return defaultProxyLogRetentionDays
+	logging.Prune(toolHome, cfg.LogRetention())
+	return nil
 }

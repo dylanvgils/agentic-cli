@@ -6,16 +6,13 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
-// LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
-const LogFilePrefix = "proxy_"
+// LogFileName is the access log's name in its run's log dir.
+const LogFileName = "proxy.jsonl"
 
 const (
 	DecisionAllow Decision = "allow"
@@ -145,27 +142,6 @@ func DisplayHost(host string) string {
 		}
 	}
 	return host
-}
-
-// PruneLogs removes access logs in dir older than maxAge (<= 0 removes all), ignoring errors.
-func PruneLogs(dir string, maxAge time.Duration) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-
-	cutoff := time.Now().Add(-maxAge)
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), LogFilePrefix) || filepath.Ext(entry.Name()) != ".jsonl" {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil || info.ModTime().After(cutoff) {
-			continue
-		}
-		_ = os.Remove(filepath.Join(dir, entry.Name()))
-	}
 }
 
 // requestRecord returns entry as an info "request" record stamped with its time, its flags only when set.

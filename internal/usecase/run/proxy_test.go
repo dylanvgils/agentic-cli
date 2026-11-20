@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -74,31 +75,6 @@ func Test_proxyIntegrations(t *testing.T) {
 	})
 }
 
-func Test_proxyRetentionDays(t *testing.T) {
-	t.Run("uses the value configured in agentic.json", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"proxy_log_retention_days":30}`), 0o640))
-
-		// Act
-		result := proxyRetentionDays(home)
-
-		// Assert
-		assert.Equal(t, 30, result)
-	})
-
-	t.Run("falls back to default when not configured", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-
-		// Act
-		result := proxyRetentionDays(home)
-
-		// Assert
-		assert.Equal(t, defaultProxyLogRetentionDays, result)
-	})
-}
-
 func Test_proxyLogFile(t *testing.T) {
 	t.Run("returns empty string when proxy is disabled", func(t *testing.T) {
 		// Arrange
@@ -108,13 +84,13 @@ func Test_proxyLogFile(t *testing.T) {
 		}
 
 		// Act
-		file := proxyLogFile(rs)
+		file := proxyLogFile(rs, time.Now())
 
 		// Assert
 		assert.Empty(t, file)
 	})
 
-	t.Run("names the run's proxy log in the tool home's logs dir without creating it", func(t *testing.T) {
+	t.Run("names the proxy log in the run's log dir without creating it", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		rs := sandbox.RunSpec{
@@ -122,46 +98,45 @@ func Test_proxyLogFile(t *testing.T) {
 			ToolHome: home,
 			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 		}
+		start := time.Date(2026, 11, 20, 15, 30, 45, 0, time.Local)
 
 		// Act
-		file := proxyLogFile(rs)
+		file := proxyLogFile(rs, start)
 
 		// Assert
-		assert.Equal(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"0123456789ab.jsonl"), file)
+		assert.Equal(t, filepath.Join(home, logging.DirName, "20261120-153045-0123456789ab", proxy.LogFileName), file)
 		assert.NoDirExists(t, filepath.Dir(file))
 	})
 }
 
 func Test_prepareProxyLogDir(t *testing.T) {
-	t.Run("creates the log dir", func(t *testing.T) {
+	t.Run("creates the run log dir", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		logDir := filepath.Join(home, config.LogsDirName)
+		runDir := logging.Dir(home, "0123456789ab", time.Now())
 
 		// Act
-		err := prepareProxyLogDir(logDir, home)
+		err := prepareProxyLogDir(runDir, home)
 
 		// Assert
 		require.NoError(t, err)
-		assert.DirExists(t, logDir)
+		assert.DirExists(t, runDir)
 	})
 
-	t.Run("prunes logs older than the retention window", func(t *testing.T) {
+	t.Run("prunes run log dirs older than the retention window", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"proxy_log_retention_days":1}`), 0o640))
-		logDir := filepath.Join(home, config.LogsDirName)
-		require.NoError(t, os.MkdirAll(logDir, 0o750))
-		oldLog := filepath.Join(logDir, proxy.LogFilePrefix+"old.jsonl")
-		require.NoError(t, os.WriteFile(oldLog, []byte("{}\n"), 0o644))
-		old := time.Now().Add(-48 * time.Hour)
-		require.NoError(t, os.Chtimes(oldLog, old, old))
+		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"log_retention_days":1}`), 0o640))
+		oldDir := logging.Dir(home, "ba9876543210", time.Now().Add(-48*time.Hour))
+		require.NoError(t, os.MkdirAll(oldDir, 0o750))
+		runDir := logging.Dir(home, "0123456789ab", time.Now())
 
 		// Act
-		err := prepareProxyLogDir(logDir, home)
+		err := prepareProxyLogDir(runDir, home)
 
 		// Assert
 		require.NoError(t, err)
-		assert.NoFileExists(t, oldLog)
+		assert.NoDirExists(t, oldDir)
+		assert.DirExists(t, runDir)
 	})
 }

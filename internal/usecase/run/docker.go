@@ -3,6 +3,7 @@ package run
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -63,7 +64,7 @@ func (r dockerRunner) Check(req Request) error {
 
 // Run readies the host, starts the sidecars and runs the tool, rechecking the mounts right before each starts.
 func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
-	proxyLog := proxyLogFile(rs)
+	proxyLog := proxyLogFile(rs, time.Now())
 	if err := r.prepareDockerHost(rs, registry, proxyLog); err != nil {
 		return err
 	}
@@ -93,7 +94,7 @@ func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 
 // DryRun prints the network, sidecar and tool commands Run would run.
 func (r dockerRunner) DryRun(rs sandbox.RunSpec) error {
-	return r.docker.DryRun(rs, proxyLogFile(rs))
+	return r.docker.DryRun(rs, proxyLogFile(rs, time.Now()))
 }
 
 // Teardown removes run id's containers, network and host files.

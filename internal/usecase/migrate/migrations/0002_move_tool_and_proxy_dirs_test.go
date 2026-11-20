@@ -5,9 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,8 +49,8 @@ func TestMoveToolAndProxyDirs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assertFileContent(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"aaa111.jsonl"), "log-1")
-		assertFileContent(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"bbb222.jsonl"), "log-2")
+		assertFileContent(t, filepath.Join(home, "logs", "proxy_aaa111.jsonl"), "log-1")
+		assertFileContent(t, filepath.Join(home, "logs", "proxy_bbb222.jsonl"), "log-2")
 		assert.NoDirExists(t, filepath.Join(home, "proxy"))
 	})
 
@@ -66,7 +64,7 @@ func TestMoveToolAndProxyDirs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.DirExists(t, filepath.Join(home, tools.ToolsDirName))
-		assert.DirExists(t, filepath.Join(home, config.LogsDirName))
+		assert.DirExists(t, filepath.Join(home, "logs"))
 	})
 
 	t.Run("idempotent on retry after partial failure", func(t *testing.T) {
@@ -84,7 +82,7 @@ func TestMoveToolAndProxyDirs(t *testing.T) {
 		assertFileContent(t, filepath.Join(home, tools.ToolsDirName, "claude", "data", "x"), "claude-data")
 		assertFileContent(t, filepath.Join(home, tools.ToolsDirName, "copilot", "y"), "copilot-data")
 		assert.NoDirExists(t, filepath.Join(home, "copilot"))
-		assertFileContent(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"aaa111.jsonl"), "log-1")
+		assertFileContent(t, filepath.Join(home, "logs", "proxy_aaa111.jsonl"), "log-1")
 		assert.NoDirExists(t, filepath.Join(home, "proxy"))
 
 		// Act again
@@ -94,7 +92,7 @@ func TestMoveToolAndProxyDirs(t *testing.T) {
 		require.NoError(t, err)
 		assertFileContent(t, filepath.Join(home, tools.ToolsDirName, "claude", "data", "x"), "claude-data")
 		assertFileContent(t, filepath.Join(home, tools.ToolsDirName, "copilot", "y"), "copilot-data")
-		assertFileContent(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"aaa111.jsonl"), "log-1")
+		assertFileContent(t, filepath.Join(home, "logs", "proxy_aaa111.jsonl"), "log-1")
 	})
 
 	t.Run("leaves marketplaces, agentic.json, and .migrations.json untouched", func(t *testing.T) {

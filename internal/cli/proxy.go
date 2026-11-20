@@ -1,13 +1,9 @@
 package cli
 
 import (
-	"path/filepath"
-
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/spf13/cobra"
@@ -46,7 +42,7 @@ func init() {
 
 	proxyBuildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 
-	proxyCleanCmd.Flags().Bool("logs", false, "also remove all proxy access logs, regardless of age")
+	proxyCleanCmd.Flags().Bool("logs", false, "also remove all logs, proxy access logs included, regardless of age")
 
 	addRegistryFlag(proxyBuildCmd)
 	addRegistryFlag(proxyUpdateCmd)
@@ -83,8 +79,8 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		logging.Info("removing proxy logs")
-		proxy.PruneLogs(filepath.Join(toolHome, config.LogsDirName), 0)
+		logging.Info("removing all logs")
+		logging.Prune(toolHome, 0)
 	}
 
 	return nil

@@ -18,7 +18,7 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor; agentic on
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
 | `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](images.md#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
-| `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
+| `log_retention_days`       | scalar | Days to keep [log dirs](usage.md#data-directory). Default: `3`.         | -                  |
 
 ## `state.json`
 

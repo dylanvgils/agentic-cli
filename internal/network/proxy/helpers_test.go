@@ -317,7 +317,7 @@ func testPlaceholderCredential(host, placeholder string) Credential {
 // writeAccessLog writes lines as an access log in a temp dir and returns its path.
 func writeAccessLog(t *testing.T, lines ...string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), LogFilePrefix+"abc.jsonl")
+	path := filepath.Join(t.TempDir(), LogFileName)
 	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
 	return path
 }

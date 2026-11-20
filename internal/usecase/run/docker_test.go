@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -272,7 +275,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.False(t, ran)
 	})
 
-	t.Run("starts the proxy logging to a new file in the tool home's logs dir", func(t *testing.T) {
+	t.Run("starts the proxy logging to a run log dir in the tool home's logs dir", func(t *testing.T) {
 		// Arrange
 		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
 		var proxyLog string
@@ -286,7 +289,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(rs.ToolHome, config.LogsDirName), filepath.Dir(proxyLog))
+		assert.Equal(t, filepath.Join(rs.ToolHome, logging.DirName), filepath.Dir(filepath.Dir(proxyLog)))
 	})
 
 	t.Run("prints the proxy summary once the sidecars stopped", func(t *testing.T) {
@@ -339,11 +342,11 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 	t.Run("creates the proxy log dir when the proxy is on", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		logDir := filepath.Join(home, config.LogsDirName)
+		logDir := logging.Dir(home, "0123456789ab", time.Now())
 		rs := sandbox.RunSpec{ToolHome: home, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
 
 		// Act
-		err := newTestDockerRunner(&fakeDocker{}).prepareDockerHost(rs, "", filepath.Join(logDir, "proxy_abc.jsonl"))
+		err := newTestDockerRunner(&fakeDocker{}).prepareDockerHost(rs, "", filepath.Join(logDir, proxy.LogFileName))
 
 		// Assert
 		require.NoError(t, err)
@@ -408,5 +411,5 @@ func Test_dockerRunner_DryRun(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(rs.ToolHome, config.LogsDirName), filepath.Dir(proxyLog))
+	assert.Equal(t, filepath.Join(rs.ToolHome, logging.DirName), filepath.Dir(filepath.Dir(proxyLog)))
 }

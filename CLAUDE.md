@@ -54,6 +54,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - It says what a run gets (`Egress`, `Credentials`, `Dind`), never how: sidecar names, aliases, env wiring and host log paths stay in the runtime.
   - Only what images bake in (the proxy's alias and port, the Maven settings path) lives in `internal/image/tools`.
   - A setting a runtime can't honor gets a `Features` field, refused in `refuseMissing` or warned about in `warnIgnored`.
+- Log files go in a dated dir from `logging.Dir` (a run passes its ID); `logging.Prune` removes whole dirs past the retention window.
 - All Docker calls go through `*docker.Client`; no package-level Docker funcs or state. Client methods are operations; the caller decides what results mean.
 - The only package-level state is the clients in `internal/cli/deps.go` (`dockerClient`, `msbClient`, ...), passed to usecases through `New`, and the defaults in `iostreams`/`logging`.
 - Usecase shape (follow `internal/usecase/build`):
