@@ -98,7 +98,7 @@ func TestClient_createProxy(t *testing.T) {
 		calls := get()
 		createArgs := findCall(calls, "create")
 
-		assert.Nil(t, findCall(calls, "network", "create"), "setupSidecars creates the run network")
+		assert.Nil(t, findCall(calls, "network", "create"), "startSidecars creates the run network")
 		assert.Nil(t, findCall(calls, "start"))
 
 		assert.Contains(t, createArgs, "--network=agentic-run-abc")
@@ -328,23 +328,6 @@ func Test_proxyEnvArgs(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
-	})
-}
-
-func Test_setupProxy(t *testing.T) {
-	client := newTestClient()
-
-	t.Run("propagates startProxy error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "network inspect", "network create")
-		rs := newProxyRun(t, sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}})
-
-		// Act
-		env, err := client.setupProxy(rs, nil)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Nil(t, env)
 	})
 }
 

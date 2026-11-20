@@ -39,7 +39,7 @@ func Test_startDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		calls := get()
-		assert.Nil(t, findCall(calls, "network", "create"), "setupSidecars owns the run network")
+		assert.Nil(t, findCall(calls, "network", "create"), "startSidecars owns the run network")
 		assert.Contains(t, findCall(calls, "run"), "--network=agentic-run-abc")
 		assert.NotNil(t, findCall(calls, "network", "inspect", arg("format", subnetsFormat), "agentic-run-abc"))
 		assert.Contains(t, findCall(calls, "run"), "--default-address-pool=base=10.200.0.0/16,size=24")
@@ -107,32 +107,6 @@ func Test_startDind(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "start docker sidecar")
-	})
-}
-
-func Test_setupDind(t *testing.T) {
-	client := newTestClient()
-
-	stubDindReadyTimeout(t, client)
-
-	t.Run("propagates startDind error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{
-			RunSpec: sandbox.RunSpec{
-				RunID:    testRunID,
-				User:     &testUser,
-				ToolHome: t.TempDir(),
-				Dind:     sandbox.DindSpec{Enabled: true},
-			},
-		}
-
-		// Act
-		args, err := client.setupDind(rs, nil)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Nil(t, args)
 	})
 }
 

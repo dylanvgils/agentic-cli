@@ -69,15 +69,21 @@ func (c *Client) DryRun(spec sandbox.RunSpec, proxyLog string) error {
 	return nil
 }
 
-// StartSidecars starts spec's run network and sidecars, the proxy logging to proxyLog.
+// StartSidecars sweeps orphans, then starts spec's run network and sidecars, the proxy logging to proxyLog; it tears the
+// run down on failure.
 func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars, error) {
 	rs, err := newToolRun(spec, proxyLog)
 	if err != nil {
 		return Sidecars{}, err
 	}
 
-	args, guard, err := c.setupSidecars(rs)
+	warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
+
+	// Only sidecars have a startup to interrupt
+	guard := c.guardRun(rs.ToolHome, rs.RunID, rs.Egress.Mode.Enabled() || rs.Dind.Enabled)
+	args, err := c.startSidecars(rs, guard.signals)
 	if err != nil {
+		guard.release()
 		return Sidecars{}, err
 	}
 	return Sidecars{run: rs, args: args, guard: guard}, nil

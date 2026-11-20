@@ -39,6 +39,7 @@ func TestClient_DryRun(t *testing.T) {
 
 func TestClient_StartSidecars(t *testing.T) {
 	client := newTestClient()
+	network := runNetworkName(testRunID)
 
 	t.Run("refuses a spec without a host user before touching Docker", func(t *testing.T) {
 		// Arrange
@@ -82,23 +83,88 @@ func TestClient_StartSidecars(t *testing.T) {
 		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
 	})
 
-	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
+	t.Run("sweeps orphans, then creates the run network", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t, client)
-		stubDockerRunCapture(t, client, "exec")
-		rs := sandbox.RunSpec{
-			RunID:    testRunID,
-			Image:    "agentic-claude",
-			User:     &testUser,
-			ToolHome: t.TempDir(),
-			Dind:     sandbox.DindSpec{Enabled: true},
+		calls := stubDockerRunCapture(t, client)
+		spec := sandbox.RunSpec{
+			RunID: testRunID,
+			User:  &testUser,
+			Image: "agentic-claude",
 		}
 
 		// Act
-		_, err := client.StartSidecars(rs, "")
+		sidecars, err := client.StartSidecars(spec, "")
 
 		// Assert
-		assert.ErrorContains(t, err, "docker sidecar")
+		require.NoError(t, err)
+		require.NotNil(t, sidecars.guard)
+		got := calls()
+		assert.Equal(t, "ps", got[0].args[0])
+		createArgs := findCall(got, "network", "create")
+		assert.Equal(t, network, createArgs[len(createArgs)-1])
+		assert.Nil(t, findCall(got, "network", "rm"))
+	})
+
+	t.Run("tears the run down when the proxy fails to start", func(t *testing.T) {
+		// Arrange
+		calls := stubProxyDocker(t, client, "true", "create")
+		spec := newProxyRun(t, sandbox.RunSpec{
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		}).RunSpec
+
+		// Act
+		_, err := client.StartSidecars(spec, "")
+
+		// Assert
+		require.ErrorContains(t, err, "create proxy")
+		got := calls()
+		assert.NotNil(t, findCall(got, runContainersArgs(testRunID)...))
+		assert.Equal(t, []string{"network", "rm", network}, got[len(got)-1].args)
+	})
+
+	t.Run("a failed network create starts no sidecar", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client, "network create")
+		spec := newProxyRun(t, sandbox.RunSpec{
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		}).RunSpec
+
+		// Act
+		_, err := client.StartSidecars(spec, "")
+
+		// Assert
+		require.ErrorContains(t, err, "create run network")
+		assert.Nil(t, findCall(calls(), "create"))
+	})
+
+	t.Run("tears the proxy, network and run dir down when dind fails to start", func(t *testing.T) {
+		// Arrange
+		stubDindReadyTimeout(t, client)
+		toolHome := t.TempDir()
+		daemon := &fakeDaemon{failing: [][]string{{"exec"}}}
+		stubDaemon(t, client, daemon)
+		spec := newProxyRun(t, sandbox.RunSpec{
+			Image:    "agentic-claude",
+			ToolHome: toolHome,
+			Dind:     sandbox.DindSpec{Enabled: true},
+		}).RunSpec
+		tool := "agentic-claude-" + string(testRunID)
+		daemon.containers = []ownedResource{
+			owned(dindContainerName(testRunID), tool, testRunID, 0),
+		}
+		daemon.networks = []ownedResource{
+			owned(network, tool, testRunID, 0),
+		}
+
+		// Act
+		_, err := client.StartSidecars(spec, "")
+
+		// Assert
+		require.ErrorContains(t, err, "docker sidecar")
+		assert.Empty(t, daemon.names())
+		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 	})
 }
 

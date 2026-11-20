@@ -238,6 +238,7 @@ func (h dindHandle) exited() bool {
 
 // startDind writes the run files, starts the sidecar and waits for dockerd.
 func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, error) {
+	logging.Info("starting docker sidecar...")
 	h, err := c.newDindHandle(rs)
 	if err != nil {
 		return dindHandle{}, err
@@ -283,15 +284,6 @@ func (c *Client) dindAddressPool(network string) (string, error) {
 	return dind.AddressPool(subnets)
 }
 
-// setupDind starts the Docker sidecar if enabled and returns the tool args.
-func (c *Client) setupDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []string, err error) {
-	if !rs.Dind.Enabled {
-		return nil, nil
-	}
-
-	return c.launchDind(rs, interrupt)
-}
-
 // dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
 func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, err error) {
 	handle, err := c.newDindHandle(rs)
@@ -300,16 +292,6 @@ func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, err error) {
 	}
 
 	sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(rs))
-	return handle.toolArgs(), nil
-}
-
-// launchDind starts the sidecar and returns the tool args.
-func (c *Client) launchDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []string, err error) {
-	logging.Info("starting docker sidecar...")
-	handle, err := c.startDind(rs, interrupt)
-	if err != nil {
-		return nil, err
-	}
 	return handle.toolArgs(), nil
 }
 
