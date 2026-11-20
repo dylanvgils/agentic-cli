@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
 
@@ -110,7 +111,7 @@ func openLog(path string) (file *os.File, closeFn func(), err error) {
 		return nil, func() { /* no file to close */ }, nil
 	}
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, hostfs.Private.File())
 	if err != nil {
 		return nil, nil, fmt.Errorf("open proxy log %q: %w", path, err)
 	}
