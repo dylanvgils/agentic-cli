@@ -31,7 +31,8 @@
     {
       "matchDepNames": ["python"],
       "matchDatasources": ["python-version"],
-      "groupName": "Python version"
+      "groupName": "Python version",
+      "allowedVersions": "<3.15"
     },
     {
       "matchDepNames": ["golangci/golangci-lint"],
