@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
@@ -541,12 +543,12 @@ func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Cleanup(func() { msbClient = orig })
 }
 
-// writeProxyLog writes a proxy access log under the current toolHome's logs dir and returns its path.
+// writeProxyLog writes a proxy access log in a run log dir under the current toolHome and returns its path.
 func writeProxyLog(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join(toolHome, config.LogsDirName)
+	dir := logging.Dir(toolHome, "0123456789ab", time.Now())
 	require.NoError(t, os.MkdirAll(dir, 0o750))
-	path := filepath.Join(dir, proxy.LogFilePrefix+"run.jsonl")
+	path := filepath.Join(dir, proxy.LogFileName)
 	require.NoError(t, os.WriteFile(path, []byte("{}\n"), 0o600))
 	return path
 }

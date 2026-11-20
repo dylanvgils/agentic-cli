@@ -99,7 +99,7 @@ func Test_runProxyClean(t *testing.T) {
 		assert.FileExists(t, log)
 	})
 
-	t.Run("--logs wipes all proxy logs regardless of age", func(t *testing.T) {
+	t.Run("--logs wipes all logs regardless of age", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
 		withTempToolHome(t)
@@ -113,7 +113,7 @@ func Test_runProxyClean(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NoFileExists(t, log)
-		assert.Contains(t, logBuf.String(), "agentic: removing proxy logs")
+		assert.Contains(t, logBuf.String(), "agentic: removing all logs")
 	})
 
 	t.Run("propagates cleanImage error before touching logs", func(t *testing.T) {

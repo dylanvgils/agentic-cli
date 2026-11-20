@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -370,7 +369,7 @@ func (r *ToolRun) proxyRules() *proxyTable {
 // proxyLogs returns the paths of the proxy access logs under the test AGENTIC_HOME.
 func proxyLogs(t *testing.T) map[string]bool {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(agenticHome, "logs", proxy.LogFilePrefix+"*.jsonl"))
+	paths, err := filepath.Glob(filepath.Join(agenticHome, "logs", "*", "proxy.jsonl"))
 	require.NoError(t, err)
 
 	logs := make(map[string]bool, len(paths))

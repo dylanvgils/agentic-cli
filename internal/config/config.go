@@ -5,16 +5,17 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-// LogsDirName is the subdirectory under $AGENTIC_HOME where log files are written.
-const LogsDirName = "logs"
+// defaultLogRetentionDays is how long log dirs are kept when agentic.json sets no retention.
+const defaultLogRetentionDays = 3
 
 // CliConfig holds the machine-wide settings users edit in $AGENTIC_HOME/agentic.json; agentic never writes it.
 type CliConfig struct {
-	Registry              string `json:"registry,omitempty"`
-	DockerContext         string `json:"docker_context,omitempty"`
-	ProxyLogRetentionDays int    `json:"proxy_log_retention_days,omitempty"`
+	Registry         string `json:"registry,omitempty"`
+	DockerContext    string `json:"docker_context,omitempty"`
+	LogRetentionDays int    `json:"log_retention_days,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
@@ -35,6 +36,15 @@ func LoadConfig(toolHome string) (*CliConfig, error) {
 	}
 
 	return &config, nil
+}
+
+// LogRetention returns how long log dirs are kept: log_retention_days, else the default.
+func (c *CliConfig) LogRetention() time.Duration {
+	days := c.LogRetentionDays
+	if days <= 0 {
+		days = defaultLogRetentionDays
+	}
+	return time.Duration(days) * 24 * time.Hour
 }
 
 // ConfigFile returns the path of agentic.json, which must never be mounted into a container.

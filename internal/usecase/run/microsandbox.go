@@ -6,6 +6,7 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -107,7 +108,7 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
 		return r.microsandbox.DryRun(rs)
 	}
 
-	published, err := r.docker.DryRunPublishedProxy(rs, proxyLogFile(rs), sandbox.RuntimeMicrosandbox)
+	published, err := r.docker.DryRunPublishedProxy(rs, proxyLogFile(rs, time.Now()), sandbox.RuntimeMicrosandbox)
 	if err != nil {
 		return err
 	}
@@ -116,7 +117,7 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
 
 // runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string) error {
-	proxyLog := proxyLogFile(rs)
+	proxyLog := proxyLogFile(rs, time.Now())
 	if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
 		return err
 	}

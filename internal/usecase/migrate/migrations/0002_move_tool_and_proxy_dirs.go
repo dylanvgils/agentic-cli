@@ -5,9 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 )
 
 // relocatedToolDirs is a historical snapshot, not tools.Names() - it must not track future tool changes.
@@ -36,7 +34,7 @@ func moveToolDirs(toolHome string) error {
 }
 
 func moveProxyLogs(toolHome string) error {
-	logsDir := filepath.Join(toolHome, config.LogsDirName)
+	logsDir := filepath.Join(toolHome, "logs")
 	if err := os.MkdirAll(logsDir, 0o750); err != nil {
 		return fmt.Errorf("create %s: %w", logsDir, err)
 	}
@@ -55,7 +53,7 @@ func moveProxyLogs(toolHome string) error {
 		}
 
 		src := filepath.Join(proxyDir, entry.Name())
-		dst := filepath.Join(logsDir, proxy.LogFilePrefix+entry.Name())
+		dst := filepath.Join(logsDir, "proxy_"+entry.Name())
 		if err := moveIfNeeded(src, dst); err != nil {
 			return fmt.Errorf("move proxy log %s: %w", entry.Name(), err)
 		}
