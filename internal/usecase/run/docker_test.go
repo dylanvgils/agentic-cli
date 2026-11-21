@@ -5,12 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -160,7 +158,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -180,7 +178,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(rs, "")
+		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -205,7 +203,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/late/sub:/data:ro"}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(rs, "")
+		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+late)
@@ -228,7 +226,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		assert.EqualError(t, err, "proxy error")
@@ -248,16 +246,17 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		assert.EqualError(t, err, "volume error")
 		assert.False(t, ran)
 	})
 
-	t.Run("starts the proxy logging to a run log dir in the tool home's logs dir", func(t *testing.T) {
+	t.Run("starts the proxy logging into the run's log dir", func(t *testing.T) {
 		// Arrange
 		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
+		logDir := t.TempDir()
 		var proxyLog string
 		d := &fakeDocker{startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
 			proxyLog = log
@@ -265,11 +264,11 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := newTestDockerRunner(d).Run(rs, "")
+		err := newTestDockerRunner(d).Run(rs, "", logDir)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(rs.ToolHome, logging.DirName), filepath.Dir(filepath.Dir(proxyLog)))
+		assert.Equal(t, filepath.Join(logDir, proxy.LogFileName), proxyLog)
 	})
 
 	t.Run("prints the proxy summary once the sidecars stopped", func(t *testing.T) {
@@ -290,7 +289,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := newTestDockerRunner(d).Run(rs, "")
+		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -311,26 +310,12 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
 
 		// Act
-		err := newTestDockerRunner(d).prepareDockerHost(rs, "registry.example.test", "")
+		err := newTestDockerRunner(d).prepareDockerHost(rs, "registry.example.test")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"maven:/cache"}, gotVolumes)
 		assert.Equal(t, tools.BusyboxImageFor("registry.example.test"), gotChownImage)
-	})
-
-	t.Run("creates the proxy log dir when the proxy is on", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		logDir := logging.Dir(home, "0123456789ab", time.Now())
-		rs := sandbox.RunSpec{ToolHome: home, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
-
-		// Act
-		err := newTestDockerRunner(&fakeDocker{}).prepareDockerHost(rs, "", filepath.Join(logDir, proxy.LogFileName))
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, logDir)
 	})
 
 	t.Run("ensures the sidecar images for the run", func(t *testing.T) {
@@ -345,7 +330,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		rs.Dind.Enabled = true
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "registry.example.test", "")
+		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "registry.example.test")
 
 		// Assert
 		require.NoError(t, err)
@@ -360,7 +345,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		rs := newProxyRunSpec(t, sandbox.EgressMonitor)
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "", "")
+		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "")
 
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")
@@ -386,10 +371,12 @@ func Test_dockerRunner_DryRun(t *testing.T) {
 		},
 	}
 
+	logDir := filepath.Join(t.TempDir(), "logs")
+
 	// Act
-	err := newTestDockerRunner(d).DryRun(rs)
+	err := newTestDockerRunner(d).DryRun(rs, logDir)
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(rs.ToolHome, logging.DirName), filepath.Dir(filepath.Dir(proxyLog)))
+	assert.Equal(t, filepath.Join(logDir, proxy.LogFileName), proxyLog)
 }

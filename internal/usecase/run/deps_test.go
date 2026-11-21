@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 )
@@ -8,4 +9,5 @@ import (
 var (
 	_ Docker       = (*docker.Client)(nil)
 	_ Microsandbox = (*microsandbox.Client)(nil)
+	_ CommandLog   = (*cmdlog.Log)(nil)
 )

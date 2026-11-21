@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -34,12 +36,14 @@ type Client struct {
 	runner runner
 }
 
-// execRunner runs the msb binary found on PATH.
-type execRunner struct{}
+// execRunner runs the msb binary found on PATH, recording each command to log.
+type execRunner struct {
+	log *cmdlog.Log
+}
 
-// New returns a Client that runs the msb binary found on PATH.
-func New() *Client {
-	return &Client{runner: execRunner{}}
+// New returns a Client that runs the msb binary found on PATH, recording its commands to log.
+func New(log *cmdlog.Log) *Client {
+	return &Client{runner: execRunner{log: log}}
 }
 
 // Capabilities reports what msb runs offer; msb injects credentials and enforces the allowlist itself, but keeps no
@@ -79,24 +83,24 @@ func (c *Client) Version() (string, error) {
 	return v, nil
 }
 
-func (execRunner) Run(args ...string) (string, error) {
+func (r execRunner) Run(args ...string) (string, error) {
 	cmd, err := command(args...)
 	if err != nil {
 		return "", err
 	}
-	return output(cmd, args)
+	return r.output(cmd, args)
 }
 
-func (execRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+func (r execRunner) RunWithStdin(in io.Reader, args ...string) (string, error) {
 	cmd, err := command(args...)
 	if err != nil {
 		return "", err
 	}
-	cmd.Stdin = r
-	return output(cmd, args)
+	cmd.Stdin = in
+	return r.output(cmd, args)
 }
 
-func (execRunner) RunInteractive(env []string, args ...string) error {
+func (r execRunner) RunInteractive(env []string, args ...string) error {
 	cmd, err := command(args...)
 	if err != nil {
 		return err
@@ -107,7 +111,27 @@ func (execRunner) RunInteractive(env []string, args ...string) error {
 	cmd.Stdin = iostreams.Default().In
 	cmd.Stdout = iostreams.Default().Out
 	cmd.Stderr = iostreams.Default().Err
-	return cmd.Run()
+	return r.run(cmd, args)
+}
+
+// output runs cmd and returns its combined stdout+stderr, which the error includes on failure.
+func (r execRunner) output(cmd *exec.Cmd, args []string) (string, error) {
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if err := r.run(cmd, args); err != nil {
+		return "", fmt.Errorf("msb %v: %w\n%s", args, err, buf.String())
+	}
+	return buf.String(), nil
+}
+
+// run runs cmd, recording `msb <args>` with its env values masked, how it ended and how long it took; env given to
+// the process itself is never recorded.
+func (r execRunner) run(cmd *exec.Cmd, args []string) error {
+	start := time.Now()
+	err := cmd.Run()
+	r.log.Record("msb", sandbox.RedactEnvArgs(args), start, err)
+	return err
 }
 
 // command returns an `msb <args>` command for the msb binary on PATH.
@@ -117,17 +141,6 @@ func command(args ...string) (*exec.Cmd, error) {
 		return nil, err
 	}
 	return exec.Command(bin, args...), nil // NOSONAR - the user's own msb from PATH is intended
-}
-
-// output runs cmd and returns its combined stdout+stderr, which the error includes on failure.
-func output(cmd *exec.Cmd, args []string) (string, error) {
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("msb %v: %w\n%s", args, err, buf.String())
-	}
-	return buf.String(), nil
 }
 
 // lookPath finds the msb binary on PATH.

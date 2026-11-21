@@ -2,8 +2,6 @@ package run
 
 import (
 	"fmt"
-	"path/filepath"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -63,9 +61,9 @@ func (r dockerRunner) Check(req Request) error {
 }
 
 // Run readies the host, starts the sidecars and runs the tool, rechecking the mounts right before each starts.
-func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
-	proxyLog := proxyLogFile(rs, time.Now())
-	if err := r.prepareDockerHost(rs, registry, proxyLog); err != nil {
+func (r dockerRunner) Run(rs sandbox.RunSpec, registry, logDir string) error {
+	proxyLog := proxyLogFile(rs, logDir)
+	if err := r.prepareDockerHost(rs, registry); err != nil {
 		return err
 	}
 
@@ -93,8 +91,8 @@ func (r dockerRunner) Run(rs sandbox.RunSpec, registry string) error {
 }
 
 // DryRun prints the network, sidecar and tool commands Run would run.
-func (r dockerRunner) DryRun(rs sandbox.RunSpec) error {
-	return r.docker.DryRun(rs, proxyLogFile(rs, time.Now()))
+func (r dockerRunner) DryRun(rs sandbox.RunSpec, logDir string) error {
+	return r.docker.DryRun(rs, proxyLogFile(rs, logDir))
 }
 
 // Teardown removes run id's containers, network and host files.
@@ -102,18 +100,10 @@ func (r dockerRunner) Teardown(toolHome string, id sandbox.RunID) error {
 	return r.docker.Teardown(toolHome, id)
 }
 
-// prepareDockerHost creates rs's named volumes and proxyLog's dir and builds missing sidecar images.
-func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry, proxyLog string) error {
+// prepareDockerHost creates rs's named volumes and builds missing sidecar images.
+func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
 	if err := r.docker.EnsureNamedVolumes(rs, tools.BusyboxImageFor(registry)); err != nil {
 		return err
 	}
-
-	proxy, dind := rs.Egress.Mode.Enabled(), rs.Dind.Enabled
-	if proxy {
-		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
-			return err
-		}
-	}
-
-	return r.sidecarImages.Ensure(proxy, dind, registry)
+	return r.sidecarImages.Ensure(rs.Egress.Mode.Enabled(), rs.Dind.Enabled, registry)
 }

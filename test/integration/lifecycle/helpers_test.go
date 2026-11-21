@@ -5,6 +5,7 @@ package lifecycle
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -46,4 +47,23 @@ func killCLI(t *testing.T, pid int, wait func() error) {
 	require.NoError(t, err)
 	require.NoError(t, process.Kill())
 	_ = wait()
+}
+
+// commandLogs returns the command log of every run so far.
+func commandLogs(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(platform.AgenticHome(), "logs", "*", "commands.jsonl"))
+	require.NoError(t, err)
+	return paths
+}
+
+// newPaths returns the paths in after that aren't in before.
+func newPaths(after, before []string) []string {
+	var created []string
+	for _, path := range after {
+		if !slices.Contains(before, path) {
+			created = append(created, path)
+		}
+	}
+	return created
 }

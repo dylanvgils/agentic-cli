@@ -1,27 +1,33 @@
 package docker
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
+	// Arrange
+	log := cmdlog.New()
+
 	// Act
-	client := New("prod")
+	client := New("prod", log)
 
 	// Assert
 	assert.Equal(t, "prod", client.Context())
-	assert.Equal(t, execRunner{}, client.runner)
+	assert.Equal(t, execRunner{log: log}, client.runner)
 	assert.Equal(t, defaultTiming(), client.timing)
 }
 
 func TestClient_Capabilities(t *testing.T) {
 	// Act
-	caps := New("").Capabilities()
+	caps := New("", cmdlog.New()).Capabilities()
 
 	// Assert
 	assert.Equal(t, sandbox.Capabilities{
@@ -65,7 +71,7 @@ func TestClient_run(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			stubDocker(t, `printf '%s\n' "$@"`)
-			client := New(tc.context)
+			client := New(tc.context, cmdlog.New())
 
 			// Act
 			out, err := client.run("images", "--quiet")
@@ -79,7 +85,7 @@ func TestClient_run(t *testing.T) {
 	t.Run("returns error on failure", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `exit 1`)
-		client := New("")
+		client := New("", cmdlog.New())
 
 		// Act
 		_, err := client.run("bad-command")
@@ -93,7 +99,7 @@ func TestClient_runWithStdin(t *testing.T) {
 	t.Run("pipes stdin", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `cat`)
-		client := New("")
+		client := New("", cmdlog.New())
 
 		// Act
 		out, err := client.runWithStdin(strings.NewReader("hello\n"), "build", "-")
@@ -106,7 +112,7 @@ func TestClient_runWithStdin(t *testing.T) {
 	t.Run("prepends --context to the executed command", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `printf '%s\n' "$@"`)
-		client := New("prod")
+		client := New("prod", cmdlog.New())
 
 		// Act
 		out, err := client.runWithStdin(strings.NewReader(""), "build", "-")
@@ -119,7 +125,7 @@ func TestClient_runWithStdin(t *testing.T) {
 	t.Run("returns error with output on failure", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `echo boom; exit 1`)
-		client := New("")
+		client := New("", cmdlog.New())
 
 		// Act
 		_, err := client.runWithStdin(strings.NewReader(""), "build", "-")
@@ -163,7 +169,7 @@ func TestClient_stream(t *testing.T) {
 	t.Run("writes stdout to the writer", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `printf '%s\n' "$@"; echo noise >&2`)
-		client := New("prod")
+		client := New("prod", cmdlog.New())
 		var out strings.Builder
 
 		// Act
@@ -177,7 +183,7 @@ func TestClient_stream(t *testing.T) {
 	t.Run("returns stderr in the error on failure", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `echo boom >&2; exit 1`)
-		client := New("")
+		client := New("", cmdlog.New())
 		var out strings.Builder
 
 		// Act
@@ -187,6 +193,25 @@ func TestClient_stream(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "boom")
 	})
+}
+
+func Test_execRunner_run(t *testing.T) {
+	// Arrange
+	stubDocker(t, `exit 3`)
+	path := filepath.Join(t.TempDir(), "commands.jsonl")
+	log := cmdlog.New()
+	require.NoError(t, log.Open(path))
+	t.Cleanup(func() { log.Close() }) //nolint:errcheck
+
+	// Act
+	_, err := New("", log).run("run", "--env=API_KEY=test-secret", "img")
+
+	// Assert
+	require.Error(t, err)
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `"command":"docker","args":["run","--env=API_KEY=***","img"],"exit_code":3`)
+	assert.NotContains(t, string(got), "test-secret")
 }
 
 func Test_defaultTiming(t *testing.T) {

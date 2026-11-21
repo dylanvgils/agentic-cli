@@ -1,13 +1,9 @@
 package run
 
 import (
-	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -30,24 +26,10 @@ func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sand
 	return resolve.ProxyIntegrations(flags, rc)
 }
 
-// proxyLogFile returns rs's access-log path in its run log dir, started at start, when the proxy is enabled, else "".
-func proxyLogFile(rs sandbox.RunSpec, start time.Time) string {
+// proxyLogFile returns rs's access-log path in logDir when the proxy is enabled, else "".
+func proxyLogFile(rs sandbox.RunSpec, logDir string) string {
 	if !rs.Egress.Mode.Enabled() {
 		return ""
 	}
-	return filepath.Join(logging.Dir(rs.ToolHome, rs.RunID.String(), start), proxy.LogFileName)
-}
-
-// prepareProxyLogDir creates runDir and prunes the log dirs older than agentic.json's retention, the default if unreadable.
-func prepareProxyLogDir(runDir, toolHome string) error {
-	if err := hostfs.Data.MkdirAll(runDir); err != nil {
-		return fmt.Errorf("create log dir: %w", err)
-	}
-
-	cfg, err := config.LoadConfig(toolHome)
-	if err != nil {
-		cfg = &config.CliConfig{}
-	}
-	logging.Prune(toolHome, cfg.LogRetention())
-	return nil
+	return filepath.Join(logDir, proxy.LogFileName)
 }

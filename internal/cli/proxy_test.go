@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -67,56 +66,19 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 }
 
 func Test_runProxyClean(t *testing.T) {
-	t.Run("removes the proxy image and leaves logs alone without --logs", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		withTempToolHome(t)
-		var cleaned string
-		stubCleanImage(t, func(image string) error {
-			cleaned = image
-			return nil
-		})
-		log := writeProxyLog(t)
-
-		// Act
-		err := runProxyClean(proxyCleanCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.ProxyImage, cleaned)
-		assert.Contains(t, logBuf.String(), "agentic: removing agentic-proxy")
-		assert.FileExists(t, log)
+	// Arrange
+	logBuf := iostreamstest.StubErr(t)
+	var cleaned string
+	stubCleanImage(t, func(image string) error {
+		cleaned = image
+		return nil
 	})
 
-	t.Run("--logs wipes all logs regardless of age", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		withTempToolHome(t)
-		stubCleanImage(t, func(string) error { return nil })
-		log := writeProxyLog(t)
-		stubFlag(t, proxyCleanCmd, "logs", "true")
+	// Act
+	err := runProxyClean(proxyCleanCmd, nil)
 
-		// Act
-		err := runProxyClean(proxyCleanCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoFileExists(t, log)
-		assert.Contains(t, logBuf.String(), "agentic: removing all logs")
-	})
-
-	t.Run("propagates cleanImage error before touching logs", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		stubCleanImage(t, func(string) error { return fmt.Errorf("clean failed") })
-		log := writeProxyLog(t)
-		stubFlag(t, proxyCleanCmd, "logs", "true")
-
-		// Act
-		err := runProxyClean(proxyCleanCmd, nil)
-
-		// Assert
-		require.ErrorContains(t, err, "clean failed")
-		assert.FileExists(t, log)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, tools.ProxyImage, cleaned)
+	assert.Contains(t, logBuf.String(), "agentic: removing agentic-proxy")
 }

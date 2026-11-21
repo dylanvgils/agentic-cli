@@ -554,9 +554,10 @@ func newTestCleanCmd() *cobra.Command {
 	return cmd
 }
 
-func newTestPruneCmd(force bool) *cobra.Command {
+func newTestPruneCmd(force, logs bool) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.Flags().Bool("force", force, "")
+	cmd.Flags().Bool("logs", logs, "")
 	return cmd
 }
 

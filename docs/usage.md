@@ -178,6 +178,7 @@ After `build`, `update` and `proxy build`, agentic removes the old images that a
 ```bash
 agentic prune           # asks before clearing the build cache
 agentic prune --force   # clears it without asking
+agentic prune --logs    # also removes every run's logs
 ```
 
 `prune` removes sidecars and run networks that interrupted runs left behind, plus untagged agentic images, and keeps what active runs use. It then clears Docker's unused build cache. Docker can't tell agentic's cache apart, so this also clears the cache of your other builds and can slow down the next build.
@@ -196,7 +197,9 @@ agentic --docker-context prod build claude
 
 - `tools/<tool>/` - each tool's state. See [Volume mounts](volume-mounts.md) for the paths.
 - `marketplaces/` - [marketplace](#marketplaces) clones
-- `logs/<YYYYMMDD>-<HHMMSS>-<id>/` - one dir per run with its logs, e.g. `proxy.jsonl`, named after the run's start time
+- `logs/<YYYYMMDD>-<HHMMSS>-<id>/` - one dir per run, named after its start time and kept for [`log_retention_days`](config.md#agenticjson), or until [`agentic prune --logs`](#disk-space):
+  - `commands.jsonl` - every `docker` and `msb` command agentic ran for the run, as JSON lines with its start time, exit code and duration. `--env` values show as `***`.
+  - `proxy.jsonl` - the proxy's [access log](egress-proxy.md#access-log), with the proxy on.
 - `custom-installs/` - the [custom installs](config.md#buildcustom_installs) each image was built with, so `agentic update` can rebuild them. `agentic clean` removes the ones no image uses anymore.
 
 `--home` overrides it for one command, and every command accepts it: `agentic --home /opt/agentic run claude`.

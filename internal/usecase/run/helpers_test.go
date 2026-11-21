@@ -151,6 +151,23 @@ func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
 }
 
 // fakeWatchdog implements Watchdog, recording each spawn; err is what Spawn returns, and a non-nil onSpawn runs first.
+// fakeCommandLog records the paths Open was called with and how often Close was, failing Open with openErr.
+type fakeCommandLog struct {
+	opened  []string
+	closed  int
+	openErr error
+}
+
+func (f *fakeCommandLog) Open(path string) error {
+	f.opened = append(f.opened, path)
+	return f.openErr
+}
+
+func (f *fakeCommandLog) Close() error {
+	f.closed++
+	return nil
+}
+
 type fakeWatchdog struct {
 	spawned []sandbox.RunRef
 	err     error
@@ -191,7 +208,7 @@ func (f *fakeSidecarImages) Ensure(proxy, dind bool, registry string) error {
 
 // newTestService returns a Service over d and m whose tool updates and sidecar images succeed without doing anything.
 func newTestService(d Docker, m Microsandbox) *Service {
-	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{})
+	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{}, &fakeCommandLog{})
 }
 
 // newPlan returns a Plan running c on its runtime's runner from svc, as Resolve would, with the tool's host files set
@@ -210,7 +227,7 @@ func newPlan(t *testing.T, svc *Service, c runConfig) *Plan {
 
 // newUpdatingService returns a Docker-only Service offering tool updates through u.
 func newUpdatingService(d Docker, u ToolUpdates) *Service {
-	return New(d, nil, u, &fakeSidecarImages{}, &fakeWatchdog{})
+	return New(d, nil, u, &fakeSidecarImages{}, &fakeWatchdog{}, &fakeCommandLog{})
 }
 
 // newTestDockerRunner returns a dockerRunner over d whose sidecar images succeed without doing anything.

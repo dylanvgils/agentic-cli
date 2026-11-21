@@ -118,7 +118,7 @@ func resolveContext(cmd *cobra.Command) error {
 		}
 	}
 
-	dockerClient = docker.New(resolve.DockerContext(flagVal, project.RC, toolHome))
+	dockerClient = docker.New(resolve.DockerContext(flagVal, project.RC, toolHome), commandLog)
 	return nil
 }
 
