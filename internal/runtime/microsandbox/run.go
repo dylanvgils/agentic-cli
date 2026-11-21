@@ -88,7 +88,7 @@ func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 		if err != nil {
 			return err
 		}
-		defer func() { _ = removeEnvConf(rs.RunID) }()
+		defer func() { _ = os.Remove(path) }()
 		envArgs = append(envArgs, arg("runtime-conf", path))
 	}
 

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -165,11 +164,6 @@ func (h proxyHandle) writeTokenFile() (path string, remove func(), err error) {
 		return "", nil, fmt.Errorf("write proxy token file: %w", writeErr)
 	}
 	return f.Name(), remove, nil
-}
-
-// tokenFilePath returns run id's proxy token file.
-func tokenFilePath(id sandbox.RunID) string {
-	return filepath.Join(sandbox.RunTempDir(id), tokenFileName)
 }
 
 // parsePublishedPort returns the port of the first `docker port` line, e.g. "127.0.0.1:49153".

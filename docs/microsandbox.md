@@ -85,3 +85,6 @@ For `docker build` steps that fetch over HTTPS:
 
 - msb writes the terminal output of each run to its `exec.log`, so a secret printed to the terminal ends up on disk.
 - A VM escape lands in msb's process on the host, which runs as your user. See [Security model](security-model.md).
+- `agentic prune` doesn't sweep VMs: only the run's watchdog stops the VM of a killed run. If the watchdog was killed too:
+  1. Find the VM's name with `agentic ps --all`.
+  2. Stop it with `msb stop <name>`.

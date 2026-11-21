@@ -48,7 +48,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		assert.False(t, hasArgWithPrefix(create, "--env="+proxy.EnvClientNets), "the token admits clients instead")
 		assert.NotContains(t, strings.Join(create, " "), published.Token)
 		path, content := tokenFile()
-		assert.Equal(t, tokenFilePath(testRunID), path)
+		assert.Equal(t, filepath.Join(sandbox.RunTempDir(testRunID), tokenFileName), path)
 		assert.Equal(t, proxy.EnvAuthToken+"="+published.Token+"\n", content)
 		assert.NoFileExists(t, path, "removed once the container is created")
 		assert.Nil(t, findCall(calls(), "network", "connect"), "already on the egress network")
