@@ -19,7 +19,7 @@ func Test_runPrune(t *testing.T) {
 		}})
 
 		// Act
-		err := runPrune(newTestPruneCmd(true), nil)
+		err := runPrune(newTestPruneCmd(true, false), nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -39,10 +39,25 @@ func Test_runPrune(t *testing.T) {
 		}})
 
 		// Act
-		err := runPrune(newTestPruneCmd(false), nil)
+		err := runPrune(newTestPruneCmd(false, false), nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, cachePruned)
+	})
+
+	t.Run("--logs removes every run's logs", func(t *testing.T) {
+		// Arrange
+		iostreamstest.StubErr(t)
+		withTempToolHome(t)
+		stubDocker(t, &fakeDocker{})
+		log := writeProxyLog(t)
+
+		// Act
+		err := runPrune(newTestPruneCmd(true, true), nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NoFileExists(t, log)
 	})
 }

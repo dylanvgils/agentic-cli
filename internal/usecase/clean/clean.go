@@ -67,8 +67,9 @@ func (s *Service) Apply(plan Plan) error {
 	return s.removeSharedResources()
 }
 
-// Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
-func (s *Service) Prune(confirmCache func() bool) error {
+// Prune removes leftovers of interrupted runs, dangling images, with logs every run's logs and, if confirmCache
+// approves, the build cache.
+func (s *Service) Prune(logs bool, confirmCache func() bool) error {
 	swept, err := s.docker.SweepRuns(s.home)
 	if err != nil {
 		return err
@@ -78,6 +79,11 @@ func (s *Service) Prune(confirmCache func() bool) error {
 
 	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
 		return err
+	}
+
+	if logs {
+		logging.Step("run logs")
+		logging.Prune(s.home, 0)
 	}
 
 	if !confirmCache() {

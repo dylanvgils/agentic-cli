@@ -3,11 +3,14 @@ package clean
 import (
 	"errors"
 	"fmt"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -387,7 +390,7 @@ func TestService_Prune(t *testing.T) {
 
 		// Act
 		out := iostreamstest.CaptureErr(t, func() {
-			err := New("/agentic-home", d).Prune(func() bool { return true })
+			err := New("/agentic-home", d).Prune(false, func() bool { return true })
 			require.NoError(t, err)
 		})
 
@@ -408,13 +411,30 @@ func TestService_Prune(t *testing.T) {
 
 		// Act
 		out := iostreamstest.CaptureErr(t, func() {
-			err := New("/agentic-home", d).Prune(func() bool { return false })
+			err := New("/agentic-home", d).Prune(false, func() bool { return false })
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.False(t, cachePruned)
 		assert.Contains(t, out, "=> build cache (kept)")
+	})
+
+	t.Run("with logs removes every run's logs, regardless of age", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		logDir := logging.Dir(home, "0123456789ab", time.Now())
+		require.NoError(t, os.MkdirAll(logDir, 0o750))
+
+		// Act
+		out := iostreamstest.CaptureErr(t, func() {
+			err := New(home, &fakeDocker{}).Prune(true, func() bool { return false })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NoDirExists(t, logDir)
+		assert.Contains(t, out, "=> run logs\n")
 	})
 
 	t.Run("a failed sweep stops before pruning", func(t *testing.T) {
@@ -431,7 +451,7 @@ func TestService_Prune(t *testing.T) {
 		// Act
 		var err error
 		iostreamstest.CaptureErr(t, func() {
-			err = New("/agentic-home", d).Prune(func() bool { return true })
+			err = New("/agentic-home", d).Prune(false, func() bool { return true })
 		})
 
 		// Assert

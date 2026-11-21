@@ -42,8 +42,6 @@ func init() {
 
 	proxyBuildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 
-	proxyCleanCmd.Flags().Bool("logs", false, "also remove all logs, proxy access logs included, regardless of age")
-
 	addRegistryFlag(proxyBuildCmd)
 	addRegistryFlag(proxyUpdateCmd)
 	addDryRunFlag(proxyBuildCmd, "print the generated Dockerfile instead of building")
@@ -72,18 +70,9 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	return sidecar.New(dockerClient).BuildProxy(opts)
 }
 
-func runProxyClean(cmd *cobra.Command, _ []string) error {
+func runProxyClean(_ *cobra.Command, _ []string) error {
 	logging.Infof("removing %s", tools.ProxyImage)
-	if err := dockerClient.CleanImage(tools.ProxyImage); err != nil {
-		return err
-	}
-
-	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		logging.Info("removing all logs")
-		logging.Prune(toolHome, 0)
-	}
-
-	return nil
+	return dockerClient.CleanImage(tools.ProxyImage)
 }
 
 // printProxyDockerfile prints the proxy image's generated Dockerfile for --dry-run.
