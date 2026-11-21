@@ -28,7 +28,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Within a layer:
   - `runtime/dind` (sidecar files) never imports `runtime/docker`; the sidecar's container lifecycle lives in `runtime/docker/dind.go`.
   - `runtime/docker` and `runtime/microsandbox` never import each other.
-  - `usecase/run` gets other usecases injected and imports only `usecase/resolve`.
+  - Usecases import no other usecase except `usecase/resolve` (and `migrate` its own `migrate/migrations`); they get others injected through `deps.go`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
   - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.

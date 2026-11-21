@@ -285,3 +285,39 @@ func TestStateFile(t *testing.T) {
 	// Assert
 	assert.Equal(t, filepath.Join("/example.test/agentic", "state.json"), path)
 }
+
+func Test_State_MarkToolChecked(t *testing.T) {
+	at := time.Now().Add(-time.Minute).Truncate(time.Second)
+
+	t.Run("saves timestamp when none recorded", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		state := &State{}
+
+		// Act
+		err := state.MarkToolChecked("claude", at, home)
+
+		// Assert
+		require.NoError(t, err)
+		reloaded, err := LoadState(home)
+		require.NoError(t, err)
+		assert.True(t, at.Equal(reloaded.LastToolVersionCheck["claude"]))
+	})
+
+	t.Run("keeps other tools' timestamps", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		other := at.Add(-2 * time.Hour)
+		state := &State{LastToolVersionCheck: map[string]time.Time{"copilot": other}}
+
+		// Act
+		err := state.MarkToolChecked("claude", at, home)
+
+		// Assert
+		require.NoError(t, err)
+		reloaded, err := LoadState(home)
+		require.NoError(t, err)
+		assert.True(t, at.Equal(reloaded.LastToolVersionCheck["claude"]))
+		assert.True(t, other.Equal(reloaded.LastToolVersionCheck["copilot"]))
+	})
+}

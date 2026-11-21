@@ -114,6 +114,15 @@ func (state *State) ApproveSettings(layer RCLayer, toolHome string) error {
 	return state.Save(toolHome)
 }
 
+// MarkToolChecked records tool as checked at, so `agentic run` skips its upstream check until the interval passes, and saves the state.
+func (state *State) MarkToolChecked(tool string, at time.Time, toolHome string) error {
+	if state.LastToolVersionCheck == nil {
+		state.LastToolVersionCheck = make(map[string]time.Time)
+	}
+	state.LastToolVersionCheck[tool] = at
+	return state.Save(toolHome)
+}
+
 // StateFile returns the path of state.json, which must never be mounted into a container.
 func StateFile(toolHome string) string {
 	return filepath.Join(toolHome, "state.json")
