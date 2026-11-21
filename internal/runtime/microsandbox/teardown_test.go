@@ -2,7 +2,6 @@ package microsandbox
 
 import (
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -11,9 +10,8 @@ import (
 )
 
 func TestClient_Teardown(t *testing.T) {
-	t.Run("stops the run's VMs and removes its env file", func(t *testing.T) {
+	t.Run("stops the run's VMs", func(t *testing.T) {
 		// Arrange
-		stubRunTempDir(t)
 		var calls [][]string
 		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			calls = append(calls, args)
@@ -22,7 +20,6 @@ func TestClient_Teardown(t *testing.T) {
 			}
 			return "", nil
 		}})
-		require.NoError(t, os.WriteFile(envConfPath(testRunID), []byte("env:\n"), 0o600))
 
 		// Act
 		err := client.Teardown(testRunID)
@@ -41,7 +38,6 @@ func TestClient_Teardown(t *testing.T) {
 				"vm-a",
 			},
 		}, calls)
-		assert.NoFileExists(t, envConfPath(testRunID))
 	})
 
 	t.Run("a run already torn down is a no-op", func(t *testing.T) {
@@ -57,18 +53,15 @@ func TestClient_Teardown(t *testing.T) {
 		require.NoError(t, second)
 	})
 
-	t.Run("a failed listing still removes the env file", func(t *testing.T) {
+	t.Run("a failed listing is returned", func(t *testing.T) {
 		// Arrange
-		stubRunTempDir(t)
 		client := newTestClient(&fakeRunner{run: func(...string) (string, error) { return "", errors.New("stub: msb down") }})
-		require.NoError(t, os.WriteFile(envConfPath(testRunID), []byte("env:\n"), 0o600))
 
 		// Act
 		err := client.Teardown(testRunID)
 
 		// Assert
-		require.ErrorContains(t, err, "stub: msb down")
-		assert.NoFileExists(t, envConfPath(testRunID))
+		require.EqualError(t, err, "list the VMs of run "+string(testRunID)+": stub: msb down")
 	})
 
 	t.Run("refuses an invalid run id", func(t *testing.T) {

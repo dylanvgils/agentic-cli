@@ -3,7 +3,6 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -12,7 +11,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// Teardown removes run id's tool, then its sidecars, network and host files; best-effort and idempotent.
+// Teardown removes run id's tool, then its sidecars, network and dind run dir; best-effort and idempotent. Its other
+// host files go with its temp dir.
 func (c *Client) Teardown(toolHome string, id sandbox.RunID) error {
 	if _, err := sandbox.ParseRunID(id.String()); err != nil {
 		return err
@@ -21,7 +21,7 @@ func (c *Client) Teardown(toolHome string, id sandbox.RunID) error {
 	return errors.Join(
 		c.removeRunContainers(id),
 		c.removeNetwork(runNetworkName(id)),
-		removeRunFiles(toolHome, id),
+		removeDindRunDir(toolHome, id),
 	)
 }
 
@@ -59,21 +59,16 @@ func warnOnTeardownError(err error) {
 	}
 }
 
-// removeRunFiles removes id's dind run dir and proxy token file.
-func removeRunFiles(toolHome string, id sandbox.RunID) error {
-	var errs []error
-
+// removeDindRunDir removes id's dind run dir.
+func removeDindRunDir(toolHome string, id sandbox.RunID) error {
 	// Else the run dir would be relative to the cwd
-	if toolHome != "" {
-		if err := os.RemoveAll(dindRunDir(toolHome, id)); err != nil {
-			errs = append(errs, fmt.Errorf("remove dind run dir: %w", err))
-		}
+	if toolHome == "" {
+		return nil
 	}
-
-	if err := os.Remove(tokenFilePath(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		errs = append(errs, fmt.Errorf("remove proxy token file: %w", err))
+	if err := os.RemoveAll(dindRunDir(toolHome, id)); err != nil {
+		return fmt.Errorf("remove dind run dir: %w", err)
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // pidOwnedFirst orders pid-owned containers (the tool) before the sidecars they use.

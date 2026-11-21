@@ -17,12 +17,10 @@ func TestClient_Teardown(t *testing.T) {
 	dindName := dindContainerName(testRunID)
 	network := runNetworkName(testRunID)
 
-	t.Run("removes the tool, then its sidecars, network and files", func(t *testing.T) {
+	t.Run("removes the tool, then its sidecars, network and dind run dir", func(t *testing.T) {
 		// Arrange
-		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		makeDindRunDir(t, toolHome, string(testRunID), 0)
-		require.NoError(t, os.WriteFile(tokenFilePath(testRunID), []byte("token"), 0o600))
 		daemon := &fakeDaemon{
 			containers: []ownedResource{
 				owned(proxyName, tool, testRunID, 0),
@@ -49,7 +47,6 @@ func TestClient_Teardown(t *testing.T) {
 		}, daemon.removed())
 		assert.Equal(t, []string{"agentic-claude-" + string(otherRunID)}, daemon.names(), "other runs are kept")
 		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
-		assert.NoFileExists(t, tokenFilePath(testRunID))
 	})
 
 	t.Run("a run already torn down is a no-op", func(t *testing.T) {
