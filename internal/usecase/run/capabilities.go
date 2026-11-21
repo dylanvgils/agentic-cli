@@ -24,12 +24,12 @@ const (
 type featureRule struct {
 	has      func(sandbox.Features) bool // reads the field
 	policy   featurePolicy
-	shadowed func(sandbox.Features) bool // optional: a broader missing feature is reported instead
-	refused  func(Request) string        // refuse: names the feature and its source
-	hint     string                      // refuse: prefix for "use --runtime docker"
-	refuse   func(Request) error         // refuse: an error of its own that replaces the joined one
-	warn     func(Request) string        // warn: the whole message
-	spec     string                      // checkSpec's name; "" when checkSpec skips it
+	shadowed func(sandbox.Features) bool          // optional: a broader missing feature is reported instead
+	refused  func(Request) string                 // refuse: names the feature and its source
+	hint     string                               // refuse: prefix for "use --runtime docker"
+	refuse   func(Request, sandbox.Runtime) error // refuse: an error of its own that replaces the joined one
+	warn     func(Request) string                 // warn: the whole message
+	spec     string                               // checkSpec's name; "" when checkSpec skips it
 }
 
 // featureRules covers every Features field, in field order.
@@ -135,9 +135,9 @@ func specFeatures(rs sandbox.RunSpec) sandbox.Features {
 }
 
 // checkCapabilities refuses missing security features and warns about ignored settings.
-func checkCapabilities(req Request, offered sandbox.Features) error {
+func checkCapabilities(req Request, runtime sandbox.Runtime, offered sandbox.Features) error {
 	missing := offered.Missing(requiredFeatures(req.Flags, req.Project.RC))
-	if err := refuseMissing(req, missing); err != nil {
+	if err := refuseMissing(req, runtime, missing); err != nil {
 		return err
 	}
 
@@ -163,7 +163,7 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
 }
 
 // refuseMissing errors on missing security features, with a hint; a rule with an error of its own wins.
-func refuseMissing(req Request, missing sandbox.Features) error {
+func refuseMissing(req Request, runtime sandbox.Runtime, missing sandbox.Features) error {
 	var refused []string
 	var hint string
 	for _, r := range featureRules {
@@ -171,7 +171,7 @@ func refuseMissing(req Request, missing sandbox.Features) error {
 			continue
 		}
 		if r.refuse != nil {
-			return r.refuse(req)
+			return r.refuse(req, runtime)
 		}
 		refused = append(refused, r.refused(req))
 		if hint == "" {
@@ -260,13 +260,14 @@ func portsSource(req Request) string {
 	return layerSource(req.Project.Layers, "[run] ports", func(rc *config.AgenticRC) bool { return len(rc.Run.Ports) > 0 })
 }
 
-// refusePortsWithProxy errors on ports in a run whose egress goes through the proxy, naming what turns it on.
-func refusePortsWithProxy(req Request) error {
+// refusePortsWithProxy errors on ports in a run of req on runtime whose egress goes through the proxy, naming what turns
+// it on.
+func refusePortsWithProxy(req Request, runtime sandbox.Runtime) error {
 	cause, hint := credentialsSource(req), "use --runtime microsandbox"
 	if resolve.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
 		cause, hint = proxySource(req), "pass --no-proxy or "+hint
 	}
-	return fmt.Errorf("%s can't be used with the egress proxy (%s) on the %s runtime, as its run network has no route to the host; %s", portsSource(req), cause, req.runtime(), hint)
+	return fmt.Errorf("%s can't be used with the egress proxy (%s) on the %s runtime, as its run network has no route to the host; %s", portsSource(req), cause, runtime, hint)
 }
 
 // dindLimitsSet reports whether flags or rc set Docker daemon limits.

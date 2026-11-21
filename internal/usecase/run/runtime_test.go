@@ -203,31 +203,6 @@ func Test_Service_runner(t *testing.T) {
 	})
 }
 
-func Test_Service_capabilities(t *testing.T) {
-	dockerCaps := sandbox.Capabilities{Features: sandbox.Features{Proxy: true}}
-	msbCaps := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
-	svc := newTestService(
-		&fakeDocker{capabilities: func() sandbox.Capabilities { return dockerCaps }},
-		&fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return msbCaps }},
-	)
-
-	t.Run("microsandbox asks msb", func(t *testing.T) {
-		// Act
-		caps := svc.capabilities(sandbox.RuntimeMicrosandbox, "")
-
-		// Assert
-		assert.Equal(t, msbCaps, caps)
-	})
-
-	t.Run("an unknown runtime offers nothing", func(t *testing.T) {
-		// Act
-		caps := svc.capabilities("podman", "")
-
-		// Assert
-		assert.Equal(t, sandbox.Capabilities{}, caps)
-	})
-}
-
 func Test_Service_checkRuntime(t *testing.T) {
 	t.Run("a missing capability stops before the msb checks", func(t *testing.T) {
 		// Arrange
@@ -241,7 +216,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		}}
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
 
 		// Assert
 		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
@@ -254,7 +229,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		req.Flags.Runtime = "podman"
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -267,7 +242,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req)
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")

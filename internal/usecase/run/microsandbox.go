@@ -24,16 +24,9 @@ type microsandboxRunner struct {
 	agenticProxy bool
 }
 
-// Capabilities reports what msb offers, plus agentic-proxy's features when it's the backend.
+// Capabilities reports what msb offers with r's proxy backend.
 func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
-	caps := r.microsandbox.Capabilities()
-	if r.agenticProxy {
-		caps.ProxyMonitor = true
-		caps.PathRules = true
-		caps.CredentialsViaProxy = true
-		caps.EgressViaProxy = true
-	}
-	return caps
+	return r.microsandbox.Capabilities(r.agenticProxy)
 }
 
 // Check refuses a missing or too old msb; a dry run skips it.

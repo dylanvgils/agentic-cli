@@ -332,7 +332,7 @@ func Test_Service_resolveRun(t *testing.T) {
 			capabilities: func() sandbox.Capabilities { return caps },
 			inspectImage: func(string) (*docker.ImageInfo, error) { return image, nil },
 		}
-		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return caps }}
+		m := &fakeMicrosandbox{capabilities: func(bool) sandbox.Capabilities { return caps }}
 		return newTestService(d, m)
 	}
 	target := Target{
@@ -364,7 +364,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		c, err := newSvc(daemonCaps).resolveRun(req, rc)
+		c, err := resolveWith(t, newSvc(daemonCaps), req, rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -406,7 +406,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		_, err := newSvc(daemonCaps).resolveRun(req, rc)
+		_, err := resolveWith(t, newSvc(daemonCaps), req, rc)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
@@ -420,7 +420,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		_, err := newSvc(daemonCaps).resolveRun(req, &config.AgenticRC{})
+		_, err := resolveWith(t, newSvc(daemonCaps), req, &config.AgenticRC{})
 
 		// Assert
 		require.EqualError(t, err, `port "http": "http" must be a number from 1 to 65535`)
@@ -433,7 +433,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}, nil)
 
 		// Act
-		_, err := svc.resolveRun(Request{Target: target}, &config.AgenticRC{})
+		_, err := resolveWith(t, svc, Request{Target: target}, &config.AgenticRC{})
 
 		// Assert
 		require.EqualError(t, err, "inspect agentic-claude: docker daemon unreachable")
@@ -447,7 +447,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		_, err := newSvc(daemonCaps).resolveRun(req, &config.AgenticRC{})
+		_, err := resolveWith(t, newSvc(daemonCaps), req, &config.AgenticRC{})
 
 		// Assert
 		require.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
@@ -461,7 +461,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		c, err := newSvc(noDaemonCaps).resolveRun(req, &config.AgenticRC{})
+		c, err := resolveWith(t, newSvc(noDaemonCaps), req, &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -474,10 +474,46 @@ func Test_Service_resolveRun(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 
 		// Act
-		c, err := newSvc(noDaemonCaps).resolveRun(Request{Target: target}, rc)
+		c, err := resolveWith(t, newSvc(noDaemonCaps), Request{Target: target}, rc)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.EgressOff, c.Egress.Mode)
 	})
+}
+
+func Test_requireSameRuntime(t *testing.T) {
+	checked := runtimeChoice{name: sandbox.RuntimeDocker}
+	wantErr := "the approved config picks a different runtime than the one checked"
+	for _, tc := range []struct {
+		name    string
+		rc      config.RCRun
+		wantErr string
+	}{
+		{
+			name: "passes the checked runtime and backend",
+		},
+		{
+			name:    "refuses another runtime",
+			rc:      config.RCRun{Runtime: string(sandbox.RuntimeMicrosandbox)},
+			wantErr: wantErr,
+		},
+		{
+			name:    "refuses another backend",
+			rc:      config.RCRun{Proxy: config.RCProxy{Backend: config.BackendNative}},
+			wantErr: wantErr,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			err := requireSameRuntime(checked, Flags{}, &config.AgenticRC{Run: tc.rc})
+
+			// Assert
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.wantErr)
+		})
+	}
 }

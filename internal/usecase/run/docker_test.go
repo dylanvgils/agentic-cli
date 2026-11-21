@@ -109,9 +109,11 @@ func Test_dockerRunner_Check(t *testing.T) {
 			Flags:   Flags{DryRun: true, Proxy: resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendNative}},
 			Project: config.Project{RC: &config.AgenticRC{}},
 		}
+		r := newTestDockerRunner(&fakeDocker{})
+		r.nativeBackend = true
 
 		// Act
-		err := newTestDockerRunner(&fakeDocker{}).Check(req)
+		err := r.Check(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -126,9 +128,11 @@ func Test_dockerRunner_Check(t *testing.T) {
 			// Arrange
 			buf := iostreamstest.StubErr(t)
 			req := Request{Flags: Flags{DryRun: true, Proxy: proxy}, Project: config.Project{RC: &config.AgenticRC{}}}
+			r := newTestDockerRunner(&fakeDocker{})
+			r.nativeBackend = proxy.Backend == config.BackendNative
 
 			// Act
-			err := newTestDockerRunner(&fakeDocker{}).Check(req)
+			err := r.Check(req)
 
 			// Assert
 			require.NoError(t, err)

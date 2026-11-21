@@ -17,31 +17,20 @@ import (
 )
 
 func Test_microsandboxRunner_Capabilities(t *testing.T) {
-	native := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
-	m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return native }}
+	// Arrange
+	want := sandbox.Capabilities{Features: sandbox.Features{ProxyMonitor: true}}
+	var asked bool
+	m := &fakeMicrosandbox{capabilities: func(agenticProxy bool) sandbox.Capabilities {
+		asked = agenticProxy
+		return want
+	}}
 
-	t.Run("native reports msb's own", func(t *testing.T) {
-		// Act
-		caps := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Capabilities()
+	// Act
+	caps := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m, agenticProxy: true}.Capabilities()
 
-		// Assert
-		assert.Equal(t, native, caps)
-	})
-
-	t.Run("agentic-proxy adds monitor, path rules and proxy egress and injection", func(t *testing.T) {
-		// Act
-		caps := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m, agenticProxy: true}.Capabilities()
-
-		// Assert
-		assert.Equal(t, sandbox.Capabilities{
-			Features: sandbox.Features{
-				ProxyMonitor:        true,
-				CredentialInjection: true,
-				PathRules:           true,
-			},
-			Isolation: sandbox.Isolation{CredentialsViaProxy: true, EgressViaProxy: true},
-		}, caps)
-	})
+	// Assert
+	assert.Equal(t, want, caps)
+	assert.True(t, asked)
 }
 
 func Test_microsandboxRunner_Check(t *testing.T) {

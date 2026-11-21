@@ -3,7 +3,6 @@ package run
 import (
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -17,6 +16,8 @@ const dockerEngineName = "Engine"
 type dockerRunner struct {
 	docker        Docker
 	sidecarImages SidecarImages
+	// nativeBackend is set when the run asks for msb's native proxy backend, which Docker ignores
+	nativeBackend bool
 }
 
 // Capabilities reports what Docker runs offer.
@@ -29,7 +30,7 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 // starts nothing, so it skips the daemon checks.
 func (r dockerRunner) Check(req Request) error {
 	needs := requiredFeatures(req.Flags, req.Project.RC)
-	if req.proxyBackend() == config.BackendNative && (needs.Proxy || needs.CredentialInjection) {
+	if r.nativeBackend && (needs.Proxy || needs.CredentialInjection) {
 		logging.Warnf("%s is ignored: Docker always uses agentic-proxy", proxyBackendSource(req))
 	}
 

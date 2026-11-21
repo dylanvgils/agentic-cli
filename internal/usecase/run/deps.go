@@ -30,7 +30,7 @@ type Docker interface {
 
 // Microsandbox is the subset of *microsandbox.Client this package uses.
 type Microsandbox interface {
-	Capabilities() sandbox.Capabilities
+	Capabilities(agenticProxy bool) sandbox.Capabilities
 	Available() error
 	Version() (string, error)
 	HasImage(ref string) (bool, error)

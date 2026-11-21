@@ -113,7 +113,11 @@ func (s *Service) startRun(c runConfig, watch bool) (sandbox.RunRef, error) {
 func (s *Service) runner(runtime sandbox.Runtime, backend string) (runner, error) {
 	switch runtime {
 	case sandbox.RuntimeDocker, "":
-		return dockerRunner{docker: s.docker, sidecarImages: s.sidecarImages}, nil
+		return dockerRunner{
+			docker:        s.docker,
+			sidecarImages: s.sidecarImages,
+			nativeBackend: backend == config.BackendNative,
+		}, nil
 	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{
 			docker:        s.docker,
@@ -126,24 +130,15 @@ func (s *Service) runner(runtime sandbox.Runtime, backend string) (runner, error
 	}
 }
 
-// capabilities returns what runtime offers with proxy backend; an unknown runtime offers nothing.
-func (s *Service) capabilities(runtime sandbox.Runtime, backend string) sandbox.Capabilities {
-	r, err := s.runner(runtime, backend)
-	if err != nil {
-		return sandbox.Capabilities{}
-	}
-	return r.Capabilities()
-}
-
-// checkRuntime picks req's runner, refuses a run it can't do safely and warns about what it drops, then runs its own
-// checks.
-func (s *Service) checkRuntime(req Request) (runner, error) {
-	r, err := s.runner(req.runtime(), req.proxyBackend())
+// checkRuntime returns choice's runner, refusing a run of req it can't do safely and warning about what it drops, then
+// runs its own checks.
+func (s *Service) checkRuntime(req Request, choice runtimeChoice) (runner, error) {
+	r, err := s.runner(choice.name, choice.backend)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := checkCapabilities(req, r.Capabilities().Features); err != nil {
+	if err := checkCapabilities(req, choice.name, r.Capabilities().Features); err != nil {
 		return nil, err
 	}
 	if err := r.Check(req); err != nil {

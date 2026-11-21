@@ -277,7 +277,7 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 
 // fakeMicrosandbox implements Microsandbox; a nil field succeeds, except capabilities, which defaults to msb's.
 type fakeMicrosandbox struct {
-	capabilities    func() sandbox.Capabilities
+	capabilities    func(agenticProxy bool) sandbox.Capabilities
 	available       func() error
 	version         func() (string, error)
 	hasImage        func(ref string) (bool, error)
@@ -291,11 +291,11 @@ type fakeMicrosandbox struct {
 	teardown        func(id sandbox.RunID) error
 }
 
-func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
+func (f *fakeMicrosandbox) Capabilities(agenticProxy bool) sandbox.Capabilities {
 	if f.capabilities == nil {
-		return (&microsandbox.Client{}).Capabilities()
+		return (&microsandbox.Client{}).Capabilities(agenticProxy)
 	}
-	return f.capabilities()
+	return f.capabilities(agenticProxy)
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -594,9 +594,18 @@ func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *
 		Tool:   tools.Configs["claude"],
 		Flags:  flags,
 	}
-	c, err := svc.resolveRun(req, rc)
+	c, err := resolveWith(t, svc, req, rc)
 	require.NoError(t, err)
 	return c
+}
+
+// resolveWith resolves req against rc through svc on the runner rc picks, as Resolve does.
+func resolveWith(t *testing.T, svc *Service, req Request, rc *config.AgenticRC) (runConfig, error) {
+	t.Helper()
+	choice := chooseRuntime(req.Flags, rc)
+	r, err := svc.runner(choice.name, choice.backend)
+	require.NoError(t, err)
+	return svc.resolveRun(req, rc, choice, r)
 }
 
 // busyPort returns a loopback port a listener holds until the test ends.
