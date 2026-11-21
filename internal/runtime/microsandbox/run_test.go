@@ -213,7 +213,7 @@ func Test_buildRunArgs(t *testing.T) {
 			Image:         "img",
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
-			Volumes:       []string{"/example.test/data:/data"},
+			Mounts:        []sandbox.Mount{{Source: "/example.test/data", Target: "/data"}},
 			Ports:         []sandbox.PortMapping{{Host: 8080, Guest: 80}},
 			Egress:        sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}},
 		}
@@ -283,44 +283,38 @@ func Test_buildLimitArgs(t *testing.T) {
 }
 
 func Test_buildVolumeArgs(t *testing.T) {
-	t.Run("maps bind mounts and named volumes", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		rs := sandbox.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
+	// Arrange
+	dir := t.TempDir()
+	rs := sandbox.RunSpec{Mounts: []sandbox.Mount{
+		{Source: dir, Target: "/workspace", Options: []string{"rw"}},
+		{Source: "cache-vol", Target: "/cache", Named: true},
+	}}
 
-		// Act
-		args, err := buildVolumeArgs(rs)
+	// Act
+	args := buildVolumeArgs(rs)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace", "--mount-named=agentic-cache-vol:/cache:" + ownerOptions()}, args)
-	})
-
-	t.Run("returns an invalid mount's error", func(t *testing.T) {
-		// Act
-		_, err := buildVolumeArgs(sandbox.RunSpec{Volumes: []string{"/example.test/only-host"}})
-
-		// Assert
-		assert.ErrorContains(t, err, "invalid volume")
-	})
+	// Assert
+	assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace", "--mount-named=agentic-cache-vol:/cache:" + ownerOptions()}, args)
 }
 
-func Test_buildNamedVolumeArgs(t *testing.T) {
+func Test_namedVolumeArg(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		spec string
-		want string
+		name     string
+		readOnly bool
+		want     string
 	}{
-		{name: "owns the volume by the host user", spec: "maven:/home/claude/.m2", want: "--mount-named=agentic-maven:/home/claude/.m2:" + ownerOptions()},
-		{name: "adds ro before the owner", spec: "maven:/home/claude/.m2:ro", want: "--mount-named=agentic-maven:/home/claude/.m2:ro," + ownerOptions()},
+		{name: "owns the volume by the host user", want: "--mount-named=agentic-maven:/home/claude/.m2:" + ownerOptions()},
+		{name: "adds ro before the owner", readOnly: true, want: "--mount-named=agentic-maven:/home/claude/.m2:ro," + ownerOptions()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			m := sandbox.Mount{Source: "maven", Target: "/home/claude/.m2", Named: true, ReadOnly: tc.readOnly}
+
 			// Act
-			args, err := buildNamedVolumeArgs(tc.spec, "", "")
+			result := namedVolumeArg(m)
 
 			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, []string{tc.want}, args)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
@@ -604,65 +598,34 @@ func Test_buildEntrypointArgs(t *testing.T) {
 	})
 }
 
-func Test_buildMountArgs(t *testing.T) {
+func Test_mountArg(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, ".claude.json")
 	require.NoError(t, os.WriteFile(file, []byte("{}"), 0o600))
 
 	for _, tc := range []struct {
-		name string
-		spec string
-		want string
+		name  string
+		mount sandbox.Mount
+		want  string
 	}{
-		{name: "mounts a directory with --mount-dir", spec: dir + ":/workspace", want: "--mount-dir=" + dir + ":/workspace"},
-		{name: "mounts a file with --mount-file", spec: file + ":/home/claude/.claude.json", want: "--mount-file=" + file + ":/home/claude/.claude.json"},
-		{name: "adds ro to the target", spec: dir + ":/workspace:ro", want: "--mount-dir=" + dir + ":/workspace:ro"},
+		{name: "mounts a directory with --mount-dir", mount: sandbox.Mount{Source: dir, Target: "/workspace"}, want: "--mount-dir=" + dir + ":/workspace"},
+		{
+			name:  "mounts a file with --mount-file",
+			mount: sandbox.Mount{Source: file, Target: "/home/claude/.claude.json"},
+			want:  "--mount-file=" + file + ":/home/claude/.claude.json",
+		},
+		{
+			name:  "adds ro and drops other options",
+			mount: sandbox.Mount{Source: dir, Target: "/workspace", ReadOnly: true, Options: []string{"z"}},
+			want:  "--mount-dir=" + dir + ":/workspace:ro",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			args, err := buildMountArgs(tc.spec, "", "")
+			result := mountArg(tc.mount)
 
 			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, []string{tc.want}, args)
+			assert.Equal(t, tc.want, result)
 		})
 	}
-}
-
-func Test_parseMountSpec(t *testing.T) {
-	t.Run("expands host and guest variables", func(t *testing.T) {
-		// Act
-		source, guest, _, err := parseMountSpec("$TOOL_HOME:$CONTAINER_HOME/.claude", "/example.test/home", "/home/claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "/example.test/home", source)
-		assert.Equal(t, "/home/claude/.claude", guest)
-	})
-
-	for _, tc := range []struct {
-		name string
-		spec string
-		want bool
-	}{
-		{name: "ro among the options is read-only", spec: "maven:/cache:z,ro", want: true},
-		{name: "rw is not read-only", spec: "maven:/cache:rw"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			_, _, readOnly, err := parseMountSpec(tc.spec, "", "")
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, readOnly)
-		})
-	}
-
-	t.Run("errors without a guest path", func(t *testing.T) {
-		// Act
-		_, _, _, err := parseMountSpec("maven", "", "")
-
-		// Assert
-		assert.ErrorContains(t, err, `invalid volume "maven": expected host:container[:options]`)
-	})
 }

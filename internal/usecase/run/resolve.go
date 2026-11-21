@@ -182,6 +182,11 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 		containerHome = image.ContainerHome
 	}
 
+	mounts, err := resolve.Mounts(req.Tool.Runtime.Mounts(), flags.Volumes, rc, flags.ToolHome, containerHome)
+	if err != nil {
+		return runConfig{}, err
+	}
+
 	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
 	return runConfig{
 		Target: req.Target,
@@ -207,7 +212,7 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 			Enabled: caps.Dind && resolve.DindEnabled(flags.Dind, rc),
 			Limits:  resolve.DindResourceLimitsFor(flags.DindLimits, rc, limits),
 		},
-		Mounts:   runMounts{Extra: flags.Volumes},
+		Mounts:   runMounts{Base: mounts},
 		Env:      flags.Env,
 		Ports:    ports,
 		Registry: flags.Registry,

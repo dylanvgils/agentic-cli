@@ -3,7 +3,6 @@ package docker
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -220,27 +219,25 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 	}, args)
 }
 
-func Test_workspaceVolumes(t *testing.T) {
+func Test_workspaceMounts(t *testing.T) {
 	// Arrange
+	workspace := sandbox.Mount{Source: "/src/project", Target: "/workspace"}
+	git := sandbox.Mount{Source: "/src/project/.git", Target: "/workspace/.git", ReadOnly: true}
 	rs := sandbox.RunSpec{
-		ToolHome:      "/home/user/.agentic",
-		ContainerHome: "/home/agent",
-		Volumes: []string{
-			"/src/project:/workspace",
-			"$TOOL_HOME/claude:$CONTAINER_HOME/.claude",
-			"maven-cache:/home/agent/.m2",
-			"/src/project/.git:/workspace/.git:ro",
-			"/src/other:/workspace-other",
+		Mounts: []sandbox.Mount{
+			workspace,
+			{Source: "/home/user/.agentic/claude", Target: "/home/agent/.claude"},
+			{Source: "maven-cache", Target: "/home/agent/.m2", Named: true},
+			git,
+			{Source: "/src/other", Target: "/workspace-other"},
 		},
 	}
 
 	// Act
-	result := workspaceVolumes(rs)
+	result := workspaceMounts(rs)
 
-	// Assert - tool home and caches stay out of the sidecar; read-only overlays keep their :ro
-	require.Len(t, result, 2)
-	assert.True(t, strings.HasSuffix(result[0], ":/workspace"))
-	assert.True(t, strings.HasSuffix(result[1], ":/workspace/.git:ro"))
+	// Assert - tool home and caches stay out of the sidecar; read-only overlays stay read-only
+	assert.Equal(t, []sandbox.Mount{workspace, git}, result)
 }
 
 func Test_writeDindClientConfig(t *testing.T) {

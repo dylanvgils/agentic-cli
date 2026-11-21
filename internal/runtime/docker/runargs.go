@@ -73,12 +73,11 @@ func buildTmpfsArgs(rs sandbox.RunSpec) []string {
 	return args
 }
 
-// buildVolumeArgs builds --volume flags with variable expansion.
+// buildVolumeArgs builds a --volume flag per mount.
 func buildVolumeArgs(rs sandbox.RunSpec) []string {
-	args := make([]string, 0, len(rs.Volumes))
-	for _, volume := range rs.Volumes {
-		expanded := sandbox.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome)
-		args = append(args, arg("volume", sandbox.NormalizeMountSpec(expanded)))
+	args := make([]string, 0, len(rs.Mounts))
+	for _, m := range rs.Mounts {
+		args = append(args, arg("volume", volumeSpec(m)))
 	}
 	return args
 }

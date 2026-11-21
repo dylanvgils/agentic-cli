@@ -147,11 +147,6 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 		return nil, err
 	}
 
-	volumeArgs, err := buildVolumeArgs(rs)
-	if err != nil {
-		return nil, err
-	}
-
 	networkArgs, err := buildNetworkArgs(rs.Egress, route)
 	if err != nil {
 		return nil, err
@@ -171,7 +166,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 	}
 	args = append(args, limitArgs...)
 	args = append(args, envArgs...)
-	args = append(args, volumeArgs...)
+	args = append(args, buildVolumeArgs(rs)...)
 	if route == nil {
 		args = append(args, buildCredentialArgs(rs)...)
 	} else {
@@ -213,20 +208,16 @@ func buildLimitArgs(limits sandbox.ResourceLimits) ([]string, error) {
 }
 
 // buildVolumeArgs maps the bind mounts and named volumes to mount flags.
-func buildVolumeArgs(rs sandbox.RunSpec) ([]string, error) {
-	var args []string
-	for _, volume := range rs.Volumes {
-		build := buildMountArgs
-		if isNamedVolume(volume, rs) {
-			build = buildNamedVolumeArgs
+func buildVolumeArgs(rs sandbox.RunSpec) []string {
+	args := make([]string, 0, len(rs.Mounts))
+	for _, m := range rs.Mounts {
+		if m.Named {
+			args = append(args, namedVolumeArg(m))
+		} else {
+			args = append(args, mountArg(m))
 		}
-		mountArgs, err := build(volume, rs.ToolHome, rs.ContainerHome)
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, mountArgs...)
 	}
-	return args, nil
+	return args
 }
 
 // buildPortArgs publishes each port on the host's loopback, explicit so a global default can't widen it.
@@ -358,55 +349,27 @@ func credentialEnv(rs sandbox.RunSpec) []string {
 	return env
 }
 
-// isNamedVolume reports whether volume mounts a Docker named volume rather than a host path.
-func isNamedVolume(volume string, rs sandbox.RunSpec) bool {
-	return sandbox.IsNamedVolume(sandbox.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
-}
-
-// buildMountArgs maps a bind mount spec to --mount-file or --mount-dir, keeping only the ro option.
-func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
-	host, guest, readOnly, err := parseMountSpec(volume, toolHome, guestHome)
-	if err != nil {
-		return nil, err
-	}
-
-	target := host + ":" + guest
-	if readOnly {
+// mountArg maps a bind mount to --mount-file or --mount-dir, keeping only the ro option.
+func mountArg(m sandbox.Mount) string {
+	target := m.Source + ":" + m.Target
+	if m.ReadOnly {
 		target += ":ro"
 	}
 
 	flag := "mount-dir"
-	if info, err := os.Stat(host); err == nil && !info.IsDir() {
+	if info, err := os.Stat(m.Source); err == nil && !info.IsDir() {
 		flag = "mount-file"
 	}
-	return []string{arg(flag, target)}, nil
+	return arg(flag, target)
 }
 
-// buildNamedVolumeArgs maps a named volume spec to --mount-named on its prefixed msb volume, owned by the host user like the image user, keeping only the ro option.
-func buildNamedVolumeArgs(volume, toolHome, guestHome string) ([]string, error) {
-	name, guest, readOnly, err := parseMountSpec(volume, toolHome, guestHome)
-	if err != nil {
-		return nil, err
-	}
-
+// namedVolumeArg maps a named volume to --mount-named on its prefixed msb volume, owned by the host user like the image user, keeping only the ro option.
+func namedVolumeArg(m sandbox.Mount) string {
 	options := ownerOptions()
-	if readOnly {
+	if m.ReadOnly {
 		options = "ro," + options
 	}
-	return []string{arg("mount-named", volumePrefix+name+":"+guest+":"+options)}, nil
-}
-
-// parseMountSpec expands and normalizes a source:guest[:options] mount spec, reporting whether its options include ro.
-func parseMountSpec(volume, toolHome, guestHome string) (source, guest string, readOnly bool, err error) {
-	spec := sandbox.NormalizeMountSpec(sandbox.ExpandMountSpec(volume, toolHome, guestHome))
-	source, rest, ok := sandbox.SplitHostContainer(spec)
-	if !ok {
-		return "", "", false, fmt.Errorf("invalid volume %q: expected host:container[:options]", volume)
-	}
-
-	guest, options, _ := strings.Cut(rest, ":")
-	readOnly = slices.Contains(strings.Split(options, ","), "ro")
-	return source, guest, readOnly, nil
+	return arg("mount-named", volumePrefix+m.Source+":"+m.Target+":"+options)
 }
 
 // ownerOptions returns msb's mount owner options for the host uid/gid, which the image user is created with.

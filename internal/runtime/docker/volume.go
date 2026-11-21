@@ -2,26 +2,25 @@ package docker
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// EnsureNamedVolumes creates each named Docker volume in rs's volumes (no leading "/" on the host side), owned by rs's user.
+// EnsureNamedVolumes creates each named Docker volume in rs's mounts, owned by rs's user.
 func (c *Client) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
 	if rs.User == nil {
 		return errNoHostUser
 	}
 
-	for _, volume := range rs.Volumes {
-		expanded := sandbox.NormalizeMountSpec(sandbox.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
-		if !sandbox.IsNamedVolume(expanded) {
+	for _, m := range rs.Mounts {
+		if !m.Named {
 			continue
 		}
 
-		host := sandbox.HostPart(expanded)
-		if err := c.ensureVolume(host, chownImage, *rs.User); err != nil {
+		if err := c.ensureVolume(m.Source, chownImage, *rs.User); err != nil {
 			return err
 		}
 	}
@@ -78,4 +77,18 @@ func (c *Client) ensureVolume(name, chownImage string, owner platform.User) erro
 	}
 
 	return nil
+}
+
+// volumeSpec renders m as a --volume value: source:target[:options], with ro last.
+func volumeSpec(m sandbox.Mount) string {
+	opts := m.Options
+	if m.ReadOnly {
+		opts = append(slices.Clone(opts), "ro")
+	}
+
+	spec := m.Source + ":" + m.Target
+	if len(opts) > 0 {
+		spec += ":" + strings.Join(opts, ",")
+	}
+	return spec
 }

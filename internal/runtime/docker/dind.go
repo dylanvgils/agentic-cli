@@ -151,11 +151,15 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 	)
 
 	for _, name := range dind.IdentityFiles {
-		args = append(args, arg("volume", sandbox.NormalizeMountSpec(filepath.Join(h.runDir, dindEtcSubdir, name)+":/etc/"+name)+":ro"))
+		args = append(args, arg("volume", volumeSpec(sandbox.Mount{
+			Source:   filepath.Join(h.runDir, dindEtcSubdir, name),
+			Target:   "/etc/" + name,
+			ReadOnly: true,
+		})))
 	}
 
-	for _, volume := range workspaceVolumes(rs.RunSpec) {
-		args = append(args, arg("volume", volume))
+	for _, m := range workspaceMounts(rs.RunSpec) {
+		args = append(args, arg("volume", volumeSpec(m)))
 	}
 
 	if rs.Egress.Mode.Enabled() {
@@ -168,7 +172,10 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 
 // toolArgs returns the env and mounts pointing the tool's docker CLI at the sidecar.
 func (h dindHandle) toolArgs() []string {
-	configDir := sandbox.NormalizeMountSpec(filepath.Join(h.runDir, dindConfigSubdir) + ":" + dindConfigPath)
+	configDir := volumeSpec(sandbox.Mount{
+		Source: filepath.Join(h.runDir, dindConfigSubdir),
+		Target: dindConfigPath,
+	})
 	return []string{
 		arg("env", "DOCKER_HOST=tcp://"+dindHostAlias+":"+dindPort),
 		arg("env", "DOCKER_TLS_VERIFY=1"),
@@ -181,8 +188,11 @@ func (h dindHandle) toolArgs() []string {
 
 // certVolume returns a read-only bind of one per-run cert subdir.
 func (h dindHandle) certVolume(subdir, containerPath string) string {
-	spec := sandbox.NormalizeMountSpec(filepath.Join(h.runDir, subdir) + ":" + containerPath)
-	return spec + ":ro"
+	return volumeSpec(sandbox.Mount{
+		Source:   filepath.Join(h.runDir, subdir),
+		Target:   containerPath,
+		ReadOnly: true,
+	})
 }
 
 // waitReady polls dockerd until it answers, the sidecar exits, the timeout passes or interrupt fires.
@@ -296,19 +306,12 @@ func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, err error) {
 	return handle.toolArgs(), nil
 }
 
-// workspaceVolumes returns the tool's /workspace volume specs, so the sidecar sees the same paths and :ro overlays.
-func workspaceVolumes(rs sandbox.RunSpec) []string {
-	var result []string
-	for _, volume := range rs.Volumes {
-		expanded := sandbox.NormalizeMountSpec(sandbox.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
-		_, rest, ok := sandbox.SplitHostContainer(expanded)
-		if !ok {
-			continue
-		}
-
-		containerPath, _, _ := strings.Cut(rest, ":")
-		if containerPath == sandbox.WorkspaceContainerPath || strings.HasPrefix(containerPath, sandbox.WorkspaceContainerPath+"/") {
-			result = append(result, expanded)
+// workspaceMounts returns the tool's /workspace mounts, so the sidecar sees the same paths and :ro overlays.
+func workspaceMounts(rs sandbox.RunSpec) []sandbox.Mount {
+	var result []sandbox.Mount
+	for _, m := range rs.Mounts {
+		if m.Target == sandbox.WorkspaceContainerPath || strings.HasPrefix(m.Target, sandbox.WorkspaceContainerPath+"/") {
+			result = append(result, m)
 		}
 	}
 	return result

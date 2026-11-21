@@ -248,7 +248,7 @@ func Test_saveSnapshot(t *testing.T) {
 		c.Homes.Tool = run.ToolHome
 		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, run.ID, "generated block")
 		require.NoError(t, err)
-		snapshot := sandbox.HostPart(mountSpec)
+		snapshot := parseMounts(t, "", mountSpec)[0].Source
 		require.NoError(t, appendFile(snapshot, "\nuser note\n"))
 
 		// Act

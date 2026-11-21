@@ -94,7 +94,7 @@ func Test_credentialSetup(t *testing.T) {
 				Credentials: resolved,
 			},
 		}
-		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{toolHome: t.TempDir()}
 
 		// Act
 		err := credentialSetup(c, mounts, nil)
@@ -109,7 +109,7 @@ func Test_credentialSetup(t *testing.T) {
 			Runtime: runtimeInjects,
 			Egress:  egressConfig{Credentials: resolved},
 		}
-		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{toolHome: t.TempDir()}
 
 		// Act
 		err := credentialSetup(c, mounts, nil)
@@ -236,9 +236,8 @@ func Test_checkCredentialPaths(t *testing.T) {
 		// Arrange
 		resolved := []credentials.Resolved{{Path: filepath.Join(t.TempDir(), "token")}}
 		mounts := mountSet{
-			volumes:       []string{t.TempDir() + ":/data", "agentic-cache:/cache"},
-			toolHome:      t.TempDir(),
-			containerHome: "/home/agent",
+			mounts:   parseMounts(t, "", t.TempDir()+":/data", "agentic-cache:/cache"),
+			toolHome: t.TempDir(),
 		}
 
 		// Act
@@ -252,7 +251,7 @@ func Test_checkCredentialPaths(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		resolved := []credentials.Resolved{{Path: filepath.Join(dir, "nested", "token")}}
-		mounts := mountSet{volumes: []string{dir + ":/data:ro"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, "", dir+":/data:ro"), toolHome: t.TempDir()}
 
 		// Act
 		err := checkCredentialPaths(resolved, mounts)
@@ -266,9 +265,8 @@ func Test_checkCredentialPaths(t *testing.T) {
 		toolHome := t.TempDir()
 		resolved := []credentials.Resolved{{Path: filepath.Join(toolHome, "claude", "token")}}
 		mounts := mountSet{
-			volumes:       []string{"$TOOL_HOME/claude:$CONTAINER_HOME/.claude"},
-			toolHome:      toolHome,
-			containerHome: "/home/agent",
+			mounts:   parseMounts(t, toolHome, "$TOOL_HOME/claude:$CONTAINER_HOME/.claude"),
+			toolHome: toolHome,
 		}
 
 		// Act
@@ -302,7 +300,7 @@ func Test_checkCredentialPaths(t *testing.T) {
 		link := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.Symlink(target, link))
 		resolved := []credentials.Resolved{{Path: link}}
-		mounts := mountSet{volumes: []string{mounted + ":/data"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, "", mounted+":/data"), toolHome: t.TempDir()}
 
 		// Act
 		err := checkCredentialPaths(resolved, mounts)

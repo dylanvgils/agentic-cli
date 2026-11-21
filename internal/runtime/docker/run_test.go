@@ -252,10 +252,13 @@ func TestClient_RunTool(t *testing.T) {
 	t.Run("maps the spec's mounts, entrypoint, image and tool args", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
-			Image:          "agentic-claude",
-			ToolHome:       "/home/.agentic",
-			ContainerHome:  "/home/user",
-			Volumes:        []string{"/host:/container", "$TOOL_HOME/data:/data"},
+			Image:         "agentic-claude",
+			ToolHome:      "/home/.agentic",
+			ContainerHome: "/home/user",
+			Mounts: []sandbox.Mount{
+				{Source: "/host", Target: "/container"},
+				{Source: "/home/.agentic/data", Target: "/data"},
+			},
 			EphemeralDirs:  []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}, {Path: "$CONTAINER_HOME/.cache", Size: "1g"}},
 			SkipEntrypoint: true,
 			ToolArgs:       []string{"--resume"},

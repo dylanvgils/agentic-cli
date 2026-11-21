@@ -46,7 +46,7 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, rs.Volumes, "/host:/container:rw")
+		assert.Contains(t, rs.Mounts, sandbox.Mount{Source: "/host", Target: "/container", Options: []string{"rw"}})
 		assert.Equal(t, []sandbox.PortMapping{{Host: 3000, Guest: 3000}}, rs.Ports)
 		assert.Equal(t, platform.HostUser(), *rs.User)
 		assert.Equal(t, iostreams.IsTerminal(), rs.TTY, "a TTY only when stdin is a terminal")
@@ -56,8 +56,8 @@ func Test_Service_build(t *testing.T) {
 		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
 		assert.Equal(t, rs.Limits, rs.Dind.Limits, "dind limits inherit the tool's")
 		assert.Equal(t, sandbox.EgressMonitor, rs.Egress.Mode)
-		for _, v := range rs.Volumes {
-			assert.NotContains(t, v, "CLAUDE.md", "no instructions mount without one in the config")
+		for _, m := range rs.Mounts {
+			assert.NotContains(t, m.Target, "CLAUDE.md", "no instructions mount without one in the config")
 		}
 		for _, e := range rs.Env {
 			assert.NotContains(t, e, "AGENTIC_MARKETPLACES", "no marketplaces configured")
@@ -263,8 +263,8 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, testRunID, rs.RunID)
-	instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-	got, err := os.ReadFile(sandbox.HostPart(instructionsVolume))
+	instructions := findMountTarget(t, rs.Mounts, "/home/agent/.claude/CLAUDE.md")
+	got, err := os.ReadFile(instructions.Source)
 	require.NoError(t, err)
 	assert.Contains(t, string(got), "# Agentic container environment")
 }
@@ -427,25 +427,25 @@ func Test_validateEnv(t *testing.T) {
 	}
 }
 
-func Test_runVolumes(t *testing.T) {
+func Test_runMountList(t *testing.T) {
 	// Arrange
+	base := sandbox.Mount{Source: "/flag", Target: "/flag"}
 	c := runConfig{
-		Tool: tools.ToolConfig{Runtime: tools.RuntimeConfig{Mounts: func() []string { return []string{"/tool:/tool"} }}},
-		RC:   &config.AgenticRC{},
+		Homes: homes{Tool: "/tool-home", Container: "/home/agent"},
 		Mounts: runMounts{
-			Extra:        []string{"/flag:/flag:rw"},
-			Instructions: "/snapshot.md:/instructions.md",
+			Base:         []sandbox.Mount{base},
+			Instructions: "/snapshot.md:$CONTAINER_HOME/instructions.md",
 		},
 	}
 
 	// Act
-	result := runVolumes(c, []string{"/marketplace:/marketplace"})
+	result, err := runMountList(c, []string{"$TOOL_HOME/marketplace:/marketplace:ro"})
 
 	// Assert
-	assert.Equal(t, []string{
-		"/tool:/tool",
-		"/flag:/flag:rw",
-		"/marketplace:/marketplace",
-		"/snapshot.md:/instructions.md",
+	require.NoError(t, err)
+	assert.Equal(t, []sandbox.Mount{
+		base,
+		{Source: "/tool-home/marketplace", Target: "/marketplace", ReadOnly: true},
+		{Source: "/snapshot.md", Target: "/home/agent/instructions.md"},
 	}, result)
 }

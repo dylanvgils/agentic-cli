@@ -11,7 +11,7 @@ type RunSpec struct {
 	ContainerHome  string
 	User           *platform.User // host user the tool runs as; nil until set, as 0:0 is root
 	TTY            bool           // stdin is a terminal
-	Volumes        []string
+	Mounts         []Mount
 	Env            []string
 	Ports          []PortMapping
 	SkipEntrypoint bool
@@ -40,7 +40,7 @@ type RunSpecBuilder struct {
 	containerHome  string
 	user           *platform.User
 	tty            bool
-	volumes        []string
+	mounts         []Mount
 	env            []string
 	ports          []PortMapping
 	skipEntrypoint bool
@@ -81,9 +81,9 @@ func (b *RunSpecBuilder) WithTTY(tty bool) *RunSpecBuilder {
 	return b
 }
 
-// WithVolumes appends volume mount specifications.
-func (b *RunSpecBuilder) WithVolumes(vols ...string) *RunSpecBuilder {
-	b.volumes = append(b.volumes, vols...)
+// WithMounts appends volumes.
+func (b *RunSpecBuilder) WithMounts(mounts ...Mount) *RunSpecBuilder {
+	b.mounts = append(b.mounts, mounts...)
 	return b
 }
 
@@ -149,7 +149,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ContainerHome:  b.containerHome,
 		User:           b.user,
 		TTY:            b.tty,
-		Volumes:        b.volumes,
+		Mounts:         b.mounts,
 		Env:            b.env,
 		Ports:          b.ports,
 		SkipEntrypoint: b.skipEntrypoint,

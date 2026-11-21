@@ -179,7 +179,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 				return docker.Sidecars{}, nil
 			},
 		}
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Mounts: parseMounts(t, "", "$PWD/link:/data:ro")}
 
 		// Act
 		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
@@ -204,7 +204,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 			},
 			stopSidecars: func(docker.Sidecars) { stopped = true },
 		}
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/late/sub:/data:ro"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Mounts: parseMounts(t, "", "$PWD/late/sub:/data:ro")}
 
 		// Act
 		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
@@ -305,20 +305,21 @@ func Test_dockerRunner_Run(t *testing.T) {
 func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 	t.Run("creates the named volumes with the registry's chown image", func(t *testing.T) {
 		// Arrange
-		var gotVolumes []string
+		var gotMounts []sandbox.Mount
 		var gotChownImage string
 		d := &fakeDocker{ensureNamedVolumes: func(rs sandbox.RunSpec, chownImage string) error {
-			gotVolumes, gotChownImage = rs.Volumes, chownImage
+			gotMounts, gotChownImage = rs.Mounts, chownImage
 			return nil
 		}}
-		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
+		maven := []sandbox.Mount{{Source: "maven", Target: "/cache", Named: true}}
+		rs := sandbox.RunSpec{Mounts: maven}
 
 		// Act
 		err := newTestDockerRunner(d).prepareDockerHost(rs, "registry.example.test")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"maven:/cache"}, gotVolumes)
+		assert.Equal(t, maven, gotMounts)
 		assert.Equal(t, tools.BusyboxImageFor("registry.example.test"), gotChownImage)
 	})
 

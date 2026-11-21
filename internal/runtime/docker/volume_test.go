@@ -12,48 +12,38 @@ import (
 
 func TestEnsureNamedVolumes(t *testing.T) {
 	client := newTestClient()
+	maven := []sandbox.Mount{{Source: "maven", Target: "/container", Named: true}}
 
 	t.Run("refuses a spec without a host user", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{Volumes: []string{"maven:/container"}}, "busybox")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{Mounts: maven}, "busybox")
 
 		// Assert
 		assert.ErrorIs(t, err, errNoHostUser)
 		assert.Empty(t, get())
 	})
 
-	for _, tc := range []struct {
-		name    string
-		volumes []string
-	}{
-		{name: "skips an absolute path", volumes: []string{"/host/path:/container"}},
-		{name: "skips the expanded tool home", volumes: []string{"$TOOL_HOME/data:/container"}},
-		{name: "skips a Windows absolute path", volumes: []string{`C:\Users\foo:/container`, `c:\data:/container`}},
-		{name: "skips an empty left side", volumes: []string{":/container"}},
-		{name: "skips an empty list", volumes: []string{}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Arrange
-			get := stubDockerRunCapture(t, client)
+	t.Run("skips bind mounts", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
 
-			// Act
-			err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: tc.volumes, ToolHome: "/home/.agentic"}, "")
+		// Act
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Mounts: []sandbox.Mount{{Source: "/host/path", Target: "/container"}}}, "")
 
-			// Assert
-			require.NoError(t, err)
-			assert.Empty(t, get())
-		})
-	}
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, get())
+	})
 
 	t.Run("existing volume skips create and chown", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client) // inspect succeeds -> volume exists
 
 		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Mounts: maven}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -67,7 +57,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "busybox")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Mounts: maven}, "busybox")
 
 		// Assert
 		require.NoError(t, err)
@@ -103,7 +93,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 			stubDockerRunCapture(t, client, "volume inspect", tc.failing)
 
 			// Act
-			err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
+			err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Mounts: maven}, "")
 
 			// Assert
 			assert.EqualError(t, err, tc.wantErr)
@@ -115,10 +105,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{
-			"/host:/container",
-			"maven:/m2",
-			"gradle:/gradle",
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Mounts: []sandbox.Mount{
+			{Source: "/host", Target: "/container"},
+			{Source: "maven", Target: "/m2", Named: true},
+			{Source: "gradle", Target: "/gradle", Named: true},
 		}}, "")
 
 		// Assert
@@ -134,7 +124,6 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		}
 		assert.Equal(t, []string{"maven", "gradle"}, inspects)
 	})
-
 }
 
 func TestCreateVolume(t *testing.T) {
@@ -277,4 +266,34 @@ func TestRemoveVolume(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "volume rm failed")
 	})
+}
+
+func Test_volumeSpec(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		mount sandbox.Mount
+		want  string
+	}{
+		{name: "bind mount", mount: sandbox.Mount{Source: "/host", Target: "/container"}, want: "/host:/container"},
+		{name: "named volume", mount: sandbox.Mount{Source: "maven", Target: "/m2", Named: true}, want: "maven:/m2"},
+		{name: "read-only", mount: sandbox.Mount{Source: "/host", Target: "/container", ReadOnly: true}, want: "/host:/container:ro"},
+		{
+			name:  "options then ro",
+			mount: sandbox.Mount{Source: "/host", Target: "/container", ReadOnly: true, Options: []string{"z"}},
+			want:  "/host:/container:z,ro",
+		},
+		{
+			name:  "rw kept",
+			mount: sandbox.Mount{Source: "/host", Target: "/container", Options: []string{"rw", "z"}},
+			want:  "/host:/container:rw,z",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := volumeSpec(tc.mount)
+
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
