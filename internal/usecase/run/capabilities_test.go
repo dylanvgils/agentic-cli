@@ -1,6 +1,7 @@
 package run
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -24,18 +25,27 @@ func Test_requiredFeatures(t *testing.T) {
 		want  sandbox.Features
 	}{
 		{
-			name: "a bare run needs only the pids limit",
+			name: "a bare run needs nothing",
+		},
+		{
+			name:  "the pids limit flag asks for limit support",
+			flags: Flags{Limits: sandbox.ResourceLimits{PidsLimit: "50"}},
+			want:  sandbox.Features{PidsLimit: true},
+		},
+		{
+			name: "a config pids limit asks for limit support",
+			rc:   config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "50"}}},
 			want: sandbox.Features{PidsLimit: true},
 		},
 		{
 			name:  "flags ask for the proxy and dind",
 			flags: Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}, Dind: resolve.DindInput{DindFlag: true}},
-			want:  sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true},
+			want:  sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true},
 		},
 		{
 			name: "config asks for the proxy and dind",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
-			want: sandbox.Features{Proxy: true, Dind: true, PidsLimit: true},
+			want: sandbox.Features{Proxy: true, Dind: true},
 		},
 		{
 			name: "off switches drop the need",
@@ -44,74 +54,74 @@ func Test_requiredFeatures(t *testing.T) {
 				Dind:  resolve.DindInput{NoDindFlag: true},
 			},
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
-			want: sandbox.Features{PidsLimit: true},
+			want: sandbox.Features{},
 		},
 		{
 			name:  "dind limits ask for limit support with dind",
 			flags: Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
-			want:  sandbox.Features{Dind: true, DindLimits: true, PidsLimit: true},
+			want:  sandbox.Features{Dind: true, DindLimits: true},
 		},
 		{
 			name: "dind limits without dind have nothing to limit",
 			rc:   config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "8g"}}}},
-			want: sandbox.Features{PidsLimit: true},
+			want: sandbox.Features{},
 		},
 		{
 			name: "credentials alone don't ask for the proxy",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}},
-			want: sandbox.Features{CredentialInjection: true, PidsLimit: true},
+			want: sandbox.Features{CredentialInjection: true},
 		},
 		{
 			name: "path rules without the proxy or credentials need nothing",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
-			want: sandbox.Features{PidsLimit: true},
+			want: sandbox.Features{},
 		},
 		{
 			name:  "path rules ask for path rule support with the proxy",
 			flags: Flags{Proxy: proxyFlag},
 			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
-			want:  sandbox.Features{Proxy: true, PathRules: true, PidsLimit: true},
+			want:  sandbox.Features{Proxy: true, PathRules: true},
 		},
 		{
 			name: "path rules ask for path rule support with credentials",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths, Credentials: creds}}},
-			want: sandbox.Features{CredentialInjection: true, PathRules: true, PidsLimit: true},
+			want: sandbox.Features{CredentialInjection: true, PathRules: true},
 		},
 		{
 			name: "proxy integrations without the proxy or credentials need nothing",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
-			want: sandbox.Features{PidsLimit: true},
+			want: sandbox.Features{},
 		},
 		{
 			name:  "proxy integrations ask for integration support with the proxy",
 			flags: Flags{Proxy: proxyFlag},
 			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
-			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true},
+			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true},
 		},
 		{
 			name: "proxy integrations ask for integration support with credentials",
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}, Credentials: creds}}},
-			want: sandbox.Features{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true},
+			want: sandbox.Features{CredentialInjection: true, ProxyIntegrations: true},
 		},
 		{
 			name:  "the integration flag asks for integration support with the proxy",
 			flags: Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
-			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true},
+			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true},
 		},
 		{
 			name:  "ports without the proxy or credentials need nothing",
 			flags: Flags{Ports: []string{"3000"}},
-			want:  sandbox.Features{PidsLimit: true},
+			want:  sandbox.Features{},
 		},
 		{
 			name:  "ports ask for ports with the proxy when it's on",
 			flags: Flags{Proxy: proxyFlag, Ports: []string{"3000"}},
-			want:  sandbox.Features{Proxy: true, PidsLimit: true, PortsWithProxy: true},
+			want:  sandbox.Features{Proxy: true, PortsWithProxy: true},
 		},
 		{
 			name: "config ports ask for ports with the proxy with credentials",
 			rc:   config.AgenticRC{Run: config.RCRun{Ports: []string{"3000"}, Proxy: config.RCProxy{Credentials: creds}}},
-			want: sandbox.Features{CredentialInjection: true, PidsLimit: true, PortsWithProxy: true},
+			want: sandbox.Features{CredentialInjection: true, PortsWithProxy: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,6 +130,30 @@ func Test_requiredFeatures(t *testing.T) {
 
 			// Assert
 			assert.Equal(t, tc.want, need)
+		})
+	}
+}
+
+func Test_featureRules(t *testing.T) {
+	typ := reflect.TypeFor[sandbox.Features]()
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		t.Run(field.Name, func(t *testing.T) {
+			// Arrange
+			require.Equal(t, reflect.Bool, field.Type.Kind(), "featureRules only reads bool fields")
+			var only sandbox.Features
+			reflect.ValueOf(&only).Elem().Field(i).SetBool(true)
+
+			// Act
+			matches := 0
+			for _, r := range featureRules {
+				if r.has(only) {
+					matches++
+				}
+			}
+
+			// Assert
+			assert.Equal(t, 1, matches, "featureRules needs exactly one entry for %s", field.Name)
 		})
 	}
 }
@@ -251,6 +285,11 @@ func Test_checkCapabilities(t *testing.T) {
 			req:      msbRequest(dindLimits, nil),
 			offered:  sandbox.Features{Dind: true},
 			wantWarn: "--runtime microsandbox ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory",
+		},
+		{
+			name:     "a set pids limit only warns",
+			req:      msbRequest(Flags{Limits: sandbox.ResourceLimits{PidsLimit: "50"}}, nil),
+			wantWarn: "--runtime microsandbox ignores the process limit ([run] pids_limit or --pids-limit); the VM has its own kernel",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

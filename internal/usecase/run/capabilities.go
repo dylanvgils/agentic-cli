@@ -10,6 +10,101 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
+// featurePolicy is how a run handles a feature its runtime lacks.
+type featurePolicy int
+
+const (
+	// policyRefuse refuses the run: the feature is a security control it relies on.
+	policyRefuse featurePolicy = iota
+	// policyWarn warns and runs: the runtime ignores the setting.
+	policyWarn
+)
+
+// featureRule says how a run handles one Features field its runtime lacks.
+type featureRule struct {
+	has      func(sandbox.Features) bool // reads the field
+	policy   featurePolicy
+	shadowed func(sandbox.Features) bool // optional: a broader missing feature is reported instead
+	refused  func(Request) string        // refuse: names the feature and its source
+	hint     string                      // refuse: prefix for "use --runtime docker"
+	refuse   func(Request) error         // refuse: an error of its own that replaces the joined one
+	warn     func(Request) string        // warn: the whole message
+	spec     string                      // checkSpec's name; "" when checkSpec skips it
+}
+
+// featureRules covers every Features field, in field order.
+var featureRules = []featureRule{
+	{
+		has:     func(f sandbox.Features) bool { return f.Proxy },
+		policy:  policyRefuse,
+		refused: func(req Request) string { return fmt.Sprintf("the egress proxy (%s)", proxySource(req)) },
+		hint:    "pass --no-proxy to run without the proxy, or ",
+		spec:    "the egress proxy",
+	},
+	{
+		has:      func(f sandbox.Features) bool { return f.ProxyMonitor },
+		policy:   policyRefuse,
+		shadowed: func(f sandbox.Features) bool { return f.Proxy },
+		refused:  func(req Request) string { return fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)) },
+		hint:     "pass --proxy to enforce the allowlist instead, or ",
+		spec:     "proxy monitor mode",
+	},
+	{
+		has:    func(f sandbox.Features) bool { return f.Dind },
+		policy: policyWarn,
+		warn: func(req Request) string {
+			return fmt.Sprintf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
+		},
+	},
+	{
+		has:      func(f sandbox.Features) bool { return f.DindLimits },
+		policy:   policyWarn,
+		shadowed: func(f sandbox.Features) bool { return f.Dind },
+		warn: func(req Request) string {
+			return fmt.Sprintf("%s ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory", runtimeSource(req))
+		},
+	},
+	{
+		has:     func(f sandbox.Features) bool { return f.CredentialInjection },
+		policy:  policyRefuse,
+		refused: func(req Request) string { return fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)) },
+		spec:    "credential injection",
+	},
+	{
+		has:    func(f sandbox.Features) bool { return f.PathRules },
+		policy: policyWarn,
+		warn: func(req Request) string {
+			return fmt.Sprintf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
+		},
+		spec: "path rules",
+	},
+	{
+		has:    func(f sandbox.Features) bool { return f.ProxyIntegrations },
+		policy: policyWarn,
+		warn: func(req Request) string {
+			return fmt.Sprintf("%s ignores %s; it can't route those tools through the proxy", runtimeSource(req), integrationsSource(req))
+		},
+	},
+	{
+		has:    func(f sandbox.Features) bool { return f.PidsLimit },
+		policy: policyWarn,
+		warn: func(req Request) string {
+			return fmt.Sprintf("%s ignores the process limit ([run] pids_limit or --pids-limit); the VM has its own kernel", runtimeSource(req))
+		},
+	},
+	{
+		has:    func(f sandbox.Features) bool { return f.PortsWithProxy },
+		policy: policyRefuse,
+		refuse: refusePortsWithProxy,
+		spec:   "published ports with the egress proxy",
+	},
+}
+
+// reported reports whether r's feature is in missing and no broader missing feature covers it.
+func (r featureRule) reported(missing sandbox.Features) bool {
+	return r.has(missing) && (r.shadowed == nil || !r.shadowed(missing))
+}
+
 // requiredFeatures returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
 func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
@@ -23,7 +118,7 @@ func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
-		PidsLimit:           true,
+		PidsLimit:           flags.Limits.PidsLimit != "" || rc.Run.PidsLimit != "",
 		PortsWithProxy:      ports && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 	}
 }
@@ -56,19 +151,10 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
 	missing := offered.Missing(specFeatures(rs))
 
 	var refused []string
-	if missing.Proxy {
-		refused = append(refused, "the egress proxy")
-	} else if missing.ProxyMonitor {
-		refused = append(refused, "proxy monitor mode")
-	}
-	if missing.CredentialInjection {
-		refused = append(refused, "credential injection")
-	}
-	if missing.PathRules {
-		refused = append(refused, "path rules")
-	}
-	if missing.PortsWithProxy {
-		refused = append(refused, "published ports with the egress proxy")
+	for _, r := range featureRules {
+		if r.spec != "" && r.reported(missing) {
+			refused = append(refused, r.spec)
+		}
 	}
 	if len(refused) > 0 {
 		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
@@ -76,46 +162,34 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
 	return nil
 }
 
-// refuseMissing errors on missing security features, with a hint.
+// refuseMissing errors on missing security features, with a hint; a rule with an error of its own wins.
 func refuseMissing(req Request, missing sandbox.Features) error {
-	if missing.PortsWithProxy {
-		return refusePortsWithProxy(req)
-	}
-
 	var refused []string
-	if missing.Proxy {
-		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
-	} else if missing.ProxyMonitor {
-		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
-	}
-	if missing.CredentialInjection {
-		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
+	var hint string
+	for _, r := range featureRules {
+		if r.policy != policyRefuse || !r.reported(missing) {
+			continue
+		}
+		if r.refuse != nil {
+			return r.refuse(req)
+		}
+		refused = append(refused, r.refused(req))
+		if hint == "" {
+			hint = r.hint
+		}
 	}
 	if len(refused) > 0 {
-		hint := "use --runtime docker"
-		if missing.ProxyMonitor && !missing.Proxy {
-			hint = "pass --proxy to enforce the allowlist instead, or " + hint
-		}
-		if missing.Proxy {
-			hint = "pass --no-proxy to run without the proxy, or " + hint
-		}
-		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
+		return fmt.Errorf("%s does not support %s; %suse --runtime docker", runtimeSource(req), strings.Join(refused, " or "), hint)
 	}
 	return nil
 }
 
 // warnIgnored warns about settings the runtime ignores.
 func warnIgnored(req Request, missing sandbox.Features) {
-	if missing.PathRules {
-		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
-	}
-	if missing.ProxyIntegrations {
-		logging.Warnf("%s ignores %s; it can't route those tools through the proxy", runtimeSource(req), integrationsSource(req))
-	}
-	if missing.Dind {
-		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
-	} else if missing.DindLimits {
-		logging.Warnf("%s ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory", runtimeSource(req))
+	for _, r := range featureRules {
+		if r.policy == policyWarn && r.reported(missing) {
+			logging.Warn(r.warn(req))
+		}
 	}
 }
 
