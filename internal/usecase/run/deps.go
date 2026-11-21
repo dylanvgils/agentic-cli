@@ -33,10 +33,8 @@ type Microsandbox interface {
 	Capabilities(agenticProxy bool) sandbox.Capabilities
 	Available() error
 	Version() (string, error)
-	HasImage(ref string) (bool, error)
-	LoadImage(r io.Reader, tag string) error
-	ImageRefs() ([]string, error)
-	RemoveImage(ref string) error
+	Ref(src microsandbox.ImageSource, image string) (ref string, found bool, err error)
+	EnsureImage(src microsandbox.ImageSource, image string) (ref string, err error)
 	Run(rs sandbox.RunSpec) error
 	RunThroughProxy(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	DryRun(rs sandbox.RunSpec) error

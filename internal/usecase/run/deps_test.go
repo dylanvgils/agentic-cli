@@ -10,4 +10,6 @@ var (
 	_ Docker       = (*docker.Client)(nil)
 	_ Microsandbox = (*microsandbox.Client)(nil)
 	_ CommandLog   = (*cmdlog.Log)(nil)
+
+	_ microsandbox.ImageSource = dockerImages{}
 )

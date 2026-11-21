@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -97,4 +98,73 @@ func stubRunTempDir(t *testing.T) {
 	t.Helper()
 	t.Setenv("TMPDIR", t.TempDir())
 	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
+}
+
+// fakeImageSource is an ImageSource; a nil imageID finds every image as abc123, a nil saveImage writes "tar:<image>".
+type fakeImageSource struct {
+	imageID   func(image string) (string, bool, error)
+	saveImage func(image string, w io.Writer) error
+}
+
+func (f *fakeImageSource) ImageID(image string) (string, bool, error) {
+	if f.imageID == nil {
+		return "abc123", true, nil
+	}
+	return f.imageID(image)
+}
+
+func (f *fakeImageSource) SaveImage(image string, w io.Writer) error {
+	if f.saveImage == nil {
+		_, err := io.WriteString(w, "tar:"+image)
+		return err
+	}
+	return f.saveImage(image, w)
+}
+
+// fakeImageStore stubs msb's image commands, recording each as "inspect <ref>", "load <ref>", "images" or "rmi <ref>";
+// msb holds no ref unless held, and an error field fails its command.
+type fakeImageStore struct {
+	held       bool
+	inspectErr error
+	loadErr    error
+	refs       []string
+	refsErr    error
+	rmiErrs    map[string]error
+	calls      []string
+}
+
+// client returns a Client backed by s.
+func (s *fakeImageStore) client() *Client {
+	return newTestClient(&fakeRunner{
+		run: func(args ...string) (string, error) {
+			switch args[0] {
+			case "image":
+				s.calls = append(s.calls, "inspect "+args[2])
+				return "", s.inspectResult()
+			case "images":
+				s.calls = append(s.calls, "images")
+				return strings.Join(s.refs, "\n"), s.refsErr
+			case "rmi":
+				s.calls = append(s.calls, "rmi "+args[1])
+				return "", s.rmiErrs[args[1]]
+			}
+			return "", fmt.Errorf("fake: unexpected msb %v", args)
+		},
+		runWithStdin: func(r io.Reader, args ...string) (string, error) {
+			s.calls = append(s.calls, "load "+strings.TrimPrefix(args[1], "--tag="))
+			_, _ = io.ReadAll(r)
+			return "", s.loadErr
+		},
+	})
+}
+
+// inspectResult is what `msb image inspect` returns: nil when held, a non-zero exit when missing.
+func (s *fakeImageStore) inspectResult() error {
+	if s.inspectErr != nil {
+		return s.inspectErr
+	}
+	if s.held {
+		return nil
+	}
+	return exec.Command("false").Run()
 }

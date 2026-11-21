@@ -280,10 +280,8 @@ type fakeMicrosandbox struct {
 	capabilities    func(agenticProxy bool) sandbox.Capabilities
 	available       func() error
 	version         func() (string, error)
-	hasImage        func(ref string) (bool, error)
-	loadImage       func(r io.Reader, tag string) error
-	imageRefs       func() ([]string, error)
-	removeImage     func(ref string) error
+	ref             func(src microsandbox.ImageSource, image string) (string, bool, error)
+	ensureImage     func(src microsandbox.ImageSource, image string) (string, error)
 	run             func(rs sandbox.RunSpec) error
 	runThroughProxy func(rs sandbox.RunSpec, route microsandbox.ProxyRoute) error
 	dryRun          func(rs sandbox.RunSpec) error
@@ -313,33 +311,20 @@ func (f *fakeMicrosandbox) Version() (string, error) {
 	return f.version()
 }
 
-// HasImage reports ref missing unless stubbed.
-func (f *fakeMicrosandbox) HasImage(ref string) (bool, error) {
-	if f.hasImage == nil {
-		return false, nil
+// Ref reports image as its own ref unless stubbed.
+func (f *fakeMicrosandbox) Ref(src microsandbox.ImageSource, image string) (string, bool, error) {
+	if f.ref == nil {
+		return image, true, nil
 	}
-	return f.hasImage(ref)
+	return f.ref(src, image)
 }
 
-func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {
-	if f.loadImage == nil {
-		return nil
+// EnsureImage reports image as its own ref unless stubbed.
+func (f *fakeMicrosandbox) EnsureImage(src microsandbox.ImageSource, image string) (string, error) {
+	if f.ensureImage == nil {
+		return image, nil
 	}
-	return f.loadImage(r, tag)
-}
-
-func (f *fakeMicrosandbox) ImageRefs() ([]string, error) {
-	if f.imageRefs == nil {
-		return nil, nil
-	}
-	return f.imageRefs()
-}
-
-func (f *fakeMicrosandbox) RemoveImage(ref string) error {
-	if f.removeImage == nil {
-		return nil
-	}
-	return f.removeImage(ref)
+	return f.ensureImage(src, image)
 }
 
 func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {

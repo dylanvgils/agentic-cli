@@ -8,7 +8,7 @@ import (
 
 // CleanImage removes every ref of image's repository from msb's image store, reporting the removed tags in one line.
 func (c *Client) CleanImage(image string) error {
-	refs, err := c.ImageRefs()
+	refs, err := c.imageRefs()
 	if err != nil {
 		return err
 	}
@@ -16,7 +16,7 @@ func (c *Client) CleanImage(image string) error {
 	repo, _ := SplitRef(image)
 	matching, tags := repoRefs(refs, repo)
 	for _, ref := range matching {
-		if err := c.RemoveImage(ref); err != nil {
+		if err := c.removeImage(ref); err != nil {
 			return err
 		}
 	}
