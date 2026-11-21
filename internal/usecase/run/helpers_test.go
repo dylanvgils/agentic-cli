@@ -194,23 +194,6 @@ func newTestService(d Docker, m Microsandbox) *Service {
 	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{})
 }
 
-// resolvePlan resolves req on svc and starts its run unwatched, as DryRun does, returning its RunSpec and ending the
-// run when the test does.
-func resolvePlan(t *testing.T, svc *Service, req Request, prompter Prompter) (sandbox.RunSpec, error) {
-	t.Helper()
-	plan, err := svc.Resolve(req, prompter)
-	if err != nil {
-		return sandbox.RunSpec{}, err
-	}
-
-	run, rs, err := svc.start(plan, false)
-	if err != nil {
-		return sandbox.RunSpec{}, err
-	}
-	t.Cleanup(func() { endRun(run) }) //nolint:errcheck
-	return rs, nil
-}
-
 // newPlan returns a Plan running c on its runtime's runner from svc, as Resolve would, with the tool's host files set
 // up and the run temp dir under a test dir.
 func newPlan(t *testing.T, svc *Service, c runConfig) *Plan {
@@ -473,8 +456,6 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 // newResolveRequest returns a Request for claude in a fresh home and cwd.
 func newResolveRequest(t *testing.T) Request {
 	t.Helper()
-	// resolvePlan creates the run temp dir
-	t.Setenv("TMPDIR", t.TempDir())
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
 		Tool:    tools.Configs["claude"],
