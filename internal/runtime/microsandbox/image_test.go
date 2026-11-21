@@ -27,79 +27,29 @@ func TestClient_EnsureImage(t *testing.T) {
 		assert.Empty(t, store.calls)
 	})
 
-	t.Run("skips the load when msb already holds the ref", func(t *testing.T) {
+	t.Run("ensures the image is loaded under its ID ref and returns the ref", func(t *testing.T) {
 		// Arrange
 		store := &fakeImageStore{held: true}
-		saved := false
-		src := &fakeImageSource{saveImage: func(string, io.Writer) error {
-			saved = true
-			return nil
-		}}
 
 		// Act
-		ref, err := store.client().EnsureImage(src, "agentic-claude")
+		ref, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude:abc123", ref)
 		assert.Equal(t, []string{"inspect agentic-claude:abc123"}, store.calls)
-		assert.False(t, saved)
 	})
 
-	t.Run("check error returns before loading", func(t *testing.T) {
+	t.Run("a failed load returns no ref", func(t *testing.T) {
 		// Arrange
 		store := &fakeImageStore{inspectErr: errors.New("msb down")}
 
 		// Act
-		_, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
+		ref, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
 
 		// Assert
 		require.EqualError(t, err, "inspect msb image agentic-claude:abc123: msb down")
-		assert.Equal(t, []string{"inspect agentic-claude:abc123"}, store.calls)
-	})
-
-	t.Run("listing error after the load only warns", func(t *testing.T) {
-		// Arrange
-		stderr := iostreamstest.StubErr(t)
-		store := &fakeImageStore{refsErr: errors.New("msb down")}
-
-		// Act
-		ref, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude:abc123", ref)
-		assert.Contains(t, stderr.String(), "kept old microsandbox images of agentic-claude: list msb images: msb down")
-	})
-
-	t.Run("failed load keeps the old refs", func(t *testing.T) {
-		// Arrange
-		store := &fakeImageStore{loadErr: errors.New("load failed"), refs: []string{"agentic-claude:old111"}}
-
-		// Act
-		_, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
-
-		// Assert
-		assert.ErrorContains(t, err, "load failed")
-		assert.Equal(t, []string{"inspect agentic-claude:abc123", "load agentic-claude:abc123"}, store.calls)
-	})
-
-	t.Run("loads the image under the ref when msb lacks it, then removes its stale refs", func(t *testing.T) {
-		// Arrange
-		store := &fakeImageStore{refs: []string{"agentic-claude:old111", "agentic-claude:abc123"}}
-
-		// Act
-		ref, err := store.client().EnsureImage(&fakeImageSource{}, "agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude:abc123", ref)
-		assert.Equal(t, []string{
-			"inspect agentic-claude:abc123",
-			"load agentic-claude:abc123",
-			"images",
-			"rmi agentic-claude:old111",
-		}, store.calls)
+		assert.Empty(t, ref)
 	})
 }
 
@@ -144,6 +94,67 @@ func TestClient_Ref(t *testing.T) {
 			assert.Empty(t, store.calls)
 		})
 	}
+}
+
+func Test_Client_ensureLoaded(t *testing.T) {
+	t.Run("skips the load when msb already holds the ref", func(t *testing.T) {
+		// Arrange
+		store := &fakeImageStore{held: true}
+		saved := false
+		src := &fakeImageSource{saveImage: func(string, io.Writer) error {
+			saved = true
+			return nil
+		}}
+
+		// Act
+		err := store.client().ensureLoaded(src, "agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"inspect agentic-claude:abc123"}, store.calls)
+		assert.False(t, saved)
+	})
+
+	t.Run("check error returns before loading", func(t *testing.T) {
+		// Arrange
+		store := &fakeImageStore{inspectErr: errors.New("msb down")}
+
+		// Act
+		err := store.client().ensureLoaded(&fakeImageSource{}, "agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		require.EqualError(t, err, "inspect msb image agentic-claude:abc123: msb down")
+		assert.Equal(t, []string{"inspect agentic-claude:abc123"}, store.calls)
+	})
+
+	t.Run("failed load keeps the old refs", func(t *testing.T) {
+		// Arrange
+		store := &fakeImageStore{loadErr: errors.New("load failed"), refs: []string{"agentic-claude:old111"}}
+
+		// Act
+		err := store.client().ensureLoaded(&fakeImageSource{}, "agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		assert.ErrorContains(t, err, "load failed")
+		assert.Equal(t, []string{"inspect agentic-claude:abc123", "load agentic-claude:abc123"}, store.calls)
+	})
+
+	t.Run("loads the image under the ref when msb lacks it, then removes its stale refs", func(t *testing.T) {
+		// Arrange
+		store := &fakeImageStore{refs: []string{"agentic-claude:old111", "agentic-claude:abc123"}}
+
+		// Act
+		err := store.client().ensureLoaded(&fakeImageSource{}, "agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"inspect agentic-claude:abc123",
+			"load agentic-claude:abc123",
+			"images",
+			"rmi agentic-claude:old111",
+		}, store.calls)
+	})
 }
 
 func Test_Client_loadFrom(t *testing.T) {
@@ -200,8 +211,7 @@ func Test_Client_loadFrom(t *testing.T) {
 func Test_Client_removeStaleRefs(t *testing.T) {
 	t.Run("removes only the image's other ID refs", func(t *testing.T) {
 		// Arrange
-		store := &fakeImageStore{}
-		refs := []string{
+		store := &fakeImageStore{refs: []string{
 			"agentic-claude:old111",
 			"docker.io/library/agentic-claude:old222",
 			"agentic-claude:abc123",
@@ -209,26 +219,46 @@ func Test_Client_removeStaleRefs(t *testing.T) {
 			"agentic-claude",
 			"agentic-copilot:old333",
 			"python:3.13",
-		}
+		}}
 
 		// Act
-		store.client().removeStaleRefs(refs, "agentic-claude", "agentic-claude:abc123")
+		store.client().removeStaleRefs("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
-		assert.Equal(t, []string{"rmi agentic-claude:old111", "rmi docker.io/library/agentic-claude:old222"}, store.calls)
+		assert.Equal(t, []string{
+			"images",
+			"rmi agentic-claude:old111",
+			"rmi docker.io/library/agentic-claude:old222",
+		}, store.calls)
 	})
 
 	t.Run("a ref msb can't remove is skipped", func(t *testing.T) {
 		// Arrange
 		logs := iostreamstest.StubErr(t)
-		store := &fakeImageStore{rmiErrs: map[string]error{"agentic-claude:old111": errors.New("in use")}}
+		store := &fakeImageStore{
+			refs:    []string{"agentic-claude:old111", "agentic-claude:old222"},
+			rmiErrs: map[string]error{"agentic-claude:old111": errors.New("in use")},
+		}
 
 		// Act
-		store.client().removeStaleRefs([]string{"agentic-claude:old111", "agentic-claude:old222"}, "agentic-claude", "agentic-claude:abc123")
+		store.client().removeStaleRefs("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
-		assert.Equal(t, []string{"rmi agentic-claude:old111", "rmi agentic-claude:old222"}, store.calls)
+		assert.Equal(t, []string{"images", "rmi agentic-claude:old111", "rmi agentic-claude:old222"}, store.calls)
 		assert.Contains(t, logs.String(), "kept old microsandbox image agentic-claude:old111: remove msb image agentic-claude:old111: in use")
+	})
+
+	t.Run("a listing error only warns", func(t *testing.T) {
+		// Arrange
+		logs := iostreamstest.StubErr(t)
+		store := &fakeImageStore{refsErr: errors.New("msb down")}
+
+		// Act
+		store.client().removeStaleRefs("agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		assert.Equal(t, []string{"images"}, store.calls)
+		assert.Contains(t, logs.String(), "kept old microsandbox images of agentic-claude: list msb images: msb down")
 	})
 }
 
@@ -385,6 +415,26 @@ func Test_sameRef(t *testing.T) {
 
 			// Assert
 			assert.Equal(t, tc.want, same)
+		})
+	}
+}
+
+func Test_withTag(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		image string
+		want  string
+	}{
+		{name: "adds latest to an untagged name", image: "agentic-claude", want: "agentic-claude:latest"},
+		{name: "keeps a tag", image: "agentic-claude:abc123", want: "agentic-claude:abc123"},
+		{name: "a registry port is no tag", image: "registry.example.test:5000/agentic-claude", want: "registry.example.test:5000/agentic-claude:latest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got := withTag(tc.image)
+
+			// Assert
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

@@ -18,7 +18,7 @@ type ImageSource interface {
 	SaveImage(image string, w io.Writer) error
 }
 
-// EnsureImage returns image's ref in msb, loading it from src unless msb holds it, then removing older refs.
+// EnsureImage returns image's ref in msb, loading it from src unless msb holds it.
 func (c *Client) EnsureImage(src ImageSource, image string) (string, error) {
 	ref, found, err := c.Ref(src, image)
 	if err != nil {
@@ -28,24 +28,9 @@ func (c *Client) EnsureImage(src ImageSource, image string) (string, error) {
 		return "", fmt.Errorf("image %s not found", image)
 	}
 
-	have, err := c.hasImage(ref)
-	if err != nil {
+	if err := c.ensureLoaded(src, image, ref); err != nil {
 		return "", err
 	}
-	if have {
-		return ref, nil
-	}
-
-	if err := c.loadFrom(src, image, ref); err != nil {
-		return "", err
-	}
-
-	refs, err := c.imageRefs()
-	if err != nil {
-		logging.Warnf("kept old microsandbox images of %s: %v", image, err)
-		return ref, nil
-	}
-	c.removeStaleRefs(refs, image, ref)
 	return ref, nil
 }
 
@@ -62,19 +47,28 @@ func (c *Client) Ref(src ImageSource, image string) (ref string, found bool, err
 	return image + ":" + id, true, nil
 }
 
+// ensureLoaded loads image from src as ref unless msb holds it, then removes image's older refs.
+func (c *Client) ensureLoaded(src ImageSource, image, ref string) error {
+	have, err := c.hasImage(ref)
+	if err != nil || have {
+		return err
+	}
+
+	if err := c.loadFrom(src, image, ref); err != nil {
+		return err
+	}
+	c.removeStaleRefs(image, ref)
+	return nil
+}
+
 // loadFrom streams image saved from src into `msb load`, tagged as ref.
 func (c *Client) loadFrom(src ImageSource, image, ref string) error {
 	logging.Infof("loading %s into microsandbox", image)
 
-	// An untagged name would save every tag of the repo
-	if !strings.Contains(image[strings.LastIndex(image, "/")+1:], ":") {
-		image += ":latest"
-	}
-
 	pr, pw := io.Pipe()
 	saved := make(chan error, 1)
 	go func() {
-		err := src.SaveImage(image, pw)
+		err := src.SaveImage(withTag(image), pw)
 		_ = pw.CloseWithError(err)
 		saved <- err
 	}()
@@ -87,8 +81,14 @@ func (c *Client) loadFrom(src ImageSource, image, ref string) error {
 	return loadErr
 }
 
-// removeStaleRefs removes image's refs other than keep and latest, skipping ones in use.
-func (c *Client) removeStaleRefs(refs []string, image, keep string) {
+// removeStaleRefs removes image's refs other than keep and latest, keeping ones msb can't list or remove.
+func (c *Client) removeStaleRefs(image, keep string) {
+	refs, err := c.imageRefs()
+	if err != nil {
+		logging.Warnf("kept old microsandbox images of %s: %v", image, err)
+		return
+	}
+
 	repo, _ := SplitRef(image)
 	for _, ref := range refs {
 		refRepo, tag := SplitRef(ref)
@@ -161,4 +161,12 @@ func sameRef(a, b string) bool {
 	aRepo, aTag := SplitRef(a)
 	bRepo, bTag := SplitRef(b)
 	return aRepo == bRepo && aTag == bTag
+}
+
+// withTag returns image with :latest added when it has no tag, as an untagged name would save every tag of the repo.
+func withTag(image string) string {
+	if strings.Contains(image[strings.LastIndex(image, "/")+1:], ":") {
+		return image
+	}
+	return image + ":latest"
 }
