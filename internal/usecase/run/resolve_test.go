@@ -30,6 +30,7 @@ func TestService_Resolve(t *testing.T) {
 
 	t.Run("starts nothing", func(t *testing.T) {
 		// Arrange
+		t.Setenv("TMPDIR", t.TempDir())
 		req := newResolveRequest(t)
 		w := &fakeWatchdog{}
 		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
@@ -84,7 +85,7 @@ func TestService_Resolve(t *testing.T) {
 			p := &fakePrompter{}
 
 			// Act
-			_, err := resolvePlan(t, newTestService(tc.docker, nil), req, p)
+			_, err := newTestService(tc.docker, nil).Resolve(req, p)
 
 			// Assert
 			require.ErrorContains(t, err, tc.wantErr)
@@ -105,7 +106,7 @@ func TestService_Resolve(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, err := resolvePlan(t, newTestService(d, m), req, p)
+		_, err := newTestService(d, m).Resolve(req, p)
 
 		// Assert
 		require.EqualError(t, err, "msb not found on PATH")
@@ -127,7 +128,7 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, err := resolvePlan(t, newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate), req, p)
+		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Resolve(req, p)
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
@@ -148,7 +149,7 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, err := resolvePlan(t, newUpdatingService(&fakeDocker{inspectImage: built}, u), req, p)
+		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, u).Resolve(req, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -163,7 +164,7 @@ func TestService_Resolve(t *testing.T) {
 		u := &fakeToolUpdates{offer: func(ToolUpdate, func(string, string, string) bool) error { return errors.New("update failed") }}
 
 		// Act
-		_, err := resolvePlan(t, newUpdatingService(&fakeDocker{inspectImage: built}, u), req, &fakePrompter{})
+		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, u).Resolve(req, &fakePrompter{})
 
 		// Assert
 		require.EqualError(t, err, "update failed")
@@ -177,7 +178,7 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, err := resolvePlan(t, newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate), req, p)
+		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Resolve(req, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -192,7 +193,7 @@ func TestService_Resolve(t *testing.T) {
 		req.Tool = tool
 
 		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, &fakePrompter{})
+		_, err := newTestService(&fakeDocker{inspectImage: built}, nil).Resolve(req, &fakePrompter{})
 
 		// Assert
 		require.EqualError(t, err, "setup claude: disk full")
@@ -208,7 +209,7 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		_, err := resolvePlan(t, newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate), req, p)
+		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Resolve(req, p)
 
 		// Assert
 		require.EqualError(t, err, "settings not approved")
@@ -223,7 +224,7 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, p)
+		_, err := newTestService(&fakeDocker{inspectImage: built}, nil).Resolve(req, p)
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
@@ -240,25 +241,25 @@ func TestService_Resolve(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, p)
+		_, err := newTestService(&fakeDocker{inspectImage: built}, nil).Resolve(req, p)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
 		assert.Equal(t, [][]string{{config.CredentialsSetting}}, p.settingsAsked)
 	})
 
-	t.Run("approved credentials reach the run spec with an injection notice", func(t *testing.T) {
+	t.Run("approved credentials reach the run config with an injection notice", func(t *testing.T) {
 		// Arrange
 		stderr := iostreamstest.StubErr(t)
 		req := newCredentialRequest(t)
 
 		// Act
-		rs, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, &fakePrompter{})
+		plan, err := newTestService(&fakeDocker{inspectImage: built}, nil).Resolve(req, &fakePrompter{})
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, rs.Credentials, 1)
-		assert.Equal(t, []string{"api.example.test"}, rs.Credentials[0].Hosts)
+		require.Len(t, plan.config.Egress.Credentials, 1)
+		assert.Equal(t, []string{"api.example.test"}, plan.config.Egress.Credentials[0].Hosts)
 		assert.Contains(t, stderr.String(), "injecting credentials for api.example.test")
 	})
 
@@ -269,7 +270,7 @@ func TestService_Resolve(t *testing.T) {
 		req.Flags.DryRun = true
 
 		// Act
-		_, err := resolvePlan(t, newTestService(&fakeDocker{inspectImage: built}, nil), req, &fakePrompter{})
+		_, err := newTestService(&fakeDocker{inspectImage: built}, nil).Resolve(req, &fakePrompter{})
 
 		// Assert
 		require.NoError(t, err)
