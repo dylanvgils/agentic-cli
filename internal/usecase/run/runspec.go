@@ -30,6 +30,7 @@ type Service struct {
 	toolUpdates      ToolUpdates
 	sidecarImages    SidecarImages
 	watchdog         Watchdog
+	commandLog       CommandLog
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -89,8 +90,8 @@ type egressConfig struct {
 }
 
 // New returns a Service over Docker d and microsandbox m, offering tool updates through u, building sidecar images
-// through si and guarding runs with w.
-func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog) *Service {
+// through si, guarding runs with w and recording their commands to l.
+func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog, l CommandLog) *Service {
 	return &Service{
 		docker:           d,
 		microsandbox:     m,
@@ -98,6 +99,7 @@ func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog) 
 		toolUpdates:      u,
 		sidecarImages:    si,
 		watchdog:         w,
+		commandLog:       l,
 	}
 }
 

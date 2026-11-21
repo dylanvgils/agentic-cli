@@ -9,6 +9,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
+// envFlagPrefix starts each --env flag EnvArgs builds.
+const envFlagPrefix = "--env="
+
 // ProxyCAEnvName carries the proxy CA cert PEM into the tool, which agentic sets when proxy credentials are configured.
 const ProxyCAEnvName = "AGENTIC_PROXY_CA"
 
@@ -92,6 +95,21 @@ func EnvArgs(env []string) []string {
 		args = append(args, Arg("env", entry))
 	}
 	return args
+}
+
+// RedactEnvArgs returns a copy of args with each --env=KEY=VALUE flag's value masked, for logs; bare keys stay.
+func RedactEnvArgs(args []string) []string {
+	redacted := slices.Clone(args)
+	for i, a := range args {
+		entry, isEnv := strings.CutPrefix(a, envFlagPrefix)
+		if !isEnv {
+			continue
+		}
+		if key, _, isPair := strings.Cut(entry, "="); isPair {
+			redacted[i] = envFlagPrefix + key + "=***"
+		}
+	}
+	return redacted
 }
 
 // terminalEnv returns the terminal vars set on the host.

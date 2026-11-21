@@ -3,11 +3,13 @@ package run
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +28,7 @@ func TestService_Apply(t *testing.T) {
 			return docker.Sidecars{}, nil
 		}}
 		w := &fakeWatchdog{}
-		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 		plan := newPlan(t, svc, newTestRunConfig(t))
 
 		// Act
@@ -41,10 +43,33 @@ func TestService_Apply(t *testing.T) {
 		assert.NoDirExists(t, sandbox.RunTempDir(ranSpec.RunID))
 	})
 
+	t.Run("keeps the command log open in the run's log dir while the runner runs", func(t *testing.T) {
+		// Arrange
+		l := &fakeCommandLog{}
+		closedDuringRun := -1
+		d := &fakeDocker{startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
+			closedDuringRun = l.closed
+			return docker.Sidecars{}, nil
+		}}
+		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{}, l)
+		plan := newPlan(t, svc, newTestRunConfig(t))
+
+		// Act
+		err := svc.Apply(plan)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, l.opened, 1)
+		assert.Equal(t, commandLogFileName, filepath.Base(l.opened[0]))
+		assert.DirExists(t, filepath.Dir(l.opened[0]))
+		assert.Equal(t, 0, closedDuringRun)
+		assert.Equal(t, 1, l.closed)
+	})
+
 	t.Run("a failed build ends the run", func(t *testing.T) {
 		// Arrange
 		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 		c := newTestRunConfig(t)
 		c.Env = []string{"TOOL_HOME=nope"}
 		plan := newPlan(t, svc, c)
@@ -63,7 +88,7 @@ func TestService_Apply(t *testing.T) {
 		m := &fakeMicrosandbox{}
 		ran := stubRunImage(m)
 		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, m, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, m, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 		c := newTestRunConfig(t)
 		c.Runtime.Name = sandbox.RuntimeMicrosandbox
 		c.Egress.Mode = sandbox.EgressMonitor
@@ -81,7 +106,7 @@ func TestService_Apply(t *testing.T) {
 }
 
 func TestService_DryRun(t *testing.T) {
-	t.Run("prints the unwatched run's spec through its runner, then ends the run", func(t *testing.T) {
+	t.Run("prints the unwatched run's spec through its runner without a log, then ends the run", func(t *testing.T) {
 		// Arrange
 		var printed sandbox.RunSpec
 		d := &fakeDocker{dryRun: func(rs sandbox.RunSpec, _ string) error {
@@ -89,8 +114,10 @@ func TestService_DryRun(t *testing.T) {
 			return nil
 		}}
 		w := &fakeWatchdog{}
-		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
-		plan := newPlan(t, svc, newTestRunConfig(t))
+		l := &fakeCommandLog{}
+		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, l)
+		c := newTestRunConfig(t)
+		plan := newPlan(t, svc, c)
 
 		// Act
 		err := svc.DryRun(plan)
@@ -100,6 +127,8 @@ func TestService_DryRun(t *testing.T) {
 		assert.Equal(t, "agentic-claude", printed.Image)
 		assert.Empty(t, w.spawned)
 		assert.NoDirExists(t, sandbox.RunTempDir(printed.RunID))
+		assert.Empty(t, l.opened)
+		assert.NoDirExists(t, filepath.Join(c.Homes.Tool, logging.DirName))
 	})
 
 	t.Run("a spec relying on a feature the runtime lacks is refused", func(t *testing.T) {
@@ -368,7 +397,7 @@ func Test_Service_startRun(t *testing.T) {
 			_, err := os.Stat(sandbox.RunTempDir(run.ID))
 			dirAtSpawn = err == nil
 		}}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 
 		// Act
 		run, err := svc.startRun(c, true)
@@ -390,7 +419,7 @@ func Test_Service_startRun(t *testing.T) {
 		// Arrange
 		t.Setenv("TMPDIR", t.TempDir())
 		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 
 		// Act
 		run, err := svc.startRun(newTestRunConfig(t), false)
@@ -406,7 +435,7 @@ func Test_Service_startRun(t *testing.T) {
 		errOut := iostreamstest.StubErr(t)
 		t.Setenv("TMPDIR", t.TempDir())
 		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 
 		// Act
 		run, err := svc.startRun(newTestRunConfig(t), true)

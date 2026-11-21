@@ -32,7 +32,7 @@ func TestService_Resolve(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 
 		// Act
 		_, err := svc.Resolve(req, &fakePrompter{})

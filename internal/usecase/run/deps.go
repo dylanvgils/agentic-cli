@@ -62,6 +62,12 @@ type SidecarImages interface {
 	Ensure(proxy, dind bool, registry string) error
 }
 
+// CommandLog records the docker and msb commands a run runs, to the file it opened.
+type CommandLog interface {
+	Open(path string) error
+	Close() error
+}
+
 // Watchdog tears a run down once this process exits.
 type Watchdog interface {
 	Spawn(run sandbox.RunRef) error

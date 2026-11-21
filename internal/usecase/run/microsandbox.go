@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -55,7 +53,7 @@ func (r microsandboxRunner) Check(req Request) error {
 }
 
 // Run loads rs's image into msb when needed and runs it, rechecking the mounts right before the VM starts.
-func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
+func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry, logDir string) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
@@ -78,7 +76,7 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 
 	rs.Image = ref
 	if r.agenticProxy && rs.Egress.Mode.Enabled() {
-		return r.runThroughProxy(rs, registry)
+		return r.runThroughProxy(rs, registry, logDir)
 	}
 
 	if err := recheckMounts(rs); err != nil {
@@ -89,7 +87,7 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry string) error {
 
 // DryRun prints the msb command Run would run, plus the proxy command with agentic-proxy; a missing image is named
 // untagged, as a real run builds it first.
-func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
+func (r microsandboxRunner) DryRun(rs sandbox.RunSpec, logDir string) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
@@ -108,7 +106,7 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
 		return r.microsandbox.DryRun(rs)
 	}
 
-	published, err := r.docker.DryRunPublishedProxy(rs, proxyLogFile(rs, time.Now()), sandbox.RuntimeMicrosandbox)
+	published, err := r.docker.DryRunPublishedProxy(rs, proxyLogFile(rs, logDir), sandbox.RuntimeMicrosandbox)
 	if err != nil {
 		return err
 	}
@@ -116,11 +114,8 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec) error {
 }
 
 // runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
-func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry string) error {
-	proxyLog := proxyLogFile(rs, time.Now())
-	if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
-		return err
-	}
+func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry, logDir string) error {
+	proxyLog := proxyLogFile(rs, logDir)
 	if err := r.sidecarImages.Ensure(true, false, registry); err != nil {
 		return err
 	}

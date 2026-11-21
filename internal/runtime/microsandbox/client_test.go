@@ -6,22 +6,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
+	// Arrange
+	log := cmdlog.New()
+
 	// Act
-	client := New()
+	client := New(log)
 
 	// Assert
-	assert.Equal(t, execRunner{}, client.runner)
+	assert.Equal(t, execRunner{log: log}, client.runner)
 }
 
 func TestClient_Capabilities(t *testing.T) {
 	// Act
-	caps := New().Capabilities()
+	caps := New(cmdlog.New()).Capabilities()
 
 	// Assert
 	assert.Equal(t, sandbox.Capabilities{
@@ -41,7 +45,7 @@ func TestClient_Available(t *testing.T) {
 		stubMsb(t, "true")
 
 		// Act
-		err := New().Available()
+		err := New(cmdlog.New()).Available()
 
 		// Assert
 		assert.NoError(t, err)
@@ -52,7 +56,7 @@ func TestClient_Available(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 
 		// Act
-		err := New().Available()
+		err := New(cmdlog.New()).Available()
 
 		// Assert
 		assert.ErrorIs(t, err, errNotInstalled)
@@ -102,7 +106,7 @@ func Test_execRunner_Run(t *testing.T) {
 		stubMsb(t, `printf '%s\n' "$@"`)
 
 		// Act
-		out, err := execRunner{}.Run("images", "--quiet")
+		out, err := execRunner{log: cmdlog.New()}.Run("images", "--quiet")
 
 		// Assert
 		require.NoError(t, err)
@@ -114,7 +118,7 @@ func Test_execRunner_Run(t *testing.T) {
 		stubMsb(t, `echo boom; exit 1`)
 
 		// Act
-		_, err := execRunner{}.Run("load")
+		_, err := execRunner{log: cmdlog.New()}.Run("load")
 
 		// Assert
 		require.Error(t, err)
@@ -127,7 +131,7 @@ func Test_execRunner_RunWithStdin(t *testing.T) {
 	stubMsb(t, `printf '%s\n' "$@"; cat`)
 
 	// Act
-	out, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
+	out, err := execRunner{log: cmdlog.New()}.RunWithStdin(strings.NewReader("tar"), "load")
 
 	// Assert
 	require.NoError(t, err)
@@ -140,11 +144,30 @@ func Test_execRunner_RunInteractive(t *testing.T) {
 	stubMsb(t, `echo "$EXAMPLE_TOKEN" > "`+out+`"`)
 
 	// Act
-	err := execRunner{}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "img")
+	err := execRunner{log: cmdlog.New()}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "img")
 
 	// Assert
 	require.NoError(t, err)
 	got, err := os.ReadFile(out)
 	require.NoError(t, err)
 	assert.Equal(t, "test-secret\n", string(got))
+}
+
+func Test_execRunner_run(t *testing.T) {
+	// Arrange
+	stubMsb(t, `exit 0`)
+	path := filepath.Join(t.TempDir(), "commands.jsonl")
+	log := cmdlog.New()
+	require.NoError(t, log.Open(path))
+	t.Cleanup(func() { log.Close() }) //nolint:errcheck
+
+	// Act
+	err := execRunner{log: log}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "--env=API_KEY=test-secret", "img")
+
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `"command":"msb","args":["run","--env=API_KEY=***","img"],"exit_code":0`)
+	assert.NotContains(t, string(got), "test-secret")
 }

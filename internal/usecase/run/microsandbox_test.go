@@ -118,7 +118,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		buf := iostreamstest.StubErr(t)
 
 		// Act
-		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "")
+		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "", t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -146,7 +146,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: true}
 
 		// Act
-		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "")
+		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "", t.TempDir())
 
 		// Assert
 		assert.EqualError(t, err, "stub: start failed")
@@ -185,7 +185,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: &fakeSidecarImages{}, agenticProxy: tc.agentic}
 
 			// Act
-			err := r.Run(rs, "")
+			err := r.Run(rs, "", t.TempDir())
 
 			// Assert
 			require.NoError(t, err)
@@ -200,7 +200,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		ran := stubRunImage(m)
 
 		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		require.EqualError(t, err, "image agentic-claude not found")
@@ -214,7 +214,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -231,7 +231,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "")
+		err := msb.Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
@@ -247,7 +247,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := msb.Run(rs, "")
+		err := msb.Run(rs, "", t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -263,7 +263,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		ran := stubRunImage(m)
 
 		// Act
-		err := microsandboxRunner{docker: d, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, "")
+		err := microsandboxRunner{docker: d, microsandbox: m}.Run(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, "", t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -288,7 +288,7 @@ func Test_microsandboxRunner_DryRun(t *testing.T) {
 		r := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: m}
 
 		// Act
-		err := r.DryRun(sandbox.RunSpec{Image: "agentic-claude"})
+		err := r.DryRun(sandbox.RunSpec{Image: "agentic-claude"}, t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -310,7 +310,7 @@ func Test_microsandboxRunner_DryRun(t *testing.T) {
 		}}
 
 		// Act
-		err := microsandboxRunner{docker: d, microsandbox: m}.DryRun(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}})
+		err := microsandboxRunner{docker: d, microsandbox: m}.DryRun(sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -338,7 +338,7 @@ func Test_microsandboxRunner_DryRun(t *testing.T) {
 		r := microsandboxRunner{docker: d, microsandbox: m, sidecarImages: images, agenticProxy: true}
 
 		// Act
-		err := r.DryRun(rs)
+		err := r.DryRun(rs, t.TempDir())
 
 		// Assert
 		require.NoError(t, err)

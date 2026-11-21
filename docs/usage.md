@@ -196,7 +196,9 @@ agentic --docker-context prod build claude
 
 - `tools/<tool>/` - each tool's state. See [Volume mounts](volume-mounts.md) for the paths.
 - `marketplaces/` - [marketplace](#marketplaces) clones
-- `logs/<YYYYMMDD>-<HHMMSS>-<id>/` - one dir per run with its logs, e.g. `proxy.jsonl`, named after the run's start time
+- `logs/<YYYYMMDD>-<HHMMSS>-<id>/` - one dir per run, named after its start time and kept for [`log_retention_days`](config.md#agenticjson):
+  - `commands.jsonl` - every `docker` and `msb` command agentic ran for the run, as JSON lines with its exit code and duration. `--env` values show as `***`.
+  - `proxy.jsonl` - the proxy's [access log](egress-proxy.md#access-log), with the proxy on.
 - `custom-installs/` - the [custom installs](config.md#buildcustom_installs) each image was built with, so `agentic update` can rebuild them. `agentic clean` removes the ones no image uses anymore.
 
 `--home` overrides it for one command, and every command accepts it: `agentic --home /opt/agentic run claude`.

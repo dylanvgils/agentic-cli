@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -16,22 +17,28 @@ type runner interface {
 	// Check refuses a run the runtime can't do for its own reasons, before any prompt.
 	Check(req Request) error
 	// Run readies the runtime's host resources for rs, building missing sidecar images from registry, then runs it,
-	// rechecking the mounts right before each process that mounts them starts.
-	Run(rs sandbox.RunSpec, registry string) error
-	// DryRun prints the commands Run would run, starting nothing.
-	DryRun(rs sandbox.RunSpec) error
+	// rechecking the mounts right before each process that mounts them starts; logs go in the existing logDir.
+	Run(rs sandbox.RunSpec, registry, logDir string) error
+	// DryRun prints the commands Run would run with logDir, starting nothing.
+	DryRun(rs sandbox.RunSpec, logDir string) error
 	// Teardown removes everything run id left on the runtime; best-effort and idempotent.
 	Teardown(toolHome string, id sandbox.RunID) error
 }
 
-// Apply starts plan's run, runs it on its runner, then ends it.
+// Apply starts plan's run, runs it on its runner, recording its commands in its log dir, then ends it.
 func (s *Service) Apply(plan *Plan) error {
 	run, rs, err := s.start(plan, true)
 	if err != nil {
 		return err
 	}
 	defer func() { warnOnEndRunError(endRun(run)) }()
-	return plan.runner.Run(rs, plan.config.Registry)
+
+	logDir := runLogDir(run, time.Now())
+	if err := s.openRunLog(logDir, run.ToolHome); err != nil {
+		return err
+	}
+	defer s.closeRunLog()
+	return plan.runner.Run(rs, plan.config.Registry, logDir)
 }
 
 // DryRun prints the commands Apply would run; its run gets a temp dir for the snapshot but no watchdog.
@@ -41,7 +48,7 @@ func (s *Service) DryRun(plan *Plan) error {
 		return err
 	}
 	defer func() { warnOnEndRunError(endRun(run)) }()
-	return plan.runner.DryRun(rs)
+	return plan.runner.DryRun(rs, runLogDir(run, time.Now()))
 }
 
 // Teardown removes everything run left: its runtime resources first, so nothing writes its host files while endRun

@@ -90,6 +90,11 @@ func RootDir() string {
 	return rootDir
 }
 
+// AgenticHome returns the AGENTIC_HOME of every agentic call.
+func AgenticHome() string {
+	return agenticHome
+}
+
 // TmpDir returns the TMPDIR of every agentic call.
 func TmpDir() string {
 	return tmpDir

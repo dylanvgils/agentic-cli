@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
@@ -18,11 +19,14 @@ import (
 )
 
 var (
+	// commandLog records the docker and msb commands of an `agentic run`, which opens it in the run's log dir.
+	commandLog = cmdlog.New()
+
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
-	dockerClient dockerAPI = docker.New("")
+	dockerClient dockerAPI = docker.New("", commandLog)
 
 	// msbClient runs tools for `agentic run --runtime microsandbox` and manages their images and volumes.
-	msbClient msbAPI = microsandbox.New()
+	msbClient msbAPI = microsandbox.New(commandLog)
 
 	// upstreamClient looks up the tools' latest released versions for `agentic update`.
 	upstreamClient update.Upstream = tools.Upstream{}

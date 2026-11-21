@@ -119,6 +119,7 @@ func newRunServiceFor(d dockerAPI) *run.Service {
 		toolUpdates{docker: d, upstream: upstreamClient},
 		sidecar.New(d),
 		watchdogs.For(d.Context()),
+		commandLog,
 	)
 }
 

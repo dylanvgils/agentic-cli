@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -48,14 +49,17 @@ type timing struct {
 	proxyPollInterval time.Duration
 }
 
-// execRunner runs the docker binary found on PATH.
-type execRunner struct{}
+// execRunner runs the docker binary found on PATH, recording each command to log.
+type execRunner struct {
+	log *cmdlog.Log
+}
 
-// New returns a Client for the given Docker context (empty = the docker CLI's active context).
-func New(context string) *Client {
+// New returns a Client for the given Docker context (empty = the docker CLI's active context), recording its commands
+// to log.
+func New(context string, log *cmdlog.Log) *Client {
 	return &Client{
 		context: context,
-		runner:  execRunner{},
+		runner:  execRunner{log: log},
 		timing:  defaultTiming(),
 	}
 }
@@ -122,58 +126,66 @@ func (c *Client) withContext(args []string) []string {
 	return append([]string{"--context", c.context}, args...)
 }
 
-func (execRunner) Run(args ...string) (string, error) {
-	return output(command(args...), args)
+func (r execRunner) Run(args ...string) (string, error) {
+	return r.output(command(args...), args)
 }
 
-func (execRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+func (r execRunner) RunWithStdin(in io.Reader, args ...string) (string, error) {
 	cmd := command(args...)
-	cmd.Stdin = r
-	return output(cmd, args)
+	cmd.Stdin = in
+	return r.output(cmd, args)
 }
 
-func (execRunner) RunInteractive(args ...string) error {
-	return attached(iostreams.Default().Out, args)
+func (r execRunner) RunInteractive(args ...string) error {
+	return r.attached(iostreams.Default().Out, args)
 }
 
-func (execRunner) RunProgress(args ...string) error {
-	return attached(iostreams.Default().Err, args)
+func (r execRunner) RunProgress(args ...string) error {
+	return r.attached(iostreams.Default().Err, args)
 }
 
-func (execRunner) Stream(w io.Writer, args ...string) error {
+func (r execRunner) Stream(w io.Writer, args ...string) error {
 	cmd := command(args...)
 	cmd.Stdout = w
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := r.run(cmd, args); err != nil {
 		return fmt.Errorf("docker %v: %w\n%s", args, err, stderr.String())
 	}
 	return nil
 }
 
-// command returns a `docker <args>` command for the docker binary on PATH.
-func command(args ...string) *exec.Cmd {
-	return exec.Command("docker", args...) // NOSONAR - the user's own docker from PATH is intended
-}
-
 // attached runs `docker <args>` with the default In and Err, and stdout on out.
-func attached(out io.Writer, args []string) error {
+func (r execRunner) attached(out io.Writer, args []string) error {
 	cmd := command(args...)
 	cmd.Stdin = iostreams.Default().In
 	cmd.Stdout = out
 	cmd.Stderr = iostreams.Default().Err
-	return cmd.Run()
+	return r.run(cmd, args)
 }
 
 // output runs cmd and returns its combined stdout+stderr, which the error includes on failure.
-func output(cmd *exec.Cmd, args []string) (string, error) {
+func (r execRunner) output(cmd *exec.Cmd, args []string) (string, error) {
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
-	if err := cmd.Run(); err != nil {
+	if err := r.run(cmd, args); err != nil {
 		return "", fmt.Errorf("docker %v: %w\n%s", args, err, buf.String())
 	}
 	return buf.String(), nil
+}
+
+// run runs cmd, recording `docker <args>` with its env values masked, how it ended and how long it took.
+func (r execRunner) run(cmd *exec.Cmd, args []string) error {
+	start := time.Now()
+	err := cmd.Run()
+	r.log.Record("docker", sandbox.RedactEnvArgs(args), err, time.Since(start))
+	return err
+}
+
+// command returns a `docker <args>` command for the docker binary on PATH.
+func command(args ...string) *exec.Cmd {
+	return exec.Command("docker", args...) // NOSONAR - the user's own docker from PATH is intended
 }
 
 // defaultTiming returns the waits and grace periods real runs use.

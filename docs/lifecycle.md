@@ -124,7 +124,8 @@ How to read it:
 | Start | `startRun` in `runtime.go` | Creates the RunID, spawns the watchdog and creates the run temp dir, before anything the run can leave behind. |
 | RunSpec | `buildWithInstructions` in `runspec.go` | Writes the instructions snapshot, then builds the RunSpec with it mounted. |
 | Spec check | `checkSpec` in `capabilities.go` | Refuses a RunSpec that needs a feature the runtime lacks, a backstop for `checkRuntime`. |
-| Runner | `runner.Run` | Readies the runtime's host resources and runs the tool, see below. |
+| Run log | `openRunLog` in `runlog.go` | Creates the run's log dir, prunes old ones and opens `commands.jsonl`, which the docker and msb clients' `execRunner` writes every command to until the runner returns. |
+| Runner | `runner.Run` | Readies the runtime's host resources and runs the tool, with the proxy logging into the log dir, see below. |
 
 `buildWithInstructions` calls `buildInstructions` and `prepareInstructions` (`instructions.go`), then `build` (`runspec.go`):
 
@@ -142,7 +143,7 @@ How to read it:
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Host | `prepareDockerHost` | Creates the named volumes and the proxy log dir and builds missing sidecar images. |
+| Host | `prepareDockerHost` | Creates the named volumes and builds missing sidecar images. |
 | Sidecars | `StartSidecars` in `run.go` → `startSidecars` in `sidecar.go` | Sweeps orphans, installs the `runGuard`, then creates the run network and starts the enabled sidecars. |
 | Proxy | `launchProxy` in `proxy.go` | Starts the proxy and returns the tool's proxy env. |
 | Docker | `startDind` in `dind.go` | Starts the dind sidecar and waits for its dockerd. |
@@ -188,7 +189,7 @@ flowchart TD
     watchdog -->|watchdog killed too| sweep["next run's orphan sweep after 5 min"]
 ```
 
-Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Apply` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
+Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Apply` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the run's log dir under `$AGENTIC_HOME`.
 
 Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it. `run.Service.Teardown` adds the runtime-neutral part: it saves a leftover instructions snapshot back to the tool's file, then removes the run temp dir.
 

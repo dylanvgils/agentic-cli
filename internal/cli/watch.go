@@ -37,7 +37,7 @@ func runWatch(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	runs := newRunServiceFor(docker.New(target.DockerContext))
+	runs := newRunServiceFor(docker.New(target.DockerContext, commandLog))
 	return watch.New(runs).Watch(target)
 }
 

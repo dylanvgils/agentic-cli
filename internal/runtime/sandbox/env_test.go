@@ -128,6 +128,32 @@ func TestEnvArgs(t *testing.T) {
 	assert.Equal(t, []string{"--env=TZ=UTC", "--env=MAVEN_OPTS=-Dfoo=bar"}, args)
 }
 
+func TestRedactEnvArgs(t *testing.T) {
+	// Arrange
+	args := []string{
+		"run",
+		"--env=API_KEY=test-secret",
+		"--env=EMPTY=",
+		"--env=FORWARDED",
+		"--network=agentic-net",
+		"--environment=kept",
+	}
+
+	// Act
+	redacted := RedactEnvArgs(args)
+
+	// Assert
+	assert.Equal(t, []string{
+		"run",
+		"--env=API_KEY=***",
+		"--env=EMPTY=***",
+		"--env=FORWARDED",
+		"--network=agentic-net",
+		"--environment=kept",
+	}, redacted)
+	assert.Equal(t, "--env=API_KEY=test-secret", args[1])
+}
+
 func Test_terminalEnv(t *testing.T) {
 	t.Run("forwards each set terminal var from the host", func(t *testing.T) {
 		// Arrange
