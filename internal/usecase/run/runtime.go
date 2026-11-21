@@ -24,25 +24,24 @@ type runner interface {
 	Teardown(toolHome string, id sandbox.RunID) error
 }
 
-// Apply runs plan on its runner after refusing a spec that needs a feature the runner lacks.
+// Apply starts plan's run, runs it on its runner, then ends it.
 func (s *Service) Apply(plan *Plan) error {
-	if err := checkSpec(plan.spec, plan.runner.Capabilities().Features); err != nil {
+	run, rs, err := s.start(plan, true)
+	if err != nil {
 		return err
 	}
-	return plan.runner.Run(plan.spec, plan.registry)
+	defer func() { warnOnEndRunError(endRun(run)) }()
+	return plan.runner.Run(rs, plan.config.Registry)
 }
 
-// DryRun prints the commands Apply would run, after refusing a spec that needs a feature the runner lacks.
+// DryRun prints the commands Apply would run; its run gets a temp dir for the snapshot but no watchdog.
 func (s *Service) DryRun(plan *Plan) error {
-	if err := checkSpec(plan.spec, plan.runner.Capabilities().Features); err != nil {
+	run, rs, err := s.start(plan, false)
+	if err != nil {
 		return err
 	}
-	return plan.runner.DryRun(plan.spec)
-}
-
-// End saves plan's instructions snapshot back and removes its temp dir, warning on a failure.
-func (s *Service) End(plan *Plan) {
-	warnOnEndRunError(endRun(plan.run))
+	defer func() { warnOnEndRunError(endRun(run)) }()
+	return plan.runner.DryRun(rs)
 }
 
 // Teardown removes everything run left: its runtime resources first, so nothing writes its host files while endRun
@@ -57,8 +56,28 @@ func (s *Service) Teardown(run sandbox.RunRef) error {
 	return errors.Join(runtimeErr, endRun(run))
 }
 
-// startRun gives a run its ID, its watchdog unless it's a dry run, then its temp dir, before anything it can leave behind.
-func (s *Service) startRun(req Request) (sandbox.RunRef, error) {
+// start starts plan's run, watched when watch is set, and builds its RunSpec, refusing one that needs a feature the
+// runner lacks; on an error it ends the run.
+func (s *Service) start(plan *Plan, watch bool) (sandbox.RunRef, sandbox.RunSpec, error) {
+	run, err := s.startRun(plan.config, watch)
+	if err != nil {
+		return sandbox.RunRef{}, sandbox.RunSpec{}, err
+	}
+
+	rs, err := s.buildWithInstructions(run.ID, plan.config)
+	if err == nil {
+		err = checkSpec(rs, plan.runner.Capabilities().Features)
+	}
+	if err != nil {
+		warnOnEndRunError(endRun(run))
+		return sandbox.RunRef{}, sandbox.RunSpec{}, err
+	}
+	return run, rs, nil
+}
+
+// startRun gives c's run its ID, its watchdog when watch is set, then its temp dir, before anything it can leave
+// behind.
+func (s *Service) startRun(c runConfig, watch bool) (sandbox.RunRef, error) {
 	id, err := sandbox.NewRunID()
 	if err != nil {
 		return sandbox.RunRef{}, err
@@ -66,11 +85,11 @@ func (s *Service) startRun(req Request) (sandbox.RunRef, error) {
 
 	run := sandbox.RunRef{
 		ID:       id,
-		Runtime:  req.runtime(),
-		Tool:     req.Target.ToolName,
-		ToolHome: req.Flags.ToolHome,
+		Runtime:  c.Runtime.Name,
+		Tool:     c.Target.ToolName,
+		ToolHome: c.Homes.Tool,
 	}
-	if !req.Flags.DryRun {
+	if watch {
 		if err := s.watchdog.Spawn(run); err != nil {
 			logging.Warnf("watchdog not confirmed, so a killed run may be left behind: %v", err)
 		}

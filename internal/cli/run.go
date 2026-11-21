@@ -99,7 +99,6 @@ func runTool(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer svc.End(plan)
 
 	if req.Flags.DryRun {
 		return svc.DryRun(plan)

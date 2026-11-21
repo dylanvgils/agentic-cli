@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -27,35 +28,21 @@ func TestService_Resolve(t *testing.T) {
 		return nil
 	}}
 
-	t.Run("gives the run the watched run's ID", func(t *testing.T) {
+	t.Run("starts nothing", func(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		w := &fakeWatchdog{}
 		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		plan, err := svc.Resolve(req, &fakePrompter{})
+		_, err := svc.Resolve(req, &fakePrompter{})
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, w.spawned, 1)
-		assert.Equal(t, w.spawned[0].ID, plan.spec.RunID)
-	})
-
-	t.Run("a failed build saves the snapshot back and removes the run temp dir", func(t *testing.T) {
-		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.Env = []string{"TOOL_HOME=nope"}
-		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
-
-		// Act
-		_, err := resolvePlan(t, svc, req, &fakePrompter{})
-
-		// Assert
-		require.Error(t, err)
-		require.Len(t, w.spawned, 1)
-		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
+		assert.Empty(t, w.spawned)
+		entries, err := os.ReadDir(os.TempDir())
+		require.NoError(t, err)
+		assert.Empty(t, entries)
 	})
 
 	for _, tc := range []struct {
