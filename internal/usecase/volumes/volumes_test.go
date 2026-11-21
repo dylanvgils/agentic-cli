@@ -49,14 +49,6 @@ func Test_Service_List(t *testing.T) {
 	})
 }
 
-func Test_Service_Remove(t *testing.T) {
-	// Act
-	err := New(&fakeDocker{}).Remove(Volume{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox})
-
-	// Assert
-	assert.EqualError(t, err, `unknown volume runtime "microsandbox"`)
-}
-
 func Test_Service_RemoveAll(t *testing.T) {
 	t.Run("removes each volume from its runtime and reports it", func(t *testing.T) {
 		// Arrange
@@ -133,6 +125,14 @@ func Test_Service_RemoveNamed(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "in use")
 	})
+}
+
+func Test_Service_remove(t *testing.T) {
+	// Act
+	err := New(&fakeDocker{}).remove(Volume{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox})
+
+	// Assert
+	assert.EqualError(t, err, `unknown volume runtime "microsandbox"`)
 }
 
 func Test_named(t *testing.T) {

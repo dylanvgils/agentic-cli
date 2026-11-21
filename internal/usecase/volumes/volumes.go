@@ -60,19 +60,10 @@ func (s *Service) List() ([]Volume, error) {
 	return volumes, nil
 }
 
-// Remove removes v from its runtime.
-func (s *Service) Remove(v Volume) error {
-	store, err := s.store(v.Runtime)
-	if err != nil {
-		return err
-	}
-	return store.RemoveVolume(v.Name)
-}
-
 // RemoveAll removes each of vols from its runtime, reporting progress; it stops at the first error.
 func (s *Service) RemoveAll(vols []Volume) error {
 	for _, v := range vols {
-		if err := s.Remove(v); err != nil {
+		if err := s.remove(v); err != nil {
 			return err
 		}
 		logging.Stepf("deleted: %s", v.Label())
@@ -92,11 +83,20 @@ func (s *Service) RemoveNamed(name string) error {
 		return fmt.Errorf("'%s' is not an agentic-managed volume", name)
 	}
 	for _, v := range matches {
-		if err := s.Remove(v); err != nil {
+		if err := s.remove(v); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// remove removes v from its runtime.
+func (s *Service) remove(v Volume) error {
+	store, err := s.store(v.Runtime)
+	if err != nil {
+		return err
+	}
+	return store.RemoveVolume(v.Name)
 }
 
 // store returns the store of the runtime named runtime.

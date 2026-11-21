@@ -62,6 +62,8 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - `type Service struct` holds them from `New`, plus `home string` if it touches the data dir.
   - Exported entry points are `Service` methods; unexported helpers only if they call a client.
   - An action command's usecase has `Resolve(...) (Plan, error)`, then `DryRun(plan)` or `Apply(plan)`; the cli prints the summary between them.
+  - `DryRun` only where there's a command or Dockerfile to print.
+  - No Plan for `prune`, which finds and removes its targets in one runtime call so the live-run checks happen at removal, or `volume rm`, which acts on named volumes, the cli confirming `--all`.
 - Runners (`internal/usecase/run/<runtime>.go`, interface in `runtime.go`) hold a runtime's run steps:
   - `Check` refuses a request before any prompt, `Run` runs it, `DryRun` prints what `Run` would run.
   - A new runtime adds a runner and a case in `Service.runner`.

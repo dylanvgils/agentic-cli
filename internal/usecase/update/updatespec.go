@@ -101,7 +101,8 @@ func (s *Service) Apply(plan Plan) error {
 	return nil
 }
 
-// ApplyRecovered rebuilds image for tool, reusing installed build options where possible; it's the toolupdate.Updater for `agentic run`'s auto-update prompt, so unlike `agentic update` it never exits the process.
+// ApplyRecovered rebuilds image for tool with its recovered build options; it's the apply func of `agentic run`'s update
+// prompt.
 func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}
 	if info, err := s.docker.InspectImage(image); err == nil && info != nil {
