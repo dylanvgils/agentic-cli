@@ -29,5 +29,4 @@ func TestCommandLog(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(got), `"command":"docker","args":["run",`)
 	assert.Contains(t, string(got), `"exit_code":0`)
-	assert.Contains(t, string(got), `"reason":"RunTool`)
 }

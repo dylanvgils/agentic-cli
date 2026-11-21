@@ -168,6 +168,6 @@ func Test_execRunner_run(t *testing.T) {
 	require.NoError(t, err)
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Contains(t, string(got), `"command":"msb","args":["run","--env=API_KEY=***","img"],"reason":"Test_execRunner_run","exit_code":0`)
+	assert.Contains(t, string(got), `"command":"msb","args":["run","--env=API_KEY=***","img"],"exit_code":0`)
 	assert.NotContains(t, string(got), "test-secret")
 }

@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ func TestLog_Record(t *testing.T) {
 		t.Cleanup(func() { l.Close() }) //nolint:errcheck
 
 		// Act
-		l.Record("docker", []string{"run", "--env=FOO=***"}, "StartSidecars > launchProxy", nil, 1500*time.Millisecond)
+		l.Record("docker", []string{"run", "--env=FOO=***"}, nil, 1500*time.Millisecond)
 
 		// Assert
 		entries := readEntries(t, path)
@@ -34,7 +33,6 @@ func TestLog_Record(t *testing.T) {
 		assert.Equal(t, Entry{
 			Command:        "docker",
 			Args:           []string{"run", "--env=FOO=***"},
-			Reason:         "StartSidecars > launchProxy",
 			DurationMillis: 1500,
 		}, entries[0])
 	})
@@ -43,12 +41,12 @@ func TestLog_Record(t *testing.T) {
 		// Arrange
 		path := filepath.Join(t.TempDir(), "commands.jsonl")
 		l := New()
-		l.Record("docker", []string{"before"}, "", nil, 0)
+		l.Record("docker", []string{"before"}, nil, 0)
 		require.NoError(t, l.Open(path))
 		require.NoError(t, l.Close())
 
 		// Act
-		l.Record("docker", []string{"after"}, "", nil, 0)
+		l.Record("docker", []string{"after"}, nil, 0)
 
 		// Assert
 		assert.Empty(t, readEntries(t, path))
@@ -59,13 +57,13 @@ func TestLog_Record(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "commands.jsonl")
 		l := New()
 		require.NoError(t, l.Open(path))
-		l.Record("msb", []string{"ls"}, "", nil, 0)
+		l.Record("msb", []string{"ls"}, nil, 0)
 		require.NoError(t, l.Close())
 		require.NoError(t, l.Open(path))
 		t.Cleanup(func() { l.Close() }) //nolint:errcheck
 
 		// Act
-		l.Record("msb", []string{"run"}, "", nil, 0)
+		l.Record("msb", []string{"run"}, nil, 0)
 
 		// Assert
 		entries := readEntries(t, path)
@@ -83,96 +81,6 @@ func TestLog_Close(t *testing.T) {
 
 	// Assert
 	assert.NoError(t, err)
-}
-
-func TestReason(t *testing.T) {
-	pkgPath := reflect.TypeFor[Entry]().PkgPath()
-
-	for _, tc := range []struct {
-		name     string
-		pkgPath  string
-		plumbing []string
-		want     string
-	}{
-		{
-			name:    "the package's callers, outermost first, a closure named after its func",
-			pkgPath: pkgPath,
-			want:    "TestReason > reasonOuter > run",
-		},
-		{
-			name:     "skips a plumbing method",
-			pkgPath:  pkgPath,
-			plumbing: []string{"reasonRunner.run"},
-			want:     "TestReason > reasonOuter",
-		},
-		{
-			name:     "skips a plumbing receiver",
-			pkgPath:  pkgPath,
-			plumbing: []string{"reasonRunner."},
-			want:     "TestReason > reasonOuter",
-		},
-		{
-			name:    "empty for a package not on the stack",
-			pkgPath: "example.test/other",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			reason := reasonOuter(tc.pkgPath, tc.plumbing)
-
-			// Assert
-			assert.Equal(t, tc.want, reason)
-		})
-	}
-}
-
-func Test_frameName(t *testing.T) {
-	const pkgPath = "example.test/agentic/docker"
-
-	for _, tc := range []struct {
-		name     string
-		function string
-		want     string
-		wantOK   bool
-	}{
-		{
-			name:     "a pointer method",
-			function: pkgPath + ".(*Client).launchProxy",
-			want:     "Client.launchProxy",
-			wantOK:   true,
-		},
-		{
-			name:     "a value method",
-			function: pkgPath + ".execRunner.run",
-			want:     "execRunner.run",
-			wantOK:   true,
-		},
-		{
-			name:     "a closure and a nested one, without their suffixes",
-			function: pkgPath + ".(*Client).StartSidecars.func1.2",
-			want:     "Client.StartSidecars",
-			wantOK:   true,
-		},
-		{
-			name:     "a go statement's wrapper, without its suffix",
-			function: pkgPath + ".sweep.gowrap1",
-			want:     "sweep",
-			wantOK:   true,
-		},
-		{
-			name:     "another package",
-			function: pkgPath + "/sub.Func",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			name, ok := frameName(tc.function, pkgPath)
-
-			// Assert
-			assert.Equal(t, tc.wantOK, ok)
-			assert.Equal(t, tc.want, name)
-		})
-	}
 }
 
 func Test_exitStatus(t *testing.T) {
@@ -226,16 +134,4 @@ func readEntries(t *testing.T, path string) []Entry {
 	}
 	require.NoError(t, scanner.Err())
 	return entries
-}
-
-// reasonRunner stands in for a runtime's execRunner, calling Reason from a method.
-type reasonRunner struct{}
-
-func (reasonRunner) run(pkgPath string, plumbing []string) string {
-	return Reason(pkgPath, plumbing...)
-}
-
-// reasonOuter stands in for a Client method that runs a command through reasonRunner.
-func reasonOuter(pkgPath string, plumbing []string) string {
-	return reasonRunner{}.run(pkgPath, plumbing)
 }
