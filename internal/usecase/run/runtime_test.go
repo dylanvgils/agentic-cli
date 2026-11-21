@@ -15,15 +15,19 @@ import (
 )
 
 func TestService_Apply(t *testing.T) {
-	t.Run("runs the spec on the run's runner", func(t *testing.T) {
+	t.Run("runs the watched run's spec on its runner, then ends the run", func(t *testing.T) {
 		// Arrange
 		var ranSpec sandbox.RunSpec
+		var dirDuringRun bool
 		d := &fakeDocker{startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
 			ranSpec = rs
+			_, err := os.Stat(sandbox.RunTempDir(rs.RunID))
+			dirDuringRun = err == nil
 			return docker.Sidecars{}, nil
 		}}
-		svc := newTestService(d, nil)
-		plan := newPlan(t, svc, sandbox.RuntimeDocker, sandbox.RunSpec{Image: "agentic-claude"})
+		w := &fakeWatchdog{}
+		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		plan := newPlan(t, svc, newTestRunConfig(t))
 
 		// Act
 		err := svc.Apply(plan)
@@ -31,15 +35,39 @@ func TestService_Apply(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
+		require.Len(t, w.spawned, 1)
+		assert.Equal(t, w.spawned[0].ID, ranSpec.RunID)
+		assert.True(t, dirDuringRun)
+		assert.NoDirExists(t, sandbox.RunTempDir(ranSpec.RunID))
 	})
 
-	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
+	t.Run("a failed build ends the run", func(t *testing.T) {
+		// Arrange
+		w := &fakeWatchdog{}
+		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		c := newTestRunConfig(t)
+		c.Env = []string{"TOOL_HOME=nope"}
+		plan := newPlan(t, svc, c)
+
+		// Act
+		err := svc.Apply(plan)
+
+		// Assert
+		require.Error(t, err)
+		require.Len(t, w.spawned, 1)
+		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
+	})
+
+	t.Run("a spec relying on a feature the runtime lacks never reaches it and ends the run", func(t *testing.T) {
 		// Arrange
 		m := &fakeMicrosandbox{}
 		ran := stubRunImage(m)
-		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
-		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m)
-		plan := newPlan(t, svc, sandbox.RuntimeMicrosandbox, rs)
+		w := &fakeWatchdog{}
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, m, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		c := newTestRunConfig(t)
+		c.Runtime.Name = sandbox.RuntimeMicrosandbox
+		c.Egress.Mode = sandbox.EgressMonitor
+		plan := newPlan(t, svc, c)
 
 		// Act
 		err := svc.Apply(plan)
@@ -47,19 +75,22 @@ func TestService_Apply(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
 		assert.Empty(t, *ran)
+		require.Len(t, w.spawned, 1)
+		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
 	})
 }
 
 func TestService_DryRun(t *testing.T) {
-	t.Run("prints the spec through the run's runner", func(t *testing.T) {
+	t.Run("prints the unwatched run's spec through its runner, then ends the run", func(t *testing.T) {
 		// Arrange
 		var printed sandbox.RunSpec
 		d := &fakeDocker{dryRun: func(rs sandbox.RunSpec, _ string) error {
 			printed = rs
 			return nil
 		}}
-		svc := newTestService(d, nil)
-		plan := newPlan(t, svc, sandbox.RuntimeDocker, sandbox.RunSpec{Image: "agentic-claude"})
+		w := &fakeWatchdog{}
+		svc := New(d, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+		plan := newPlan(t, svc, newTestRunConfig(t))
 
 		// Act
 		err := svc.DryRun(plan)
@@ -67,6 +98,8 @@ func TestService_DryRun(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", printed.Image)
+		assert.Empty(t, w.spawned)
+		assert.NoDirExists(t, sandbox.RunTempDir(printed.RunID))
 	})
 
 	t.Run("a spec relying on a feature the runtime lacks is refused", func(t *testing.T) {
@@ -75,9 +108,11 @@ func TestService_DryRun(t *testing.T) {
 			t.Fatal("printed the spec")
 			return nil
 		}}
-		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 		svc := newTestService(&fakeDocker{}, m)
-		plan := newPlan(t, svc, sandbox.RuntimeMicrosandbox, rs)
+		c := newTestRunConfig(t)
+		c.Runtime.Name = sandbox.RuntimeMicrosandbox
+		c.Egress.Mode = sandbox.EgressMonitor
+		plan := newPlan(t, svc, c)
 
 		// Act
 		err := svc.DryRun(plan)
@@ -325,7 +360,9 @@ func Test_Service_Teardown(t *testing.T) {
 func Test_Service_startRun(t *testing.T) {
 	t.Run("spawns the run's watchdog before creating its temp dir", func(t *testing.T) {
 		// Arrange
-		req := newResolveRequest(t)
+		t.Setenv("TMPDIR", t.TempDir())
+		c := newTestRunConfig(t)
+		c.Runtime.Name = sandbox.RuntimeDocker
 		var dirAtSpawn bool
 		w := &fakeWatchdog{onSpawn: func(run sandbox.RunRef) {
 			_, err := os.Stat(sandbox.RunTempDir(run.ID))
@@ -334,7 +371,7 @@ func Test_Service_startRun(t *testing.T) {
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		run, err := svc.startRun(req)
+		run, err := svc.startRun(c, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -342,22 +379,21 @@ func Test_Service_startRun(t *testing.T) {
 			ID:       run.ID,
 			Runtime:  sandbox.RuntimeDocker,
 			Tool:     "claude",
-			ToolHome: req.Flags.ToolHome,
+			ToolHome: c.Homes.Tool,
 		}, run)
 		assert.Equal(t, []sandbox.RunRef{run}, w.spawned)
 		assert.False(t, dirAtSpawn)
 		assert.DirExists(t, sandbox.RunTempDir(run.ID))
 	})
 
-	t.Run("a dry run spawns none", func(t *testing.T) {
+	t.Run("an unwatched run spawns none", func(t *testing.T) {
 		// Arrange
-		req := newResolveRequest(t)
-		req.Flags.DryRun = true
+		t.Setenv("TMPDIR", t.TempDir())
 		w := &fakeWatchdog{}
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		run, err := svc.startRun(req)
+		run, err := svc.startRun(newTestRunConfig(t), false)
 
 		// Assert
 		require.NoError(t, err)
@@ -368,12 +404,12 @@ func Test_Service_startRun(t *testing.T) {
 	t.Run("a failed spawn only warns", func(t *testing.T) {
 		// Arrange
 		errOut := iostreamstest.StubErr(t)
-		req := newResolveRequest(t)
+		t.Setenv("TMPDIR", t.TempDir())
 		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		run, err := svc.startRun(req)
+		run, err := svc.startRun(newTestRunConfig(t), true)
 
 		// Assert
 		require.NoError(t, err)

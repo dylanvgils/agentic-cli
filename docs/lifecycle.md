@@ -28,10 +28,10 @@ Commands like `completion` skip steps via `noDockerCmds`, `noMigrateCmds` and `n
 
 Then every action command (`build`, `update`, `clean`, `run`) calls its usecase the same way:
 
-1. `Resolve` checks what to do and returns a `Plan`.
-2. `DryRun(plan)` prints it with `--dry-run`, else `Apply(plan)` does it.
+1. `Resolve` checks what to do, asks for any approval and returns a `Plan`, changing nothing.
+2. `DryRun(plan)` prints it with `--dry-run`, else `Apply(plan)` does it. `clean` has no `--dry-run`.
 
-`run` differs: `Resolve` also approves and starts the run, so `End(plan)` must follow. Errors are returned, and `cli.Execute` prints them once.
+Errors are returned, and `cli.Execute` prints them once.
 
 ## agentic run
 
@@ -45,21 +45,21 @@ flowchart LR
     parse --> checks["checkRuntime<br/>requireImage"]
     checks --> approve["checkTrust<br/>checkSettings<br/>checkTool"]
     approve --> resolve["approvedRun<br/>config + image inspect"]
-    resolve --> startRun["startRun<br/>RunID, watchdog, temp dir"]
+    resolve --> startRun["Apply: startRun<br/>RunID, watchdog, temp dir"]
     startRun --> spec["buildWithInstructions<br/>RunSpec + snapshot"]
     spec --> runner{runtime}
     runner -->|docker| docker["dockerRunner.Run"]
     runner -->|microsandbox| msb["microsandboxRunner.Run"]
-    docker --> endRun["Service.End<br/>save snapshot, remove temp dir"]
+    docker --> endRun["endRun<br/>save snapshot, remove temp dir"]
     msb --> endRun
 ```
 
 How to read it:
 
-- **Resolve**: everything up to `buildWithInstructions`, the same for every runtime. Its `run.Plan` holds the checked runner and the `sandbox.RunSpec`.
+- **Resolve**: everything up to `approvedRun`, the same for every runtime. Its `run.Plan` holds the checked runner and the resolved config, and nothing is started yet.
 - **Checks before prompts**: a run the runtime can't do, a bad credential or a missing image fails before the user approves anything.
+- **Apply**: starts the run, builds its RunSpec, runs it on the runner and ends it. `DryRun` does the same without a watchdog, printing instead of running.
 - **The runner**: `checkRuntime` picks it once; `Apply` runs on it. Only runners talk to Docker or msb.
-- **The end**: the cli defers `End` once Resolve succeeds; a Resolve that fails after `startRun` ends the run itself.
 
 ### Docker run over time
 
@@ -71,15 +71,15 @@ sequenceDiagram
     participant dr as dockerRunner
     participant dc as docker.Client
     cli->>svc: Resolve
-    svc->>watch: Spawn(RunRef)
-    watch-->>svc: ready
     svc-->>cli: Plan
     cli->>svc: Apply(Plan)
+    svc->>watch: Spawn(RunRef)
+    watch-->>svc: ready
     svc->>dr: Run
     dr->>dc: StartSidecars (sweep, runGuard, network, proxy, dind)
     dr->>dc: RunTool (attachTool)
     dr->>dc: StopSidecars (runGuard.release)
-    cli->>svc: End(Plan) (endRun)
+    svc->>svc: endRun
     Note over watch: agentic exits
     watch->>svc: Teardown(RunRef) after 5 s
 ```
@@ -114,8 +114,17 @@ How to read it:
 | Settings | `checkSettings` in `trust.go` | Asks to approve changed guarded settings; the `approvedConfig` it returns is the only config a run reads. |
 | Tool | `checkTool` in `resolve.go` | Offers a due tool update and creates the tool's host files. |
 | Config | `approvedRun` → `resolveRun` in `resolve.go` | Resolves the flags against the approved config and inspects the tool image once, after a possible update, into one `runConfig`, which every later step reads. |
+
+#### Apply
+
+`run.Service.Apply` in `internal/usecase/run/runtime.go` starts the run in `start`, runs it on the runner `checkRuntime` picked, then ends it. `DryRun` does the same without a watchdog, then the runner's `DryRun` prints the docker or msb commands, starting nothing:
+
+| Step | Code | Why |
+| --- | --- | --- |
 | Start | `startRun` in `runtime.go` | Creates the RunID, spawns the watchdog and creates the run temp dir, before anything the run can leave behind. |
 | RunSpec | `buildWithInstructions` in `runspec.go` | Writes the instructions snapshot, then builds the RunSpec with it mounted. |
+| Spec check | `checkSpec` in `capabilities.go` | Refuses a RunSpec that needs a feature the runtime lacks, a backstop for `checkRuntime`. |
+| Runner | `runner.Run` | Readies the runtime's host resources and runs the tool, see below. |
 
 `buildWithInstructions` calls `buildInstructions` and `prepareInstructions` (`instructions.go`), then `build` (`runspec.go`):
 
@@ -126,15 +135,6 @@ How to read it:
 | Env | `runEnv` | Resolves the env, refuses managed names and checks the credentials against it. |
 | Spec | `newRunSpec` | Assembles the `sandbox.RunSpec`, including the egress policy and the Docker daemon. |
 | Proxy CA | `checkProxyTrust` in `credentials.go` | When the proxy decrypts, refuses an image whose entrypoint can't trust its CA. |
-
-#### Apply
-
-`run.Service.Apply` in `internal/usecase/run/runtime.go` runs on the runner `checkRuntime` picked; `DryRun` does the same checks, then the runner's `DryRun` prints the docker or msb commands, starting nothing:
-
-| Step | Code | Why |
-| --- | --- | --- |
-| Spec check | `checkSpec` in `capabilities.go` | Refuses a RunSpec that needs a feature the runtime lacks, a backstop for `checkRuntime`. |
-| Runner | `runner.Run` | Readies the runtime's host resources and runs the tool, see below. |
 
 #### Docker runner
 
@@ -169,13 +169,13 @@ How to read it:
 
 | Step | Code | Why |
 | --- | --- | --- |
-| Cleanup | `run.Service.End`, deferred in `runTool` | Calls `endRun`, also when Apply failed; a failed Resolve calls it itself. |
+| Cleanup | `endRun`, deferred in `Apply` and `DryRun` | Runs also when the runner failed; a failed RunSpec build or spec check calls it right away. |
 | Instructions | `endRun` → `saveSnapshot` in `instructions.go` | Saves the instructions snapshot back to the tool's file. |
 | Temp dir | `endRun` → `sandbox.RemoveRunTempDir` | Removes `$TMPDIR/agentic-run-<id>/`. |
 
 ### Why the mounts are checked again
 
-`newMountSet` checks the mounts when Resolve builds the RunSpec, but building and loading images and starting sidecars can take long enough for a path to change, for example into a symlink. So each runner runs `recheckMounts` again right before a process that mounts the paths starts: Docker before the sidecars (the dind sidecar mounts the workspace) and before the tool, msb before the VM.
+`newMountSet` checks the mounts when Apply builds the RunSpec, but building and loading images and starting sidecars can take long enough for a path to change, for example into a symlink. So each runner runs `recheckMounts` again right before a process that mounts the paths starts: Docker before the sidecars (the dind sidecar mounts the workspace) and before the tool, msb before the VM.
 
 ### Teardown
 
@@ -188,7 +188,7 @@ flowchart TD
     watchdog -->|watchdog killed too| sweep["next run's orphan sweep after 5 min"]
 ```
 
-Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Resolve` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
+Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Apply` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
 
 Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it. `run.Service.Teardown` adds the runtime-neutral part: it saves a leftover instructions snapshot back to the tool's file, then removes the run temp dir.
 

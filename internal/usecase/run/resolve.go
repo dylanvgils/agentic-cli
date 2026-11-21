@@ -37,12 +37,10 @@ type Flags struct {
 	Runtime sandbox.Runtime
 }
 
-// Plan is a run Resolve checked, approved and started; Apply runs it and End must follow.
+// Plan is a run Resolve checked and approved; Apply or DryRun starts, runs and ends it.
 type Plan struct {
-	runner   runner
-	spec     sandbox.RunSpec
-	registry string
-	run      sandbox.RunRef
+	runner runner
+	config runConfig
 }
 
 // runtime returns where r runs: --runtime, then the config, then Docker.
@@ -55,7 +53,7 @@ func (r Request) proxyBackend() string {
 	return resolve.ProxyBackend(r.Flags.Proxy, r.Project.RC)
 }
 
-// Resolve checks, approves and starts the run req asks for; on an error it ends what it started.
+// Resolve checks and approves the run req asks for, starting nothing.
 func (s *Service) Resolve(req Request, prompter Prompter) (*Plan, error) {
 	home := req.Flags.ToolHome
 
@@ -93,22 +91,9 @@ func (s *Service) Resolve(req Request, prompter Prompter) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	run, err := s.startRun(req)
-	if err != nil {
-		return nil, err
-	}
-
-	rs, err := s.buildWithInstructions(run.ID, c)
-	if err != nil {
-		warnOnEndRunError(endRun(run))
-		return nil, err
-	}
 	return &Plan{
-		runner:   r,
-		spec:     rs,
-		registry: c.Registry,
-		run:      run,
+		runner: r,
+		config: c,
 	}, nil
 }
 
