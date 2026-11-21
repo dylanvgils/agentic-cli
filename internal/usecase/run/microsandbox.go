@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -22,6 +21,11 @@ type microsandboxRunner struct {
 	sidecarImages SidecarImages
 	// agenticProxy enforces the allowlist with agentic-proxy instead of msb's own rules
 	agenticProxy bool
+}
+
+// dockerImages is the Docker image store msb loads tool images from.
+type dockerImages struct {
+	docker Docker
 }
 
 // Capabilities reports what msb offers with r's proxy backend.
@@ -55,15 +59,8 @@ func (r microsandboxRunner) Run(rs sandbox.RunSpec, registry, logDir string) err
 		}
 	}
 
-	ref, found, err := r.microsandboxRef(image)
+	ref, err := r.microsandbox.EnsureImage(dockerImages{docker: r.docker}, image)
 	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("image %s not found", image)
-	}
-
-	if err := r.ensureMicrosandboxImage(image, ref); err != nil {
 		return err
 	}
 
@@ -86,7 +83,7 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec, logDir string) error {
 		image = tools.DockerdImage(rs.Image)
 	}
 
-	ref, found, err := r.microsandboxRef(image)
+	ref, found, err := r.microsandbox.Ref(dockerImages{docker: r.docker}, image)
 	if err != nil {
 		return err
 	}
@@ -134,19 +131,6 @@ func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
 	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
 }
 
-// microsandboxRef returns image tagged with its Docker image ID, pinning the run to this build; found is false when
-// image is missing.
-func (r microsandboxRunner) microsandboxRef(image string) (ref string, found bool, err error) {
-	info, err := r.docker.InspectImage(image)
-	if err != nil {
-		return "", false, fmt.Errorf("inspect %s: %w", image, err)
-	}
-	if info == nil {
-		return "", false, nil
-	}
-	return image + ":" + info.ID, true, nil
-}
-
 // ensureDockerdImage builds image's dockerd image when it's missing or stale.
 func (r microsandboxRunner) ensureDockerdImage(image, dockerd string) error {
 	parent, err := r.docker.InspectImage(image)
@@ -171,66 +155,17 @@ func (r microsandboxRunner) ensureDockerdImage(image, dockerd string) error {
 	return r.docker.BuildDockerdImage(dockerd, parent)
 }
 
-// ensureMicrosandboxImage loads image into msb as ref unless msb holds it, then removes older refs.
-func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
-	have, err := r.microsandbox.HasImage(ref)
-	if err != nil {
-		return err
+// ImageID returns image's Docker image ID; found is false when image is missing.
+func (d dockerImages) ImageID(image string) (id string, found bool, err error) {
+	info, err := d.docker.InspectImage(image)
+	if err != nil || info == nil {
+		return "", false, err
 	}
-	if have {
-		return nil
-	}
-
-	if err := r.loadIntoMicrosandbox(image, ref); err != nil {
-		return err
-	}
-
-	refs, err := r.microsandbox.ImageRefs()
-	if err != nil {
-		logging.Warnf("kept old microsandbox images of %s: %v", image, err)
-		return nil
-	}
-	r.removeStaleRefs(refs, image, ref)
-	return nil
+	return info.ID, true, nil
 }
 
-// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagged as ref.
-func (r microsandboxRunner) loadIntoMicrosandbox(image, ref string) error {
-	logging.Infof("loading %s into microsandbox", image)
-
-	// An untagged name would save every tag of the repo
-	if !strings.Contains(image[strings.LastIndex(image, "/")+1:], ":") {
-		image += ":latest"
-	}
-
-	pr, pw := io.Pipe()
-	saved := make(chan error, 1)
-	go func() {
-		err := r.docker.SaveImage(image, pw)
-		_ = pw.CloseWithError(err)
-		saved <- err
-	}()
-
-	loadErr := r.microsandbox.LoadImage(pr, ref)
-	_ = pr.CloseWithError(loadErr)
-	if saveErr := <-saved; saveErr != nil {
-		return saveErr
-	}
-	return loadErr
-}
-
-// removeStaleRefs removes image's refs other than keep and latest, skipping ones in use.
-func (r microsandboxRunner) removeStaleRefs(refs []string, image, keep string) {
-	repo, _ := microsandbox.SplitRef(image)
-	for _, ref := range refs {
-		refRepo, tag := microsandbox.SplitRef(ref)
-		if refRepo != repo || tag == "latest" || microsandbox.SameRef(ref, keep) {
-			continue
-		}
-		if err := r.microsandbox.RemoveImage(ref); err != nil {
-			logging.Warnf("kept old microsandbox image %s: %v", ref, err)
-		}
-	}
+func (d dockerImages) SaveImage(image string, w io.Writer) error {
+	return d.docker.SaveImage(image, w)
 }
 
 // proxyRoute routes msb through published.
