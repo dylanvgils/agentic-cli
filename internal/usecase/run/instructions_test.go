@@ -41,7 +41,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 			}, nil
 		},
 	}
-	noDaemon := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities {
+	noDaemon := &fakeMicrosandbox{capabilities: func(bool) sandbox.Capabilities {
 		return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}}
 	}}
 	custom := config.RCInstructions{Custom: "Always run go test before finishing."}
@@ -182,7 +182,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Tool:   tools.Configs[tc.tool],
 				Flags:  tc.flags,
 			}
-			c, err := svc.resolveRun(req, &config.AgenticRC{Run: tc.rc})
+			c, err := resolveWith(t, svc, req, &config.AgenticRC{Run: tc.rc})
 			require.NoError(t, err)
 			if tc.pin != nil {
 				tc.pin(&c)

@@ -47,9 +47,10 @@ func New(log *cmdlog.Log) *Client {
 }
 
 // Capabilities reports what msb runs offer; msb injects credentials and enforces the allowlist itself, but keeps no
-// log, so there's no monitor mode. Docker runs as root inside the VM.
-func (c *Client) Capabilities() sandbox.Capabilities {
-	return sandbox.Capabilities{
+// log, so there's no monitor mode, unless agenticProxy routes egress through agentic-proxy. Docker runs as root inside
+// the VM.
+func (c *Client) Capabilities(agenticProxy bool) sandbox.Capabilities {
+	caps := sandbox.Capabilities{
 		Features: sandbox.Features{
 			Proxy:               true,
 			Dind:                true,
@@ -61,6 +62,13 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 		// discarded on exit, and its own capabilities
 		Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM},
 	}
+	if agenticProxy {
+		caps.ProxyMonitor = true
+		caps.PathRules = true
+		caps.CredentialsViaProxy = true
+		caps.EgressViaProxy = true
+	}
+	return caps
 }
 
 // Available returns an error with an install hint when msb is not on PATH.

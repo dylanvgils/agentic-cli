@@ -353,8 +353,8 @@ type fakeMicrosandbox struct {
 }
 
 // Capabilities returns msb's real capabilities, which tests have no reason to change.
-func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
-	return (&microsandbox.Client{}).Capabilities()
+func (f *fakeMicrosandbox) Capabilities(agenticProxy bool) sandbox.Capabilities {
+	return (&microsandbox.Client{}).Capabilities(agenticProxy)
 }
 
 func (f *fakeMicrosandbox) Available() error {

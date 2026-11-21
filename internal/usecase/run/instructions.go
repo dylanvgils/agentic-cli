@@ -67,7 +67,12 @@ func (s *Service) buildInstructions(c runConfig) (string, error) {
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	c, err := s.resolveRun(req, req.Project.RC)
+	choice := chooseRuntime(req.Flags, req.Project.RC)
+	r, err := s.runner(choice.name, choice.backend)
+	if err != nil {
+		return "", err
+	}
+	c, err := s.resolveRun(req, req.Project.RC, choice, r)
 	if err != nil {
 		return "", err
 	}

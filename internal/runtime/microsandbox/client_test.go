@@ -24,19 +24,51 @@ func TestNew(t *testing.T) {
 }
 
 func TestClient_Capabilities(t *testing.T) {
-	// Act
-	caps := New(cmdlog.New()).Capabilities()
-
-	// Assert
-	assert.Equal(t, sandbox.Capabilities{
-		Features: sandbox.Features{
-			Proxy:               true,
-			Dind:                true,
-			CredentialInjection: true,
-			PortsWithProxy:      true,
+	for _, tc := range []struct {
+		name         string
+		agenticProxy bool
+		want         sandbox.Capabilities
+	}{
+		{
+			name: "native reports msb's own",
+			want: sandbox.Capabilities{
+				Features: sandbox.Features{
+					Proxy:               true,
+					Dind:                true,
+					CredentialInjection: true,
+					PortsWithProxy:      true,
+				},
+				Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM},
+			},
 		},
-		Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM},
-	}, caps)
+		{
+			name:         "agentic-proxy adds monitor, path rules and proxy egress and injection",
+			agenticProxy: true,
+			want: sandbox.Capabilities{
+				Features: sandbox.Features{
+					Proxy:               true,
+					ProxyMonitor:        true,
+					Dind:                true,
+					CredentialInjection: true,
+					PortsWithProxy:      true,
+					PathRules:           true,
+				},
+				Isolation: sandbox.Isolation{
+					Boundary:            sandbox.BoundaryVM,
+					CredentialsViaProxy: true,
+					EgressViaProxy:      true,
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			caps := New(cmdlog.New()).Capabilities(tc.agenticProxy)
+
+			// Assert
+			assert.Equal(t, tc.want, caps)
+		})
+	}
 }
 
 func TestClient_Available(t *testing.T) {

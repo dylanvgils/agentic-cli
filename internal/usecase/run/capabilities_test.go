@@ -208,7 +208,7 @@ func Test_checkCapabilities(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			err := checkCapabilities(tc.req, tc.offered)
+			err := checkCapabilities(tc.req, sandbox.RuntimeDocker, tc.offered)
 
 			// Assert
 			assert.EqualError(t, err, tc.wantErr)
@@ -222,7 +222,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Proxy.MonitorFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Features{})
+		err := checkCapabilities(req, sandbox.RuntimeDocker, sandbox.Features{})
 
 		// Assert - only the opt-out hint, not the monitor mode one
 		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+"); pass --no-proxy to run without the proxy, or use --runtime docker")
@@ -235,7 +235,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PidsLimit: true})
+		err := checkCapabilities(req, sandbox.RuntimeDocker, sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PidsLimit: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -299,7 +299,7 @@ func Test_checkCapabilities(t *testing.T) {
 			offered.Dind = tc.offered.Dind
 
 			// Act
-			err := checkCapabilities(tc.req, offered)
+			err := checkCapabilities(tc.req, sandbox.RuntimeDocker, offered)
 
 			// Assert
 			require.NoError(t, err)
