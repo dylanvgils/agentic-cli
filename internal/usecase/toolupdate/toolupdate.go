@@ -80,27 +80,13 @@ func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest st
 		return "", "", false
 	}
 
-	_ = MarkChecked(home, toolName)
+	_ = state.MarkToolChecked(toolName, time.Now(), home)
 
 	if !newer {
 		return "", "", false
 	}
 
 	return tools.ParseVersion(info.Version), latestVersion, true
-}
-
-// MarkChecked records tool as checked now, so `agentic run` skips its upstream check for checkInterval.
-func MarkChecked(home, tool string) error {
-	state, err := config.LoadState(home)
-	if err != nil {
-		return err
-	}
-
-	if state.LastToolVersionCheck == nil {
-		state.LastToolVersionCheck = make(map[string]time.Time)
-	}
-	state.LastToolVersionCheck[tool] = time.Now()
-	return state.Save(home)
 }
 
 // shouldCheck reports whether tool is due for a check: never checked, or the interval has elapsed.

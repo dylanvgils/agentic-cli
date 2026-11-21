@@ -3,12 +3,12 @@ package build
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
 // Service builds tool images for `agentic build`.
@@ -76,7 +76,11 @@ func (s *Service) Apply(plan Plan) error {
 			return err
 		}
 
-		if err := toolupdate.MarkChecked(s.home, t.Name); err != nil {
+		state, err := config.LoadState(s.home)
+		if err == nil {
+			err = state.MarkToolChecked(t.Name, time.Now(), s.home)
+		}
+		if err != nil {
 			logging.Warnf("could not record update check for %s: %v", t.Name, err)
 		}
 	}

@@ -187,18 +187,19 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
               desc: runtime/microsandbox never imports runtime/docker
-        # the run usecase gets other usecases injected; only resolve is imported
-        usecase-run:
+        # usecases get other usecases injected; only resolve (pure precedence funcs) and migrate's own migrations are
+        # imported. The longer allow entries win over the deny prefix.
+        usecase-imports:
+          list-mode: lax
           files:
-            - "**/internal/usecase/run/**"
+            - "**/internal/usecase/**"
             - "!$test"
+          allow:
+            - github.com/dylanvgils/agentic-cli/internal/usecase/resolve
+            - github.com/dylanvgils/agentic-cli/internal/usecase/migrate/migrations
           deny:
-            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/sidecar
-              desc: usecase/run gets usecase/sidecar injected
-            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate
-              desc: usecase/run gets usecase/toolupdate injected
-            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/update
-              desc: usecase/run gets usecase/update injected
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: usecases get other usecases injected through deps.go
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:
