@@ -15,6 +15,7 @@ import (
 
 // Entry is one command, written as one JSON line like the proxy's access log.
 type Entry struct {
+	// Time is when the command started, so a long one, like the tool's run, sorts before what ran after it.
 	Time    time.Time `json:"time"`
 	Command string    `json:"command"`
 	// Args must hold no secrets; the caller masks them.
@@ -59,8 +60,8 @@ func (l *Log) Close() error {
 	return l.closeLocked()
 }
 
-// Record writes `command args`, which ended with err after d and must hold no secrets, as one UTC line.
-func (l *Log) Record(command string, args []string, err error, d time.Duration) {
+// Record writes `command args`, started at start and ended with err, which must hold no secrets, as one UTC line.
+func (l *Log) Record(command string, args []string, start time.Time, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.encoder == nil {
@@ -68,10 +69,10 @@ func (l *Log) Record(command string, args []string, err error, d time.Duration) 
 	}
 
 	entry := Entry{
-		Time:           time.Now().UTC(),
+		Time:           start.UTC(),
 		Command:        command,
 		Args:           args,
-		DurationMillis: d.Milliseconds(),
+		DurationMillis: time.Since(start).Milliseconds(),
 	}
 	entry.ExitCode, entry.Error = exitStatus(err)
 	_ = l.encoder.Encode(entry)

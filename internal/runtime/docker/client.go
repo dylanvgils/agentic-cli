@@ -179,7 +179,7 @@ func (r execRunner) output(cmd *exec.Cmd, args []string) (string, error) {
 func (r execRunner) run(cmd *exec.Cmd, args []string) error {
 	start := time.Now()
 	err := cmd.Run()
-	r.log.Record("docker", sandbox.RedactEnvArgs(args), err, time.Since(start))
+	r.log.Record("docker", sandbox.RedactEnvArgs(args), start, err)
 	return err
 }
 

@@ -15,25 +15,28 @@ import (
 )
 
 func TestLog_Record(t *testing.T) {
-	t.Run("records the command as a UTC JSON line once open", func(t *testing.T) {
+	t.Run("records the command as a UTC JSON line at its start once open", func(t *testing.T) {
 		// Arrange
 		path := filepath.Join(t.TempDir(), "commands.jsonl")
 		l := New()
 		require.NoError(t, l.Open(path))
 		t.Cleanup(func() { l.Close() }) //nolint:errcheck
+		start := time.Now().Add(-1500 * time.Millisecond)
 
 		// Act
-		l.Record("docker", []string{"run", "--env=FOO=***"}, nil, 1500*time.Millisecond)
+		l.Record("docker", []string{"run", "--env=FOO=***"}, start, nil)
 
 		// Assert
 		entries := readEntries(t, path)
 		require.Len(t, entries, 1)
 		assert.Equal(t, time.UTC, entries[0].Time.Location())
+		assert.True(t, start.Equal(entries[0].Time), "time is the start, not the end")
+		assert.GreaterOrEqual(t, entries[0].DurationMillis, int64(1500))
 		entries[0].Time = time.Time{}
+		entries[0].DurationMillis = 0
 		assert.Equal(t, Entry{
-			Command:        "docker",
-			Args:           []string{"run", "--env=FOO=***"},
-			DurationMillis: 1500,
+			Command: "docker",
+			Args:    []string{"run", "--env=FOO=***"},
 		}, entries[0])
 	})
 
@@ -41,12 +44,12 @@ func TestLog_Record(t *testing.T) {
 		// Arrange
 		path := filepath.Join(t.TempDir(), "commands.jsonl")
 		l := New()
-		l.Record("docker", []string{"before"}, nil, 0)
+		l.Record("docker", []string{"before"}, time.Now(), nil)
 		require.NoError(t, l.Open(path))
 		require.NoError(t, l.Close())
 
 		// Act
-		l.Record("docker", []string{"after"}, nil, 0)
+		l.Record("docker", []string{"after"}, time.Now(), nil)
 
 		// Assert
 		assert.Empty(t, readEntries(t, path))
@@ -57,13 +60,13 @@ func TestLog_Record(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "commands.jsonl")
 		l := New()
 		require.NoError(t, l.Open(path))
-		l.Record("msb", []string{"ls"}, nil, 0)
+		l.Record("msb", []string{"ls"}, time.Now(), nil)
 		require.NoError(t, l.Close())
 		require.NoError(t, l.Open(path))
 		t.Cleanup(func() { l.Close() }) //nolint:errcheck
 
 		// Act
-		l.Record("msb", []string{"run"}, nil, 0)
+		l.Record("msb", []string{"run"}, time.Now(), nil)
 
 		// Assert
 		entries := readEntries(t, path)
