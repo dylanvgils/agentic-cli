@@ -9,7 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,8 +79,8 @@ func Test_Service_buildInstructions(t *testing.T) {
 			docker: built,
 			tool:   "claude",
 			flags: Flags{
-				Proxy:      resolve.ProxyInput{ProxyFlag: true},
-				Dind:       resolve.DindInput{DindFlag: true},
+				Proxy:      precedence.ProxyInput{ProxyFlag: true},
+				Dind:       precedence.DindInput{DindFlag: true},
 				DindLimits: sandbox.ResourceLimits{CPUs: "2"},
 			},
 			rc: config.RCRun{
@@ -93,8 +93,8 @@ func Test_Service_buildInstructions(t *testing.T) {
 			docker: built,
 			tool:   "claude",
 			flags: Flags{
-				Proxy: resolve.ProxyInput{NoProxy: true},
-				Dind:  resolve.DindInput{DindFlag: true},
+				Proxy: precedence.ProxyInput{NoProxy: true},
+				Dind:  precedence.DindInput{DindFlag: true},
 				Ports: []string{
 					"3000",
 					"8080:5173",
@@ -105,7 +105,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 			golden: "container-monitor",
 			docker: built,
 			tool:   "copilot",
-			flags:  Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}},
+			flags:  Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}},
 			rc:     config.RCRun{Proxy: proxyRC},
 		},
 		{
@@ -129,8 +129,8 @@ func Test_Service_buildInstructions(t *testing.T) {
 			tool:   "opencode",
 			flags: Flags{
 				Runtime: sandbox.RuntimeMicrosandbox,
-				Proxy:   resolve.ProxyInput{ProxyFlag: true},
-				Dind:    resolve.DindInput{DindFlag: true},
+				Proxy:   precedence.ProxyInput{ProxyFlag: true},
+				Dind:    precedence.DindInput{DindFlag: true},
 			},
 			rc: config.RCRun{Proxy: proxyRC},
 		},
@@ -141,7 +141,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 			tool:   "claude",
 			flags: Flags{
 				Runtime: sandbox.RuntimeMicrosandbox,
-				Dind:    resolve.DindInput{DindFlag: true},
+				Dind:    precedence.DindInput{DindFlag: true},
 				Ports:   []string{"3000"},
 			},
 		},
@@ -152,11 +152,11 @@ func Test_Service_buildInstructions(t *testing.T) {
 			tool:   "claude",
 			flags: Flags{
 				Runtime: sandbox.RuntimeMicrosandbox,
-				Proxy: resolve.ProxyInput{
+				Proxy: precedence.ProxyInput{
 					ProxyFlag: true,
 					Backend:   config.BackendAgentic,
 				},
-				Dind: resolve.DindInput{DindFlag: true},
+				Dind: precedence.DindInput{DindFlag: true},
 			},
 		},
 		{

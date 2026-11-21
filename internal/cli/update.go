@@ -6,7 +6,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
@@ -82,12 +82,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return svc.Apply(plan)
 }
 
-// updateOptsFromFlags returns the build options for an update; see resolve.UpdateOptions for why config bases/apt need an explicit flag.
+// updateOptsFromFlags returns the build options for an update; see precedence.UpdateOptions for why config bases/apt need an explicit flag.
 func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	baseSet := cmd.Flags().Changed("base") || cmd.Flags().Changed(baseExactFlagName)
 	aptSet := cmd.Flags().Changed("apt") || cmd.Flags().Changed(aptExactFlagName)
 
-	return resolve.UpdateOptions(buildInput(cmd), baseSet, aptSet, rc)
+	return precedence.UpdateOptions(buildInput(cmd), baseSet, aptSet, rc)
 }
 
 // logUpdateSummary prints the summary line of images to update.

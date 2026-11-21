@@ -3,12 +3,12 @@ package run
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 )
 
 // checkPorts refuses req's ports when they're invalid or, unless it's a dry run, already in use on the host.
 func checkPorts(req Request) error {
-	ports, err := resolve.Ports(req.Flags.Ports, req.Project.RC)
+	ports, err := precedence.Ports(req.Flags.Ports, req.Project.RC)
 	if err != nil || req.Flags.DryRun {
 		return err
 	}

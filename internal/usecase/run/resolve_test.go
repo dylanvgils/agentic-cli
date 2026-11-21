@@ -12,7 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -237,7 +237,7 @@ func TestService_Resolve(t *testing.T) {
 		layer := credentialLayer(t, "/example.test/key")
 		req.Project.Layers = []config.RCLayer{layer}
 		req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
-		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
+		req.Flags.Proxy = precedence.ProxyInput{NoProxy: true}
 		p := &fakePrompter{}
 
 		// Act
@@ -354,8 +354,8 @@ func Test_Service_resolveRun(t *testing.T) {
 				ToolHome:   "/example.test/home",
 				DryRun:     true,
 				Registry:   "registry.example.test",
-				Proxy:      resolve.ProxyInput{MonitorFlag: true},
-				Dind:       resolve.DindInput{DindFlag: true},
+				Proxy:      precedence.ProxyInput{MonitorFlag: true},
+				Dind:       precedence.DindInput{DindFlag: true},
 				Volumes:    []string{"/example.test/a:/a"},
 				Env:        []string{"FOO=bar"},
 				Ports:      []string{"3000"},
@@ -409,7 +409,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Proxy: resolve.ProxyInput{NoProxy: true}},
+			Flags:  Flags{Proxy: precedence.ProxyInput{NoProxy: true}},
 		}
 
 		// Act
@@ -452,7 +452,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}},
+			Flags:  Flags{Proxy: precedence.ProxyInput{Integrations: []string{"bogus"}}},
 		}
 
 		// Act
@@ -467,7 +467,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Dind: resolve.DindInput{DindFlag: true}},
+			Flags:  Flags{Dind: precedence.DindInput{DindFlag: true}},
 		}
 
 		// Act

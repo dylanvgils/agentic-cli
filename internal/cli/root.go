@@ -17,7 +17,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/migrate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/spf13/cobra"
@@ -118,7 +118,7 @@ func resolveContext(cmd *cobra.Command) error {
 		}
 	}
 
-	dockerClient = docker.New(resolve.DockerContext(flagVal, project.RC, toolHome), commandLog)
+	dockerClient = docker.New(precedence.DockerContext(flagVal, project.RC, toolHome), commandLog)
 	return nil
 }
 

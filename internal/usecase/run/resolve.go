@@ -9,7 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 )
 
 // Request is an `agentic run` call: what to run, in which project, with which flags.
@@ -27,8 +27,8 @@ type Flags struct {
 	TrustDir   bool
 	DryRun     bool
 	Registry   string
-	Proxy      resolve.ProxyInput
-	Dind       resolve.DindInput
+	Proxy      precedence.ProxyInput
+	Dind       precedence.DindInput
 	Volumes    []string
 	Env        []string
 	Ports      []string
@@ -162,12 +162,12 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 
 	caps := r.Capabilities()
 
-	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
+	proxyMode, err := precedence.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
 	if err != nil {
 		return runConfig{}, err
 	}
 
-	ports, err := resolve.Ports(flags.Ports, rc)
+	ports, err := precedence.Ports(flags.Ports, rc)
 	if err != nil {
 		return runConfig{}, err
 	}
@@ -182,12 +182,12 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 		containerHome = image.ContainerHome
 	}
 
-	mounts, err := resolve.Mounts(req.Tool.Runtime.Mounts(), flags.Volumes, rc, flags.ToolHome, containerHome)
+	mounts, err := precedence.Mounts(req.Tool.Runtime.Mounts(), flags.Volumes, rc, flags.ToolHome, containerHome)
 	if err != nil {
 		return runConfig{}, err
 	}
 
-	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
+	limits := precedence.ResourceLimitsFor(flags.Limits, rc)
 	return runConfig{
 		Target: req.Target,
 		Tool:   req.Tool,
@@ -209,8 +209,8 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 		Limits: limits,
 		Dind: sandbox.DindSpec{
 			// A runtime without a daemon ignores dind, so its env names and registry hosts stay free
-			Enabled: caps.Dind && resolve.DindEnabled(flags.Dind, rc),
-			Limits:  resolve.DindResourceLimitsFor(flags.DindLimits, rc, limits),
+			Enabled: caps.Dind && precedence.DindEnabled(flags.Dind, rc),
+			Limits:  precedence.DindResourceLimitsFor(flags.DindLimits, rc, limits),
 		},
 		Mounts:   runMounts{Base: mounts},
 		Env:      flags.Env,
@@ -223,8 +223,8 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 // chooseRuntime picks a run's runtime and proxy backend: the flags, then rc, then Docker and its default backend.
 func chooseRuntime(flags Flags, rc *config.AgenticRC) runtimeChoice {
 	return runtimeChoice{
-		name:    resolve.Runtime(flags.Runtime, rc),
-		backend: resolve.ProxyBackend(flags.Proxy, rc),
+		name:    precedence.Runtime(flags.Runtime, rc),
+		backend: precedence.ProxyBackend(flags.Proxy, rc),
 	}
 }
 

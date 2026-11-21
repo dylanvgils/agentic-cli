@@ -15,7 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func Test_Service_build(t *testing.T) {
 			ToolHome: t.TempDir(),
 			Volumes:  []string{"/host:/container:rw"},
 			Ports:    []string{"3000"},
-			Proxy:    resolve.ProxyInput{MonitorFlag: true},
+			Proxy:    precedence.ProxyInput{MonitorFlag: true},
 			DryRun:   true,
 		}
 		rc := &config.AgenticRC{Run: config.RCRun{
@@ -90,7 +90,7 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
 		c := resolvedConfig(t, svc, target, flags, rc)
 
@@ -115,7 +115,7 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(untrusted, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
 		c := resolvedConfig(t, svc, target, flags, rc)
 
@@ -135,7 +135,7 @@ func Test_Service_build(t *testing.T) {
 		{
 			name:     "proxy credentials wired for the docker runtime to place",
 			svc:      newTestService(d, nil),
-			flags:    Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}},
+			flags:    Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}},
 			wantMode: sandbox.EgressEnforce,
 		},
 		{
@@ -181,7 +181,7 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
 		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
 		c.Egress.Credentials = []credentials.Resolved{resolved}
@@ -200,7 +200,7 @@ func Test_Service_build(t *testing.T) {
 		flags := Flags{
 			ToolHome: t.TempDir(),
 			Volumes:  []string{dir + ":/data"},
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
 		svc := newTestService(d, nil)
 		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
@@ -220,7 +220,7 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Dind:     resolve.DindInput{DindFlag: true},
+			Dind:     precedence.DindInput{DindFlag: true},
 			Env:      []string{"DOCKER_HOST=unix:///var/run/docker.sock"},
 		}
 		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})

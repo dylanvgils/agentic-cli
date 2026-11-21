@@ -39,7 +39,7 @@ agentic-cli/
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── migrate/             # Versioned changes to $AGENTIC_HOME's on-disk layout
-│       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
+│       ├── precedence/          # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
 │       ├── run/                 # `agentic run`: checks and prompts, the sandbox.RunSpec, and a runner per runtime (docker, microsandbox)
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolruns/            # Read-only views of tools on the runtimes: running tools for `agentic ps`, tool images for `agentic images`

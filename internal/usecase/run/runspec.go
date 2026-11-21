@@ -18,7 +18,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 )
 
 // Service builds RunSpecs and run-time instructions for `agentic run`.
@@ -56,7 +56,7 @@ type runConfig struct {
 	Dind    sandbox.DindSpec       // Limits resolved against the tool's
 
 	Mounts runMounts
-	Env    []string // extra env from the flags; resolve.Env merges the config's
+	Env    []string // extra env from the flags; precedence.Env merges the config's
 	Ports  []sandbox.PortMapping
 
 	Registry string
@@ -187,7 +187,7 @@ func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, too
 
 // runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.
 func runEnv(c runConfig, mounts mountSet, marketplaceNames []string) ([]string, error) {
-	env := resolve.Env(c.Env, c.RC)
+	env := precedence.Env(c.Env, c.RC)
 	if err := validateEnv(env, c.Egress.Mode.Enabled(), c.Dind.Enabled, c.Egress.Integrations); err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 		WithEnv(env...).
 		WithPorts(c.Ports...).
 		WithSkipEntrypoint(c.Target.SkipEntrypoint).
-		WithToolArgs(resolve.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
+		WithToolArgs(precedence.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
 		WithEphemeralDirs(c.Tool.Runtime.EphemeralDirs()...).
 		WithLimits(c.Limits).
 		WithCredentials(sandboxCredentials(c.Egress.Credentials)...).

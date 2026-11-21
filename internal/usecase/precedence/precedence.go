@@ -1,5 +1,5 @@
-// Package resolve merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports.
-package resolve
+// Package precedence merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports.
+package precedence
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"

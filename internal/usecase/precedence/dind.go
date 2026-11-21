@@ -1,4 +1,4 @@
-package resolve
+package precedence
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"

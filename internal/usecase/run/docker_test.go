@@ -12,7 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +85,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("refuses dind on an image without the docker layer, even on a dry run", func(t *testing.T) {
 		// Arrange
-		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: config.Project{RC: &config.AgenticRC{}}}
+		req := Request{Flags: Flags{DryRun: true, Dind: precedence.DindInput{DindFlag: true}}, Project: config.Project{RC: &config.AgenticRC{}}}
 
 		// Act
 		err := newTestDockerRunner(&fakeDocker{inspectImage: withoutDockerLayer}).Check(req)
@@ -106,7 +106,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		// Arrange
 		buf := iostreamstest.StubErr(t)
 		req := Request{
-			Flags:   Flags{DryRun: true, Proxy: resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendNative}},
+			Flags:   Flags{DryRun: true, Proxy: precedence.ProxyInput{ProxyFlag: true, Backend: config.BackendNative}},
 			Project: config.Project{RC: &config.AgenticRC{}},
 		}
 		r := newTestDockerRunner(&fakeDocker{})
@@ -121,7 +121,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 	})
 
 	t.Run("doesn't warn for agentic-proxy or a run without the proxy", func(t *testing.T) {
-		for _, proxy := range []resolve.ProxyInput{
+		for _, proxy := range []precedence.ProxyInput{
 			{ProxyFlag: true, Backend: config.BackendAgentic},
 			{Backend: config.BackendNative},
 		} {

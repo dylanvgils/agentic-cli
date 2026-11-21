@@ -7,14 +7,14 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_requiredFeatures(t *testing.T) {
 	enabled := true
-	proxyFlag := resolve.ProxyInput{ProxyFlag: true}
+	proxyFlag := precedence.ProxyInput{ProxyFlag: true}
 	paths := []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
 	creds := []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
 
@@ -39,7 +39,7 @@ func Test_requiredFeatures(t *testing.T) {
 		},
 		{
 			name:  "flags ask for the proxy and dind",
-			flags: Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}, Dind: resolve.DindInput{DindFlag: true}},
+			flags: Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}, Dind: precedence.DindInput{DindFlag: true}},
 			want:  sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true},
 		},
 		{
@@ -50,15 +50,15 @@ func Test_requiredFeatures(t *testing.T) {
 		{
 			name: "off switches drop the need",
 			flags: Flags{
-				Proxy: resolve.ProxyInput{NoProxy: true},
-				Dind:  resolve.DindInput{NoDindFlag: true},
+				Proxy: precedence.ProxyInput{NoProxy: true},
+				Dind:  precedence.DindInput{NoDindFlag: true},
 			},
 			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
 			want: sandbox.Features{},
 		},
 		{
 			name:  "dind limits ask for limit support with dind",
-			flags: Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
+			flags: Flags{Dind: precedence.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
 			want:  sandbox.Features{Dind: true, DindLimits: true},
 		},
 		{
@@ -105,7 +105,7 @@ func Test_requiredFeatures(t *testing.T) {
 		},
 		{
 			name:  "the integration flag asks for integration support with the proxy",
-			flags: Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
+			flags: Flags{Proxy: precedence.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
 			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true},
 		},
 		{
@@ -170,7 +170,7 @@ func Test_checkCapabilities(t *testing.T) {
 	}{
 		{
 			name:    "a missing proxy is an error with the opt-out",
-			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+			req:     msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, nil),
 			offered: noProxy,
 			wantErr: "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker",
 		},
@@ -182,13 +182,13 @@ func Test_checkCapabilities(t *testing.T) {
 		},
 		{
 			name:    "a missing monitor mode is an error pointing to --proxy",
-			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}}, nil),
+			req:     msbRequest(Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}}, nil),
 			offered: msb,
 			wantErr: "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker",
 		},
 		{
 			name:    "ports with the proxy flag are an error with the opt-out",
-			req:     dockerRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}, Ports: []string{"3000"}}, nil),
+			req:     dockerRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}, Ports: []string{"3000"}}, nil),
 			wantErr: "--port can't be used with the egress proxy (--proxy) on the docker runtime, as its run network has no route to the host; pass --no-proxy or use --runtime microsandbox",
 		},
 		{
@@ -241,7 +241,7 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	dindLimits := Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
+	dindLimits := Flags{Dind: precedence.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
 	for _, tc := range []struct {
 		name     string
 		req      Request
@@ -250,7 +250,7 @@ func Test_checkCapabilities(t *testing.T) {
 	}{
 		{
 			name: "an enforcing proxy passes silently without monitor mode",
-			req:  msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+			req:  msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, nil),
 		},
 		{
 			name: "a missing pids limit is silent",
@@ -258,21 +258,21 @@ func Test_checkCapabilities(t *testing.T) {
 		},
 		{
 			name: "missing path rules only warn, naming the layer",
-			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
+			req: msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
 				rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
 			}),
 			wantWarn: "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them",
 		},
 		{
 			name: "missing proxy integrations only warn, naming the layer",
-			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
+			req: msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
 				rc.Run.Proxy.Integrations = []string{"maven"}
 			}),
 			wantWarn: "--runtime microsandbox ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; it can't route those tools through the proxy",
 		},
 		{
 			name:     "missing proxy integrations from the flag warn, naming it",
-			req:      msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}}, nil),
+			req:      msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}}, nil),
 			wantWarn: "--runtime microsandbox ignores --proxy-integration; it can't route those tools through the proxy",
 		},
 		{
@@ -321,14 +321,14 @@ func Test_proxySource(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		flags  resolve.ProxyInput
+		flags  precedence.ProxyInput
 		rc     config.AgenticRC
 		layers []config.RCLayer
 		want   string
 	}{
 		{
 			name:  "names the monitor flag over the proxy flag",
-			flags: resolve.ProxyInput{ProxyFlag: true, MonitorFlag: true},
+			flags: precedence.ProxyInput{ProxyFlag: true, MonitorFlag: true},
 			want:  "--proxy-monitor",
 		},
 		{

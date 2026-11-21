@@ -8,7 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,7 +43,7 @@ func Test_proxyRules(t *testing.T) {
 
 func Test_proxyIntegrations(t *testing.T) {
 	rc := &config.AgenticRC{}
-	flags := resolve.ProxyInput{Integrations: []string{"maven"}}
+	flags := precedence.ProxyInput{Integrations: []string{"maven"}}
 
 	for _, tc := range []struct {
 		name     string

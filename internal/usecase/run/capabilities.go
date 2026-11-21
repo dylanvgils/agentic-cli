@@ -7,7 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 )
 
 // featurePolicy is how a run handles a feature its runtime lacks.
@@ -107,8 +107,8 @@ func (r featureRule) reported(missing sandbox.Features) bool {
 
 // requiredFeatures returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
 func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
-	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
-	dind := resolve.DindEnabled(flags.Dind, rc)
+	proxyMode := precedence.RequestedProxyMode(flags.Proxy, rc)
+	dind := precedence.DindEnabled(flags.Dind, rc)
 	ports := portsSet(flags, rc)
 	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
@@ -117,7 +117,7 @@ func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 		DindLimits:          dind && dindLimitsSet(flags, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
-		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
+		ProxyIntegrations:   len(precedence.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		PidsLimit:           flags.Limits.PidsLimit != "" || rc.Run.PidsLimit != "",
 		PortsWithProxy:      ports && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 	}
@@ -264,7 +264,7 @@ func portsSource(req Request) string {
 // it on.
 func refusePortsWithProxy(req Request, runtime sandbox.Runtime) error {
 	cause, hint := credentialsSource(req), "use --runtime microsandbox"
-	if resolve.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
+	if precedence.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
 		cause, hint = proxySource(req), "pass --no-proxy or "+hint
 	}
 	return fmt.Errorf("%s can't be used with the egress proxy (%s) on the %s runtime, as its run network has no route to the host; %s", portsSource(req), cause, runtime, hint)

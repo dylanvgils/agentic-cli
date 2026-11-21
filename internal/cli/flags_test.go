@@ -7,7 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/precedence"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -78,7 +78,7 @@ func Test_addDindFlags(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
+// Test_proxyInput only confirms each flag maps to the right precedence.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
 func Test_proxyInput(t *testing.T) {
 	// Arrange
 	cmd := &cobra.Command{Use: "test"}
@@ -93,7 +93,7 @@ func Test_proxyInput(t *testing.T) {
 	result := proxyInput(cmd)
 
 	// Assert
-	assert.Equal(t, resolve.ProxyInput{
+	assert.Equal(t, precedence.ProxyInput{
 		NoProxy:      true,
 		MonitorFlag:  true,
 		ProxyFlag:    true,
@@ -102,7 +102,7 @@ func Test_proxyInput(t *testing.T) {
 	}, result)
 }
 
-// Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
+// Test_dindInput only confirms each flag maps to the right precedence.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
 	// Arrange
 	cmd := &cobra.Command{Use: "test"}
@@ -113,7 +113,7 @@ func Test_dindInput(t *testing.T) {
 	result := dindInput(cmd)
 
 	// Assert
-	assert.Equal(t, resolve.DindInput{NoDindFlag: true}, result)
+	assert.Equal(t, precedence.DindInput{NoDindFlag: true}, result)
 }
 
 func Test_buildOptsFromFlags(t *testing.T) {
@@ -246,8 +246,8 @@ func Test_runtimeFlags(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, run.Flags{
 			ToolHome:   toolHome,
-			Proxy:      resolve.ProxyInput{MonitorFlag: true, Integrations: []string{"maven"}},
-			Dind:       resolve.DindInput{DindFlag: true},
+			Proxy:      precedence.ProxyInput{MonitorFlag: true, Integrations: []string{"maven"}},
+			Dind:       precedence.DindInput{DindFlag: true},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:    sandbox.RuntimeMicrosandbox,
