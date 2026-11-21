@@ -52,32 +52,32 @@ func TestPorts(t *testing.T) {
 	})
 }
 
-func TestVolumes(t *testing.T) {
+func TestMounts(t *testing.T) {
 	t.Run("lists tool, flag then rc mounts, user bind mounts read-only by default", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"/host/rc:/mnt/rc"}}}
 
 		// Act
-		result := Volumes([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, []string{"/host/flag:/mnt/flag"}, rc)
+		result, err := Mounts([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, []string{"/host/flag:/mnt/flag"}, rc, "/tool", "/root")
 
 		// Assert
-		assert.Equal(t, []string{
-			"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-			"/host/flag:/mnt/flag:ro",
-			"/host/rc:/mnt/rc:ro",
+		require.NoError(t, err)
+		assert.Equal(t, []sandbox.Mount{
+			{Source: "/tool/claude/data", Target: "/root/.claude"},
+			{Source: "/host/flag", Target: "/mnt/flag", ReadOnly: true},
+			{Source: "/host/rc", Target: "/mnt/rc", ReadOnly: true},
 		}, result)
 	})
 
-	t.Run("does not mutate tool mounts", func(t *testing.T) {
+	t.Run("returns an invalid mount's error", func(t *testing.T) {
 		// Arrange
-		toolMounts := []string{"tool:/mnt/tool"}
+		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"/host/only"}}}
 
 		// Act
-		result := Volumes(toolMounts, []string{"extra:/mnt/extra"}, &config.AgenticRC{})
+		_, err := Mounts(nil, nil, rc, "/tool", "/root")
 
 		// Assert
-		assert.Len(t, toolMounts, 1, "original toolMounts slice should not be modified")
-		assert.Len(t, result, 2)
+		assert.EqualError(t, err, `invalid volume "/host/only": expected host:container[:options]`)
 	})
 }
 

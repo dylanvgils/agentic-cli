@@ -414,16 +414,16 @@ type symlinkWorkspace struct {
 	outside string
 }
 
-// findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
-func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
+// findMountTarget returns the one mount at target, failing the test if there isn't exactly one.
+func findMountTarget(t *testing.T, mounts []sandbox.Mount, target string) sandbox.Mount {
 	t.Helper()
-	var matches []string
-	for _, v := range volumes {
-		if strings.HasSuffix(v, suffix) {
-			matches = append(matches, v)
+	var matches []sandbox.Mount
+	for _, m := range mounts {
+		if m.Target == target {
+			matches = append(matches, m)
 		}
 	}
-	require.Len(t, matches, 1, "expected exactly one volume ending with %s, got %v", suffix, volumes)
+	require.Len(t, matches, 1, "expected exactly one mount at %s, got %v", target, mounts)
 	return matches[0]
 }
 
@@ -610,4 +610,16 @@ func freePort(t *testing.T) uint16 {
 	port := uint16(listener.Addr().(*net.TCPAddr).Port)
 	require.NoError(t, listener.Close())
 	return port
+}
+
+// parseMounts parses specs as tool mounts, with $CONTAINER_HOME as /home/agent.
+func parseMounts(t *testing.T, toolHome string, specs ...string) []sandbox.Mount {
+	t.Helper()
+	mounts := make([]sandbox.Mount, 0, len(specs))
+	for _, spec := range specs {
+		m, err := sandbox.ParseMount(spec, toolHome, "/home/agent")
+		require.NoError(t, err)
+		mounts = append(mounts, m)
+	}
+	return mounts
 }

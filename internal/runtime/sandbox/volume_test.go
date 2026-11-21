@@ -28,33 +28,6 @@ func TestVolumeMount(t *testing.T) {
 	}
 }
 
-func TestReadOnlyByDefault(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		spec string
-		want string
-	}{
-		{"bind mount without options becomes read-only", "/host/a:/a", "/host/a:/a:ro"},
-		{"bind mount with rw stays read-write", "/host/a:/a:rw", "/host/a:/a:rw"},
-		{"bind mount with ro is unchanged", "/host/a:/a:ro", "/host/a:/a:ro"},
-		{"other options get ro appended", "/host/a:/a:z", "/host/a:/a:z,ro"},
-		{"rw among other options stays read-write", "/host/a:/a:rw,z", "/host/a:/a:rw,z"},
-		{"trailing colon gets ro", "/host/a:/a:", "/host/a:/a:ro"},
-		{"named volume is unchanged", "maven:$CONTAINER_HOME/.m2", "maven:$CONTAINER_HOME/.m2"},
-		{"home placeholder bind mount becomes read-only", "~/.m2:$CONTAINER_HOME/.m2", "~/.m2:$CONTAINER_HOME/.m2:ro"},
-		{"windows drive path becomes read-only", `C:\host\a:/a`, `C:\host\a:/a:ro`},
-		{"spec without container part is unchanged", "/host/a", "/host/a"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := ReadOnlyByDefault(tc.spec)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
 func Test_splitMountHost(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -79,134 +52,93 @@ func Test_splitMountHost(t *testing.T) {
 	}
 }
 
-func TestSplitHostContainer(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		spec          string
-		wantHost      string
-		wantContainer string
-		wantOK        bool
-	}{
-		{name: "unix path with container part", spec: "/host/path:/container", wantHost: "/host/path", wantContainer: "/container", wantOK: true},
-		{name: "named volume with container part", spec: "maven:/container", wantHost: "maven", wantContainer: "/container", wantOK: true},
-		{name: "no colon returns ok false", spec: "maven", wantHost: "maven"},
-		{name: "trailing colon returns empty container with ok true", spec: "maven:", wantHost: "maven", wantOK: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			host, container, ok := SplitHostContainer(tc.spec)
-
-			// Assert
-			assert.Equal(t, tc.wantHost, host)
-			assert.Equal(t, tc.wantContainer, container)
-			assert.Equal(t, tc.wantOK, ok)
-		})
-	}
-}
-
-func TestIsNamedVolume(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		spec string
-		want bool
-	}{
-		{name: "named volume returns true", spec: "maven:/container", want: true},
-		{name: "unix path returns false", spec: "/host/path:/container"},
-		{name: "windows path returns false", spec: `C:\data:/container`},
-		{name: "single char returns false", spec: "C:/container"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := IsNamedVolume(tc.spec)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
-func TestNormalizeMountSpec(t *testing.T) {
-	relative := "." + string(filepath.Separator) + "data:/data"
-
-	for _, tc := range []struct {
-		name string
-		spec string
-		want string
-	}{
-		{name: "unix path unchanged", spec: "/host/path:/container/path", want: "/host/path:/container/path"},
-		{name: "named volume unchanged", spec: "maven:/container/path", want: "maven:/container/path"},
-		{name: "redundant slashes on host side cleaned", spec: "/host//data:/container/path", want: "/host/data:/container/path"},
-		{name: "dot-slash path stays a bind mount", spec: "./data:/data", want: relative},
-		{name: "trailing dot path stays a bind mount", spec: "data/.:/data", want: relative},
-		{name: "dot-dot path stays a bind mount", spec: "other/../data:/data", want: relative},
-		{name: "container side untouched", spec: "/host/data:/container//path", want: "/host/data:/container//path"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Act
-			result := NormalizeMountSpec(tc.spec)
-
-			// Assert
-			assert.Equal(t, tc.want, result)
-		})
-	}
-}
-
-func TestExpandMountSpec(t *testing.T) {
+func TestParseMount(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
+	relative := "." + string(filepath.Separator) + "data"
 
 	for _, tc := range []struct {
-		name          string
-		spec          string
-		toolHome      string
-		containerHome string
-		want          string
+		name string
+		spec string
+		want Mount
 	}{
-		{name: "TOOL_HOME", spec: "$TOOL_HOME/data:/data", toolHome: "/custom/home", want: "/custom/home/data:/data"},
-		{name: "TOOL_HOME with braces", spec: "${TOOL_HOME}/data:/data", toolHome: "/custom/home", want: "/custom/home/data:/data"},
-		{name: "CONTAINER_HOME", spec: "/data:$CONTAINER_HOME/data", containerHome: "/root", want: "/data:/root/data"},
-		{name: "CONTAINER_HOME with braces", spec: "/data:${CONTAINER_HOME}/data", containerHome: "/root", want: "/data:/root/data"},
-		{name: "PWD", spec: "$PWD:/workspace", want: pwd + ":/workspace"},
-		{name: "braced PWD", spec: "${PWD}:/workspace", want: pwd + ":/workspace"},
-		{name: "tilde", spec: "~/.cache:/cache", want: home + "/.cache:/cache"},
-		{name: "HOME", spec: "$HOME/.cache:/cache", want: home + "/.cache:/cache"},
-		{name: "HOME with braces", spec: "${HOME}/.cache:/cache", want: home + "/.cache:/cache"},
+		{name: "bind mount", spec: "/host/path:/container", want: Mount{Source: "/host/path", Target: "/container"}},
+		{name: "named volume", spec: "maven:/container", want: Mount{Source: "maven", Target: "/container", Named: true}},
+		{name: "ro becomes ReadOnly", spec: "/host:/container:ro", want: Mount{Source: "/host", Target: "/container", ReadOnly: true}},
 		{
-			name:          "CONTAINER_HOME in host part not expanded",
-			spec:          "$CONTAINER_HOME/data:/container/data",
-			toolHome:      "/tool",
-			containerHome: "/root",
-			want:          "$CONTAINER_HOME/data:/container/data",
+			name: "other options kept in order",
+			spec: "/host:/container:rw,z",
+			want: Mount{Source: "/host", Target: "/container", Options: []string{"rw", "z"}},
 		},
+		{name: "trailing colon has no options", spec: "/host:/container:", want: Mount{Source: "/host", Target: "/container"}},
+		{name: "TOOL_HOME", spec: "$TOOL_HOME/data:/data", want: Mount{Source: "/tool/data", Target: "/data"}},
+		{name: "TOOL_HOME with braces", spec: "${TOOL_HOME}/data:/data", want: Mount{Source: "/tool/data", Target: "/data"}},
+		{name: "CONTAINER_HOME", spec: "/data:$CONTAINER_HOME/data", want: Mount{Source: "/data", Target: "/root/data"}},
+		{name: "CONTAINER_HOME with braces", spec: "/data:${CONTAINER_HOME}/data", want: Mount{Source: "/data", Target: "/root/data"}},
+		{name: "PWD", spec: "$PWD:/workspace", want: Mount{Source: pwd, Target: "/workspace"}},
+		{name: "braced PWD", spec: "${PWD}:/workspace", want: Mount{Source: pwd, Target: "/workspace"}},
+		{name: "tilde", spec: "~/.cache:/cache", want: Mount{Source: home + "/.cache", Target: "/cache"}},
+		{name: "HOME", spec: "$HOME/.cache:/cache", want: Mount{Source: home + "/.cache", Target: "/cache"}},
+		{name: "HOME with braces", spec: "${HOME}/.cache:/cache", want: Mount{Source: home + "/.cache", Target: "/cache"}},
 		{
-			name:          "TOOL_HOME in container part not expanded",
-			spec:          "/host/data:$TOOL_HOME/data",
-			toolHome:      "/tool",
-			containerHome: "/root",
-			want:          "/host/data:$TOOL_HOME/data",
+			name: "CONTAINER_HOME in host part not expanded",
+			spec: "/x/$CONTAINER_HOME:/data",
+			want: Mount{Source: "/x/$CONTAINER_HOME", Target: "/data"},
 		},
-		{
-			name:          "no placeholders",
-			spec:          "/host/path:/container/path",
-			toolHome:      "/custom/home",
-			containerHome: "/root",
-			want:          "/host/path:/container/path",
-		},
-		{
-			name:          "mixed",
-			spec:          "$TOOL_HOME/cfg:${CONTAINER_HOME}/.config",
-			toolHome:      "/home/.agentic",
-			containerHome: "/root",
-			want:          "/home/.agentic/cfg:/root/.config",
-		},
+		{name: "TOOL_HOME in container part not expanded", spec: "/host:$TOOL_HOME/data", want: Mount{Source: "/host", Target: "$TOOL_HOME/data"}},
+		{name: "redundant slashes on host side cleaned", spec: "/host//data:/data", want: Mount{Source: "/host/data", Target: "/data"}},
+		{name: "container side untouched", spec: "/host:/container//path", want: Mount{Source: "/host", Target: "/container//path"}},
+		{name: "dot-slash path stays a bind mount", spec: "./data:/data", want: Mount{Source: relative, Target: "/data"}},
+		{name: "dot-dot path stays a bind mount", spec: "other/../data:/data", want: Mount{Source: relative, Target: "/data"}},
+		{name: "windows drive path", spec: `C:\data:/container`, want: Mount{Source: filepath.Clean(`C:\data`), Target: "/container"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := ExpandMountSpec(tc.spec, tc.toolHome, tc.containerHome)
+			result, err := ParseMount(tc.spec, "/tool", "/root")
 
 			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, result)
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		spec string
+	}{
+		{name: "no container part", spec: "/host/only"},
+		{name: "empty container part", spec: "/host:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, err := ParseMount(tc.spec, "/tool", "/root")
+
+			// Assert
+			assert.EqualError(t, err, `invalid volume "`+tc.spec+`": expected host:container[:options]`)
+		})
+	}
+}
+
+func TestParseUserMount(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		spec string
+		want Mount
+	}{
+		{name: "bind mount becomes read-only", spec: "/host:/a", want: Mount{Source: "/host", Target: "/a", ReadOnly: true}},
+		{name: "rw stays read-write", spec: "/host:/a:rw", want: Mount{Source: "/host", Target: "/a", Options: []string{"rw"}}},
+		{name: "rw among other options stays read-write", spec: "/host:/a:z,rw", want: Mount{Source: "/host", Target: "/a", Options: []string{"z", "rw"}}},
+		{name: "other options become read-only", spec: "/host:/a:z", want: Mount{Source: "/host", Target: "/a", ReadOnly: true, Options: []string{"z"}}},
+		{name: "named volume stays read-write", spec: "maven:/a", want: Mount{Source: "maven", Target: "/a", Named: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result, err := ParseUserMount(tc.spec, "/tool", "/root")
+
+			// Assert
+			require.NoError(t, err)
 			assert.Equal(t, tc.want, result)
 		})
 	}

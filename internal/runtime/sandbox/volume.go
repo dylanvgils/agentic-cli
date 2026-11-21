@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,15 @@ const WorkspaceContainerPath = "/workspace"
 
 // validVolumeName matches Docker's named volume naming rules (2+ chars: alphanumeric/underscore, then alphanumeric/underscore/dot/dash).
 var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
+
+// Mount is one volume a run gets.
+type Mount struct {
+	Source   string   // host path, or the volume name when Named
+	Target   string   // path in the tool
+	Named    bool     // a Docker volume rather than a bind mount
+	ReadOnly bool     // ro
+	Options  []string // the other options in the given order, rw included; only Docker passes them on
+}
 
 // VolumeOptions configures a volume mount.
 type VolumeOptions struct {
@@ -28,30 +38,15 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 	return s
 }
 
-// ReadOnlyByDefault adds the ro option to a bind-mount spec that sets neither ro nor rw; named volumes and specs without a container part are returned unchanged.
-func ReadOnlyByDefault(spec string) string {
-	_, rest := splitMountHost(spec)
-	if rest == "" || IsNamedVolume(spec) {
-		return spec
-	}
-
-	_, opts, hasOpts := strings.Cut(rest[1:], ":")
-	if !hasOpts || opts == "" {
-		return strings.TrimSuffix(spec, ":") + ":ro"
-	}
-
-	for _, opt := range strings.Split(opts, ",") {
-		if opt == "ro" || opt == "rw" {
-			return spec
-		}
-	}
-	return spec + ",ro"
+// ParseMount parses a host:container[:options] spec as written, expanding $TOOL_HOME, ~, $HOME and $PWD on the host side and
+// $CONTAINER_HOME on the container side.
+func ParseMount(spec, toolHome, containerHome string) (Mount, error) {
+	return parseMount(spec, toolHome, containerHome, false)
 }
 
-// ExpandMountSpec expands variables in a volume mount spec (host:container[:opts]), host-side vars on the host part and container-side on the rest.
-func ExpandMountSpec(spec, toolHome, containerHome string) string {
-	host, rest := splitMountHost(spec)
-	return expandHostVars(host, toolHome) + expandContainerVars(rest, containerHome)
+// ParseUserMount parses spec like ParseMount, but a bind mount is read-only unless its options set rw.
+func ParseUserMount(spec, toolHome, containerHome string) (Mount, error) {
+	return parseMount(spec, toolHome, containerHome, true)
 }
 
 // ExpandTmpfsSpec expands $CONTAINER_HOME in a tmpfs mount spec (container_path[:options]).
@@ -63,41 +58,60 @@ func ExpandTmpfsSpec(spec, containerHome string) string {
 	return expandContainerVars(spec[:idx], containerHome) + spec[idx:]
 }
 
-// HostPart returns the host-side path of a mount spec, correctly handling Windows drive letters (e.g. "C:\path:/container" → "C:\path").
-func HostPart(spec string) string {
-	host, _ := splitMountHost(spec)
-	return host
-}
-
-// SplitHostContainer splits spec into host and container parts; ok is false when spec has no ':' separator.
-func SplitHostContainer(spec string) (host, container string, ok bool) {
-	host, rest := splitMountHost(spec)
-	if rest == "" {
-		return host, "", false
-	}
-	return host, rest[1:], true
-}
-
-// IsNamedVolume reports whether the host side of a mount spec is a Docker named volume, as opposed to a bind mount.
-func IsNamedVolume(spec string) bool {
-	return validVolumeName.MatchString(HostPart(spec))
-}
-
-// NormalizeMountSpec normalizes the host-side path of a mount spec to OS-native separators; the container side is always Linux and left unchanged.
-// A relative path keeps its leading ./ so cleaning never turns it into a named volume, e.g. ./data into data.
-func NormalizeMountSpec(spec string) string {
-	host, rest := splitMountHost(spec)
-	cleaned := filepath.Clean(host)
-	if !IsNamedVolume(spec) && validVolumeName.MatchString(cleaned) {
-		cleaned = "." + string(filepath.Separator) + cleaned
-	}
-	return cleaned + rest
-}
-
 // IsUNCPath reports whether path is a UNC path (starts with \\ or //).
 func IsUNCPath(path string) bool {
 	return strings.HasPrefix(path, `\\`) ||
 		strings.HasPrefix(path, `//`)
+}
+
+func parseMount(spec, toolHome, containerHome string, readOnlyByDefault bool) (Mount, error) {
+	host, rest := splitMountHost(spec)
+	if rest == "" {
+		return Mount{}, fmt.Errorf("invalid volume %q: expected host:container[:options]", spec)
+	}
+
+	host = expandHostVars(host, toolHome)
+	target, opts, _ := strings.Cut(expandContainerVars(rest[1:], containerHome), ":")
+	if target == "" {
+		return Mount{}, fmt.Errorf("invalid volume %q: expected host:container[:options]", spec)
+	}
+
+	m := Mount{
+		Source: normalizeHostPath(host),
+		Target: target,
+		Named:  validVolumeName.MatchString(host),
+	}
+	accessSet := false
+	for opt := range strings.SplitSeq(opts, ",") {
+		switch opt {
+		case "":
+		case "ro":
+			m.ReadOnly, accessSet = true, true
+		case "rw":
+			accessSet = true
+			m.Options = append(m.Options, opt)
+		default:
+			m.Options = append(m.Options, opt)
+		}
+	}
+	if readOnlyByDefault && !m.Named && !accessSet {
+		m.ReadOnly = true
+	}
+	return m, nil
+}
+
+// normalizeHostPath cleans a host path to OS-native separators; a relative path keeps its leading ./ so cleaning never turns
+// it into a named volume, e.g. ./data into data.
+func normalizeHostPath(host string) string {
+	if validVolumeName.MatchString(host) {
+		return host
+	}
+
+	cleaned := filepath.Clean(host)
+	if validVolumeName.MatchString(cleaned) {
+		cleaned = "." + string(filepath.Separator) + cleaned
+	}
+	return cleaned
 }
 
 func expandHostVars(spec, toolHome string) string {

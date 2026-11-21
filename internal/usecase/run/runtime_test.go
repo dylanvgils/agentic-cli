@@ -337,7 +337,7 @@ func Test_Service_Teardown(t *testing.T) {
 		c.Homes.Tool = toolHome
 		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, testRunID, "generated block")
 		require.NoError(t, err)
-		snapshotPath := sandbox.HostPart(mountSpec)
+		snapshotPath := parseMounts(t, "", mountSpec)[0].Source
 		var snapshotAtTeardown bool
 		d := &fakeDocker{teardown: func(string, sandbox.RunID) error {
 			_, statErr := os.Stat(snapshotPath)

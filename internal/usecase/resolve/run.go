@@ -7,16 +7,25 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml mounts, in that order; user bind mounts are read-only unless they set rw.
-func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
-	volumes := append([]string{}, toolMounts...)
-
-	userMounts := append(append([]string{}, extra...), rc.Run.Mounts...)
-	for _, spec := range userMounts {
-		volumes = append(volumes, sandbox.ReadOnlyByDefault(spec))
+// Mounts parses the tool's built-in mounts, --volume flag values, and .agenticrc.toml mounts, in that order; user bind mounts are read-only unless they set rw.
+func Mounts(toolMounts, extra []string, rc *config.AgenticRC, toolHome, containerHome string) ([]sandbox.Mount, error) {
+	var mounts []sandbox.Mount
+	for _, spec := range toolMounts {
+		m, err := sandbox.ParseMount(spec, toolHome, containerHome)
+		if err != nil {
+			return nil, err
+		}
+		mounts = append(mounts, m)
 	}
 
-	return volumes
+	for _, spec := range slices.Concat(extra, rc.Run.Mounts) {
+		m, err := sandbox.ParseUserMount(spec, toolHome, containerHome)
+		if err != nil {
+			return nil, err
+		}
+		mounts = append(mounts, m)
+	}
+	return mounts, nil
 }
 
 // Ports parses --port flag values, then .agenticrc.toml ports; a flag replaces a config port with the same host port.

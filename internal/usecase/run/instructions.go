@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -16,7 +15,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // instructionsFacts is what the environment block describes, gathered up front so rendering touches no client.
@@ -24,7 +22,7 @@ type instructionsFacts struct {
 	caps          sandbox.Capabilities
 	image         *docker.ImageInfo
 	containerHome string
-	mounts        []string
+	mounts        []sandbox.Mount
 	ephemeralDirs []sandbox.EphemeralDir
 	limits        sandbox.ResourceLimits
 	dindLimits    sandbox.ResourceLimits
@@ -96,7 +94,7 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 		caps:          c.Runtime.Caps,
 		image:         c.Image,
 		containerHome: c.Homes.Container,
-		mounts:        resolve.Volumes(c.Tool.Runtime.Mounts(), c.Mounts.Extra, c.RC),
+		mounts:        c.Mounts.Base,
 		ephemeralDirs: c.Tool.Runtime.EphemeralDirs(),
 		limits:        c.Limits,
 		dindLimits:    c.Dind.Limits,
@@ -189,8 +187,8 @@ func writeMissingToolsNote(b *strings.Builder) {
 func writeFilesystemSection(b *strings.Builder, f instructionsFacts) {
 	b.WriteString("## Filesystem\n\n")
 	b.WriteString("- `/workspace`: the project on the user's machine. Writable; changes are real.\n")
-	for _, spec := range f.mounts {
-		writeMountLine(b, spec, f.containerHome)
+	for _, m := range f.mounts {
+		writeMountLine(b, m)
 	}
 
 	if f.caps.ReadOnlyRoot {
@@ -204,22 +202,16 @@ func writeFilesystemSection(b *strings.Builder, f instructionsFacts) {
 }
 
 // writeMountLine writes a volume's container path and access; the workspace has its own line.
-func writeMountLine(b *strings.Builder, spec, containerHome string) {
-	_, target, ok := sandbox.SplitHostContainer(spec)
-	if !ok {
-		return
-	}
-
-	path, opts, _ := strings.Cut(sandbox.ExpandTmpfsSpec(target, containerHome), ":")
-	if path == sandbox.WorkspaceContainerPath {
+func writeMountLine(b *strings.Builder, m sandbox.Mount) {
+	if m.Target == sandbox.WorkspaceContainerPath {
 		return
 	}
 
 	access := "writable"
-	if slices.Contains(strings.Split(opts, ","), "ro") {
+	if m.ReadOnly {
 		access = "read-only"
 	}
-	fmt.Fprintf(b, "- `%s`: %s, persists across runs.\n", path, access)
+	fmt.Fprintf(b, "- `%s`: %s, persists across runs.\n", m.Target, access)
 }
 
 // writeResourceLimitsSection leaves out the pids limit for a runtime without one.

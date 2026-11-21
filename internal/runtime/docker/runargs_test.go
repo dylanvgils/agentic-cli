@@ -132,12 +132,14 @@ func TestBuildVolumeArgs(t *testing.T) {
 		assert.Empty(t, args)
 	})
 
-	t.Run("expands tool home", func(t *testing.T) {
+	t.Run("renders each mount", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
-			Image:    "agentic-claude",
-			ToolHome: "/home/.agentic",
-			Volumes:  []string{"/host:/container", "$TOOL_HOME/data:/data"},
+			Image: "agentic-claude",
+			Mounts: []sandbox.Mount{
+				{Source: "/host", Target: "/container"},
+				{Source: "/home/.agentic/data", Target: "/data", ReadOnly: true},
+			},
 		}
 
 		// Act
@@ -146,7 +148,7 @@ func TestBuildVolumeArgs(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{
 			"--volume=/host:/container",
-			"--volume=/home/.agentic/data:/data",
+			"--volume=/home/.agentic/data:/data:ro",
 		}, args)
 	})
 }

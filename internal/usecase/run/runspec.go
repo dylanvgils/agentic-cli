@@ -77,8 +77,8 @@ type homes struct {
 
 // runMounts are the mounts a run adds to the tool's own.
 type runMounts struct {
-	Extra        []string // from the flags; resolve.Volumes merges the config's
-	Instructions string   // the instructions snapshot, empty when disabled
+	Base         []sandbox.Mount // the tool's own, the flags' and the config's
+	Instructions string          // the instructions snapshot, empty when disabled
 }
 
 // egressConfig is how the run's egress is controlled.
@@ -204,15 +204,21 @@ func runEnv(c runConfig, mounts mountSet, marketplaceNames []string) ([]string, 
 	return env, nil
 }
 
-// runVolumes lists the tool's volume specs: config and flag mounts, marketplaces, then instructions.
-func runVolumes(c runConfig, marketplaceMounts []string) []string {
-	volumes := resolve.Volumes(c.Tool.Runtime.Mounts(), c.Mounts.Extra, c.RC)
-	volumes = append(volumes, marketplaceMounts...)
+// runMountList lists the tool's mounts: its own, flag and config mounts, marketplaces, then instructions.
+func runMountList(c runConfig, marketplaceMounts []string) ([]sandbox.Mount, error) {
+	mounts := slices.Clone(c.Mounts.Base)
+	specs := marketplaceMounts
 	if c.Mounts.Instructions != "" {
-		volumes = append(volumes, c.Mounts.Instructions)
+		specs = append(slices.Clone(specs), c.Mounts.Instructions)
 	}
-
-	return volumes
+	for _, spec := range specs {
+		m, err := sandbox.ParseMount(spec, c.Homes.Tool, c.Homes.Container)
+		if err != nil {
+			return nil, err
+		}
+		mounts = append(mounts, m)
+	}
+	return mounts, nil
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the egress policy and the Docker daemon.
@@ -222,7 +228,7 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 		WithContainerHome(c.Homes.Container).
 		WithUser(platform.HostUser()).
 		WithTTY(iostreams.IsTerminal()).
-		WithVolumes(mounts.volumes...).
+		WithMounts(mounts.mounts...).
 		WithEnv(env...).
 		WithPorts(c.Ports...).
 		WithSkipEntrypoint(c.Target.SkipEntrypoint).

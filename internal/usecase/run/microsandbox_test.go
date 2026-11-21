@@ -224,7 +224,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		m := &fakeMicrosandbox{}
 		ran := stubRunImage(m)
 		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Mounts: parseMounts(t, "", "$PWD/link:/data:ro")}
 
 		// Act
 		err := msb.Run(rs, "", t.TempDir())

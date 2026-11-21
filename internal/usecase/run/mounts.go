@@ -16,34 +16,32 @@ import (
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
 const caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
-// mountSet is the tool container's volume specs, plus the homes their placeholders expand to.
+// mountSet is the tool container's mounts, plus the tool home holding the config they must not expose.
 type mountSet struct {
-	volumes       []string
-	toolHome      string
-	containerHome string
+	mounts   []sandbox.Mount
+	toolHome string
 }
 
-// newMountSet assembles the run's volumes and checks them, so an unchecked set never reaches docker.
+// newMountSet parses the run's mounts and checks them, so an unchecked set never reaches a runtime.
 func newMountSet(c runConfig, marketplaceMounts []string) (mountSet, error) {
-	m := mountSet{
-		volumes:       runVolumes(c, marketplaceMounts),
-		toolHome:      c.Homes.Tool,
-		containerHome: c.Homes.Container,
+	mounts, err := runMountList(c, marketplaceMounts)
+	if err != nil {
+		return mountSet{}, err
 	}
 
+	m := mountSet{mounts: mounts, toolHome: c.Homes.Tool}
 	if err := m.checkMounts(); err != nil {
 		return mountSet{}, err
 	}
 	return m, nil
 }
 
-// hostPaths returns the expanded host side of every bind mount.
+// hostPaths returns the host side of every bind mount.
 func (m mountSet) hostPaths() []string {
 	var paths []string
-	for _, volume := range m.volumes {
-		expanded := sandbox.ExpandMountSpec(volume, m.toolHome, m.containerHome)
-		if !sandbox.IsNamedVolume(expanded) {
-			paths = append(paths, sandbox.HostPart(expanded))
+	for _, mount := range m.mounts {
+		if !mount.Named {
+			paths = append(paths, mount.Source)
 		}
 	}
 	return paths
@@ -108,9 +106,9 @@ func (m mountSet) checkConfigNotMounted() error {
 	return nil
 }
 
-// recheckMounts runs the mount checks on rs's volumes again.
+// recheckMounts runs the mount checks on rs's mounts again.
 func recheckMounts(rs sandbox.RunSpec) error {
-	m := mountSet{volumes: rs.Volumes, toolHome: rs.ToolHome, containerHome: rs.ContainerHome}
+	m := mountSet{mounts: rs.Mounts, toolHome: rs.ToolHome}
 	if err := m.checkMounts(); err != nil {
 		return fmt.Errorf("mounts changed after the run was checked: %w", err)
 	}

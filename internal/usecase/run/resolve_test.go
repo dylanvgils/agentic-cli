@@ -343,8 +343,10 @@ func Test_Service_resolveRun(t *testing.T) {
 	t.Run("copies the flags and resolves proxy, dind and limits against the config", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
-		// No funcs, so the config compares equal
-		tool := tools.ToolConfig{Runtime: tools.RuntimeConfig{WebSearchTool: "WebSearch"}}
+		tool := tools.ToolConfig{Runtime: tools.RuntimeConfig{
+			WebSearchTool: "WebSearch",
+			Mounts:        func() []string { return []string{"$TOOL_HOME/data:$CONTAINER_HOME/.data"} },
+		}}
 		req := Request{
 			Target: target,
 			Tool:   tool,
@@ -368,10 +370,11 @@ func Test_Service_resolveRun(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		c.Tool.Runtime.Mounts = nil // funcs never compare equal
 		limits := sandbox.ResourceLimits{CPUs: "2"}.Or(sandbox.DefaultLimits)
 		assert.Equal(t, runConfig{
 			Target: target,
-			Tool:   tool,
+			Tool:   tools.ToolConfig{Runtime: tools.RuntimeConfig{WebSearchTool: "WebSearch"}},
 			RC:     rc,
 			Image:  image,
 			Runtime: runtimeConfig{
@@ -388,7 +391,10 @@ func Test_Service_resolveRun(t *testing.T) {
 				Enabled: true,
 				Limits:  sandbox.ResourceLimits{Memory: "1g"}.Or(limits),
 			},
-			Mounts:   runMounts{Extra: []string{"/example.test/a:/a"}},
+			Mounts: runMounts{Base: []sandbox.Mount{
+				{Source: "/example.test/home/data", Target: "/home/agent/.data"},
+				{Source: "/example.test/a", Target: "/a", ReadOnly: true},
+			}},
 			Env:      []string{"FOO=bar"},
 			Ports:    []sandbox.PortMapping{{Host: 3000, Guest: 3000}},
 			Registry: "registry.example.test",
@@ -402,6 +408,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 		req := Request{
 			Target: target,
+			Tool:   tools.Configs["claude"],
 			Flags:  Flags{Proxy: resolve.ProxyInput{NoProxy: true}},
 		}
 
@@ -416,6 +423,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		// Arrange
 		req := Request{
 			Target: target,
+			Tool:   tools.Configs["claude"],
 			Flags:  Flags{Ports: []string{"http"}},
 		}
 
@@ -433,7 +441,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}, nil)
 
 		// Act
-		_, err := resolveWith(t, svc, Request{Target: target}, &config.AgenticRC{})
+		_, err := resolveWith(t, svc, Request{Target: target, Tool: tools.Configs["claude"]}, &config.AgenticRC{})
 
 		// Assert
 		require.EqualError(t, err, "inspect agentic-claude: docker daemon unreachable")
@@ -443,6 +451,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		// Arrange
 		req := Request{
 			Target: target,
+			Tool:   tools.Configs["claude"],
 			Flags:  Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}},
 		}
 
@@ -457,6 +466,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		// Arrange
 		req := Request{
 			Target: target,
+			Tool:   tools.Configs["claude"],
 			Flags:  Flags{Dind: resolve.DindInput{DindFlag: true}},
 		}
 
@@ -474,7 +484,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 
 		// Act
-		c, err := resolveWith(t, newSvc(noDaemonCaps), Request{Target: target}, rc)
+		c, err := resolveWith(t, newSvc(noDaemonCaps), Request{Target: target, Tool: tools.Configs["claude"]}, rc)
 
 		// Assert
 		require.NoError(t, err)

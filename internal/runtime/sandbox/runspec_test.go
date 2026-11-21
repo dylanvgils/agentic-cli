@@ -21,7 +21,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithContainerHome("/root").
 		WithUser(platform.User{UID: 1000, GID: 1000}).
 		WithTTY(true).
-		WithVolumes("/host:/container", "/a:/b").
+		WithMounts(Mount{Source: "/host", Target: "/container"}, Mount{Source: "/a", Target: "/b"}).
 		WithPorts(PortMapping{Host: 8080, Guest: 80}).
 		WithSkipEntrypoint(true).
 		WithToolArgs("--example", "value").
@@ -39,7 +39,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, "/root", result.ContainerHome)
 	assert.Equal(t, &platform.User{UID: 1000, GID: 1000}, result.User)
 	assert.True(t, result.TTY)
-	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
+	assert.Equal(t, []Mount{{Source: "/host", Target: "/container"}, {Source: "/a", Target: "/b"}}, result.Mounts)
 	assert.Equal(t, []PortMapping{{Host: 8080, Guest: 80}}, result.Ports)
 	assert.True(t, result.SkipEntrypoint)
 	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
@@ -50,20 +50,22 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, dind, result.Dind)
 }
 
-func TestRunSpecBuilder_WithVolumes(t *testing.T) {
+func TestRunSpecBuilder_WithMounts(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		build func(*RunSpecBuilder) *RunSpecBuilder
-		want  []string
+		want  []Mount
 	}{
 		{
 			name:  "empty",
-			build: func(b *RunSpecBuilder) *RunSpecBuilder { return b.WithVolumes() },
+			build: func(b *RunSpecBuilder) *RunSpecBuilder { return b.WithMounts() },
 		},
 		{
-			name:  "multiple calls accumulate",
-			build: func(b *RunSpecBuilder) *RunSpecBuilder { return b.WithVolumes("/a:/b").WithVolumes("/c:/d", "/e:/f") },
-			want:  []string{"/a:/b", "/c:/d", "/e:/f"},
+			name: "multiple calls accumulate",
+			build: func(b *RunSpecBuilder) *RunSpecBuilder {
+				return b.WithMounts(Mount{Target: "/b"}).WithMounts(Mount{Target: "/d"}, Mount{Target: "/f"})
+			},
+			want: []Mount{{Target: "/b"}, {Target: "/d"}, {Target: "/f"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,7 +73,7 @@ func TestRunSpecBuilder_WithVolumes(t *testing.T) {
 			result := tc.build(NewRunSpec("img")).Build()
 
 			// Assert
-			assert.Equal(t, tc.want, result.Volumes)
+			assert.Equal(t, tc.want, result.Mounts)
 		})
 	}
 }

@@ -18,9 +18,12 @@ func Test_mountSet_hostPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	mounts := mountSet{
-		volumes:       []string{"agentic-cache:/cache", "~/token:/token", "$HOME/other:/run/other"},
-		toolHome:      t.TempDir(),
-		containerHome: "/home/agent",
+		mounts: []sandbox.Mount{
+			{Source: "agentic-cache", Target: "/cache", Named: true},
+			{Source: filepath.Join(home, "token"), Target: "/token"},
+			{Source: filepath.Join(home, "other"), Target: "/run/other"},
+		},
+		toolHome: t.TempDir(),
 	}
 
 	// Act
@@ -33,23 +36,23 @@ func Test_mountSet_hostPaths(t *testing.T) {
 func Test_newMountSet(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
 
-	t.Run("checked mounts are kept as written", func(t *testing.T) {
+	t.Run("checked mounts are kept", func(t *testing.T) {
 		// Arrange
 		c := newTestRunConfig(t)
-		c.Mounts.Extra = []string{"$PWD/real:/data"}
+		c.Mounts.Base = parseMounts(t, "", "$PWD/real:/data")
 
 		// Act
 		mounts, err := newMountSet(c, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, mounts.volumes, "$PWD/real:/data:ro")
+		assert.Contains(t, mounts.mounts, c.Mounts.Base[0])
 	})
 
 	t.Run("mount through a workspace symlink is refused", func(t *testing.T) {
 		// Arrange
 		c := newTestRunConfig(t)
-		c.Mounts.Extra = []string{"$PWD/link:/data"}
+		c.Mounts.Base = parseMounts(t, "", "$PWD/link:/data")
 
 		// Act
 		_, err := newMountSet(c, nil)
@@ -65,7 +68,7 @@ func Test_mountSet_checkMounts(t *testing.T) {
 
 	t.Run("plain workspace mounts pass", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$PWD:/workspace", "$PWD/real:/data"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$PWD:/workspace", "$PWD/real:/data"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkMounts()
@@ -76,7 +79,7 @@ func Test_mountSet_checkMounts(t *testing.T) {
 
 	t.Run("mount exposing agentic.json is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$TOOL_HOME:/agentic"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$TOOL_HOME:/agentic"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkMounts()
@@ -91,7 +94,7 @@ func Test_mountSet_checkResolvable(t *testing.T) {
 
 	t.Run("missing path is accepted", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{filepath.Join(t.TempDir(), "missing", "dir") + ":/data"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, filepath.Join(t.TempDir(), "missing", "dir")+":/data"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkResolvable()
@@ -103,7 +106,7 @@ func Test_mountSet_checkResolvable(t *testing.T) {
 	t.Run("path that can't be resolved is refused", func(t *testing.T) {
 		// Arrange
 		host := stubUnresolvablePath(t)
-		mounts := mountSet{volumes: []string{host + ":/h:rw"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, host+":/h:rw"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkResolvable()
@@ -117,7 +120,7 @@ func Test_mountSet_checkResolvable(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("no /proc on windows")
 		}
-		mounts := mountSet{volumes: []string{"/proc/1/root/home:/home"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "/proc/1/root/home:/home"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkResolvable()
@@ -133,7 +136,7 @@ func Test_mountSet_checkResolvable(t *testing.T) {
 		}
 		link := filepath.Join(t.TempDir(), "fd")
 		require.NoError(t, os.Symlink("/proc/self/fd", link))
-		mounts := mountSet{volumes: []string{link + ":/fd"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, link+":/fd"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkResolvable()
@@ -149,7 +152,7 @@ func Test_mountSet_checkSymlinks(t *testing.T) {
 
 	t.Run("file through a workspace symlink is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$PWD/escape/id_ed25519:/key"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$PWD/escape/id_ed25519:/key"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkSymlinks()
@@ -161,7 +164,7 @@ func Test_mountSet_checkSymlinks(t *testing.T) {
 	t.Run("named volume is not a path", func(t *testing.T) {
 		// Arrange
 		require.NoError(t, os.Symlink(ws.outside, filepath.Join(ws.dir, "agentic-cache")))
-		mounts := mountSet{volumes: []string{"agentic-cache:/cache"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "agentic-cache:/cache"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkSymlinks()
@@ -176,7 +179,7 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 
 	t.Run("mounts beside agentic.json are accepted", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkConfigNotMounted()
@@ -187,7 +190,7 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 
 	t.Run("mount containing agentic.json is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$TOOL_HOME:/agentic"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$TOOL_HOME:/agentic"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkConfigNotMounted()
@@ -198,7 +201,7 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 
 	t.Run("mount of state.json itself is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$TOOL_HOME/state.json:/state.json"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{mounts: parseMounts(t, toolHome, "$TOOL_HOME/state.json:/state.json"), toolHome: toolHome}
 
 		// Act
 		err := mounts.checkConfigNotMounted()
@@ -213,7 +216,7 @@ func Test_recheckMounts(t *testing.T) {
 
 	t.Run("unchanged mounts pass", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Volumes: []string{"$PWD/real:/data:ro"}}
+		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Mounts: parseMounts(t, "", "$PWD/real:/data:ro")}
 
 		// Act
 		err := recheckMounts(rs)
@@ -226,7 +229,7 @@ func Test_recheckMounts(t *testing.T) {
 		// Arrange
 		data := filepath.Join(ws.dir, "data")
 		require.NoError(t, os.Mkdir(data, 0o700))
-		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Volumes: []string{"$PWD/data:/data:ro"}}
+		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Mounts: parseMounts(t, "", "$PWD/data:/data:ro")}
 		require.NoError(t, recheckMounts(rs))
 		require.NoError(t, os.Remove(data))
 		require.NoError(t, os.Symlink(ws.outside, data))
