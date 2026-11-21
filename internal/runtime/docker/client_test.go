@@ -210,7 +210,7 @@ func Test_execRunner_run(t *testing.T) {
 	require.Error(t, err)
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Contains(t, string(got), `"command":"docker","args":["run","--env=API_KEY=***","img"],"exit_code":3`)
+	assert.Contains(t, string(got), `"command":"docker","args":["run","--env=API_KEY=***","img"],"reason":"Test_execRunner_run","exit_code":3`)
 	assert.NotContains(t, string(got), "test-secret")
 }
 

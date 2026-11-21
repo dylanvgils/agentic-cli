@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"reflect"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/cmdlog"
@@ -47,6 +48,16 @@ type timing struct {
 	// proxySettleTime is how long a credentialed proxy must keep running to count as started.
 	proxySettleTime   time.Duration
 	proxyPollInterval time.Duration
+}
+
+// reasonPlumbing are the frames between a Client method and the docker binary, left out of a command's reason.
+var reasonPlumbing = []string{
+	"execRunner.",
+	"Client.run",
+	"Client.runWithStdin",
+	"Client.runInteractive",
+	"Client.runProgress",
+	"Client.stream",
 }
 
 // execRunner runs the docker binary found on PATH, recording each command to log.
@@ -175,11 +186,13 @@ func (r execRunner) output(cmd *exec.Cmd, args []string) (string, error) {
 	return buf.String(), nil
 }
 
-// run runs cmd, recording `docker <args>` with its env values masked, how it ended and how long it took.
+// run runs cmd, recording `docker <args>` with its env values masked, the Client methods that ran it, how it ended
+// and how long it took.
 func (r execRunner) run(cmd *exec.Cmd, args []string) error {
+	reason := cmdlog.Reason(reflect.TypeFor[execRunner]().PkgPath(), reasonPlumbing...)
 	start := time.Now()
 	err := cmd.Run()
-	r.log.Record("docker", sandbox.RedactEnvArgs(args), err, time.Since(start))
+	r.log.Record("docker", sandbox.RedactEnvArgs(args), reason, err, time.Since(start))
 	return err
 }
 

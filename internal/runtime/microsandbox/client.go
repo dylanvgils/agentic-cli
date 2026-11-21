@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -35,6 +36,9 @@ type runner interface {
 type Client struct {
 	runner runner
 }
+
+// reasonPlumbing are the frames between a Client method and the msb binary, left out of a command's reason.
+var reasonPlumbing = []string{"execRunner."}
 
 // execRunner runs the msb binary found on PATH, recording each command to log.
 type execRunner struct {
@@ -125,12 +129,13 @@ func (r execRunner) output(cmd *exec.Cmd, args []string) (string, error) {
 	return buf.String(), nil
 }
 
-// run runs cmd, recording `msb <args>` with its env values masked, how it ended and how long it took; env given to
-// the process itself is never recorded.
+// run runs cmd, recording `msb <args>` with its env values masked, the Client methods that ran it, how it ended and
+// how long it took; env given to the process itself is never recorded.
 func (r execRunner) run(cmd *exec.Cmd, args []string) error {
+	reason := cmdlog.Reason(reflect.TypeFor[execRunner]().PkgPath(), reasonPlumbing...)
 	start := time.Now()
 	err := cmd.Run()
-	r.log.Record("msb", sandbox.RedactEnvArgs(args), err, time.Since(start))
+	r.log.Record("msb", sandbox.RedactEnvArgs(args), reason, err, time.Since(start))
 	return err
 }
 
