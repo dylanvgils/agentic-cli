@@ -10,6 +10,7 @@ linters:
     - forbidigo
     - funcorder
     - gosec
+    - nolintlint
     - testifylint
   settings:
     depguard:
@@ -222,6 +223,10 @@ linters:
       constructor: true
       struct-method: true
       alphabetical: false
+    nolintlint:
+      # no bare //nolint, no stale ones; tests may skip the reason on //nolint:errcheck
+      require-specific: true
+      allow-unused: false
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:
