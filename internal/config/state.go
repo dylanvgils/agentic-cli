@@ -38,14 +38,14 @@ func LoadState(toolHome string) (*State, error) {
 	return &state, nil
 }
 
-// Save writes the state to $AGENTIC_HOME/state.json.
+// Save replaces $AGENTIC_HOME/state.json with the state, so a parallel run never loads a partial file.
 func (state *State) Save(toolHome string) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return hostfs.Data.WriteFile(StateFile(toolHome), data)
+	return hostfs.Data.ReplaceFile(StateFile(toolHome), data)
 }
 
 // IsTrusted reports whether dir, once symlinks are resolved, is a trusted entry or below one; entries compare as stored, since a link inside one could otherwise widen trust.

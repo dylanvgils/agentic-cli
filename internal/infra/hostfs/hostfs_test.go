@@ -108,6 +108,26 @@ func TestClass_WriteFile(t *testing.T) {
 	assert.Equal(t, "test-secret", string(content))
 }
 
+func TestClass_ReplaceFile(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+
+	// Act
+	err := Data.ReplaceFile(path, []byte("new"))
+
+	// Assert
+	require.NoError(t, err)
+	assertMode(t, path, 0o640)
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "new", string(content))
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
+}
+
 // assertMode asserts path's permission bits.
 func assertMode(t *testing.T, path string, want os.FileMode) {
 	t.Helper()

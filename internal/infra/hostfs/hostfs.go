@@ -4,6 +4,7 @@ package hostfs
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // Class is who may read the files and dirs agentic creates.
@@ -59,4 +60,27 @@ func (c Class) MkdirAll(dir string) error {
 // WriteFile writes data to path, creating it with c's mode; an existing file keeps its mode.
 func (c Class) WriteFile(path string, data []byte) error {
 	return os.WriteFile(path, data, c.File())
+}
+
+// ReplaceFile writes data to a temp file next to path and renames it over path, so a concurrent reader never sees a partial file; path gets c's mode.
+func (c Class) ReplaceFile(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	_, err = tmp.Write(data)
+	if err == nil {
+		err = tmp.Chmod(c.File())
+	}
+	if err != nil {
+		_ = tmp.Close()
+		return err
+	}
+
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
