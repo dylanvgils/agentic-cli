@@ -80,19 +80,19 @@ func (f *fakeRunner) RunProgress(args ...string) error {
 	return f.interactive(args)
 }
 
+func (f *fakeRunner) Stream(w io.Writer, args ...string) error {
+	if f.stream == nil {
+		return fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.stream(w, args...)
+}
+
 // interactive runs the runInteractive stub that RunInteractive and RunProgress share.
 func (f *fakeRunner) interactive(args []string) error {
 	if f.runInteractive == nil {
 		return fmt.Errorf("fake: unexpected docker %v", args)
 	}
 	return f.runInteractive(args...)
-}
-
-func (f *fakeRunner) Stream(w io.Writer, args ...string) error {
-	if f.stream == nil {
-		return fmt.Errorf("fake: unexpected docker %v", args)
-	}
-	return f.stream(w, args...)
 }
 
 // stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.

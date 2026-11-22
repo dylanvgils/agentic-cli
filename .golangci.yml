@@ -8,6 +8,7 @@ linters:
   enable:
     - depguard
     - forbidigo
+    - funcorder
     - gosec
   settings:
     depguard:
@@ -215,6 +216,11 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
               desc: usecases get other usecases injected through deps.go
+    funcorder:
+      # CLAUDE.md file order: constructor right after its type, exported methods before unexported ones
+      constructor: true
+      struct-method: true
+      alphabetical: false
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:

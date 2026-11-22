@@ -91,7 +91,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - File order, with blank lines between logical blocks:
   1. Imports (stdlib, then others).
   2. Consts, vars, types (by dependency).
-  3. Constructor + methods per type (exported first).
+  3. Constructor + methods per type, exported first; `funcorder` enforces the type part (it sees `New<Type>`, not a bare `New`).
   4. Standalone funcs (exported first, strictly by export status).
 - Put a function in the file that owns its subject, not next to its caller, even if it has side effects. Move it (and its tests) only when its subject changes.
 - Comments are short, one line unless more is genuinely needed. `main` packages get a `// Command x ...` comment; ST1000 enforces `// Package x ...` elsewhere.

@@ -161,6 +161,27 @@ func (f *FakeResource) Create() *FakeResource {
 	return f
 }
 
+// Exists reports whether the created resource is still there.
+func (f *FakeResource) Exists() bool {
+	return DockerOK(f.kind, "inspect", f.name)
+}
+
+// Name returns the created resource's name.
+func (f *FakeResource) Name() string {
+	return f.name
+}
+
+// UpstreamCA returns the host path of the CA that signed a ServingUpstream container's leaf, to mount into clients.
+func (f *FakeResource) UpstreamCA() string {
+	return filepath.Join(f.certDir, upstreamCAFile)
+}
+
+// IP returns the container's address on its network.
+func (f *FakeResource) IP() string {
+	f.t.Helper()
+	return Docker(f.t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name)
+}
+
 // createArgs returns the docker command creating the resource, running it when it has a command or was Started.
 func (f *FakeResource) createArgs() []string {
 	args := []string{f.kind, "create"}
@@ -197,27 +218,6 @@ func (f *FakeResource) createArgs() []string {
 	}
 	args = append(args, "--name", f.name, f.image)
 	return append(args, f.cmd...)
-}
-
-// Exists reports whether the created resource is still there.
-func (f *FakeResource) Exists() bool {
-	return DockerOK(f.kind, "inspect", f.name)
-}
-
-// Name returns the created resource's name.
-func (f *FakeResource) Name() string {
-	return f.name
-}
-
-// UpstreamCA returns the host path of the CA that signed a ServingUpstream container's leaf, to mount into clients.
-func (f *FakeResource) UpstreamCA() string {
-	return filepath.Join(f.certDir, upstreamCAFile)
-}
-
-// IP returns the container's address on its network.
-func (f *FakeResource) IP() string {
-	f.t.Helper()
-	return Docker(f.t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name)
 }
 
 // writeUpstreamCerts writes a fresh CA and a leaf for the aliases, mounted with the fake upstream binary.
