@@ -208,12 +208,20 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/config/precedence
               desc: agentichome sits below precedence
-        # usecases get other usecases injected; only migrate's own migrations are imported. The longer allow entry wins
-        # over the deny prefix.
+        # usecases get other usecases injected; migrate has its own rule below
         usecase-imports:
-          list-mode: lax
           files:
             - "**/internal/usecase/**"
+            - "!**/internal/usecase/migrate/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: usecases get other usecases injected through deps.go
+        # only migrate imports its own migrations. The longer allow entry wins over the deny prefix.
+        usecase-migrate-imports:
+          list-mode: lax
+          files:
+            - "**/internal/usecase/migrate/**"
             - "!$test"
           allow:
             - github.com/dylanvgils/agentic-cli/internal/usecase/migrate/migrations
