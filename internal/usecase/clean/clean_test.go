@@ -561,7 +561,7 @@ func Test_stepReclaimed(t *testing.T) {
 			})
 
 			// Assert
-			assert.ErrorIs(t, err, tc.err)
+			require.ErrorIs(t, err, tc.err)
 			assert.Equal(t, tc.want, out)
 		})
 	}

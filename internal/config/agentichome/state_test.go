@@ -145,7 +145,7 @@ func Test_State_Trust(t *testing.T) {
 		err := cfg.Trust(filepath.Join(t.TempDir(), "missing"), t.TempDir())
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, cfg.TrustedDirs)
 	})
 

@@ -78,7 +78,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 		err := New(d, msbRuntime(&fakeStore{})).RemoveAll(vols)
 
 		// Assert
-		assert.ErrorContains(t, err, "in use")
+		require.ErrorContains(t, err, "in use")
 		assert.Equal(t, 1, calls)
 	})
 }

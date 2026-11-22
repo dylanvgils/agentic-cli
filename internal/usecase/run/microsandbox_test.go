@@ -137,7 +137,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		err := r.Run(newProxyRunSpec(t, sandbox.EgressEnforce), "", t.TempDir())
 
 		// Assert
-		assert.EqualError(t, err, "stub: start failed")
+		require.EqualError(t, err, "stub: start failed")
 		assert.Empty(t, *ran)
 	})
 
@@ -230,7 +230,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		err := msb.Run(rs, "", t.TempDir())
 
 		// Assert
-		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
+		require.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
 		assert.Empty(t, *ran)
 	})
 

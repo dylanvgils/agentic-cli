@@ -50,7 +50,7 @@ func Test_closeNotifyConn_Close(t *testing.T) {
 
 	// Assert
 	_, err = listener.Accept()
-	assert.ErrorIs(t, err, net.ErrClosed)
+	require.ErrorIs(t, err, net.ErrClosed)
 	_, err = client.Write([]byte("x"))
 	assert.Error(t, err, "the wrapped conn is closed")
 }

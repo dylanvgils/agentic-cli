@@ -141,6 +141,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - Assign the result in Act; don't call inside the assertion.
 - Name `TestFunc` / `Test_func` (`TestType_Method` / `Test_type_method` for methods). Several cases go in `t.Run` subtests with lowercase sentence names; a single case stays flat.
 - Subtests that differ only in inputs and expected values go in a table (`for _, tc := range []struct{...}`) with `t.Run(tc.name, ...)` per case and AAA in the loop body. Prefer exact `Equal`/`EqualError` over several `Contains`.
+- Assertions use `require` for errors and `expected, actual` order (`testifylint` enforces it).
 - Shared helpers live in `helpers_test.go`, register cleanup with `t.Cleanup`, and are named `stub...` when they stub.
 - Docker tests use a hand-written `fakeDocker` (a func field per method a test stubs; a nil field or a method without one succeeds). In `internal/cli` use `stubDocker(t, &fakeDocker{...})`.
 - IO tests stub the default streams only through `iostreamstest` (`StubIn`, `StubOut`, `StubErr`, `StubCombined`, `CaptureOut`, `CaptureErr`), never with a local copy. A `*logging.Logger` param gets `logging.New(iostreams.New(...))` over buffers.

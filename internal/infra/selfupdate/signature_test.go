@@ -54,8 +54,8 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, firstSignedVersion), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
-		assert.ErrorContains(t, err, "signature bundle missing for "+firstSignedVersion)
+		require.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorContains(t, err, "signature bundle missing for "+firstSignedVersion)
 		assert.NotContains(t, buf.String(), "release is unsigned")
 	})
 
@@ -70,7 +70,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, "latest"), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorIs(t, err, errSignatureVerification)
 		assert.ErrorContains(t, err, "signature bundle missing for latest")
 	})
 
@@ -118,7 +118,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorIs(t, err, errSignatureVerification)
 		assert.ErrorContains(t, err, "exit status 1: fake cosign")
 	})
 
@@ -133,7 +133,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorIs(t, err, errSignatureVerification)
 		assert.EqualError(t, err, "signature verification failed: cosign verify-blob: exit status 3")
 	})
 
@@ -149,7 +149,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorIs(t, err, errSignatureVerification)
 		assert.ErrorContains(t, err, "timed out after 100ms")
 	})
 
@@ -166,7 +166,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
+		require.ErrorIs(t, err, errSignatureVerification)
 		assert.Less(t, time.Since(start), u.cosignTimeout+cosignWaitDelay+5*time.Second)
 	})
 }

@@ -198,7 +198,7 @@ func Test_loadInjector(t *testing.T) {
 		_, err := loadInjector(caDir, badPath, false)
 
 		// Assert
-		assert.ErrorContains(t, err, "no headers")
+		require.ErrorContains(t, err, "no headers")
 		assert.FileExists(t, filepath.Join(caDir, CAKeyFile))
 		assert.FileExists(t, badPath)
 	})

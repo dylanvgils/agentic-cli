@@ -162,7 +162,7 @@ func Test_extraStage(t *testing.T) {
 		_, err := extraStage("ruby", "base", "")
 
 		// Assert
-		assert.ErrorContains(t, err, "ruby")
+		require.ErrorContains(t, err, "ruby")
 		assert.ErrorContains(t, err, "valid:")
 	})
 

@@ -61,7 +61,7 @@ func TestWriteCerts(t *testing.T) {
 		_, serverErr := leaf.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
 
 		// Assert
-		assert.NoError(t, clientErr)
+		require.NoError(t, clientErr)
 		assert.Error(t, serverErr)
 	})
 }

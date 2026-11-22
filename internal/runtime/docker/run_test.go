@@ -49,7 +49,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
-		assert.ErrorIs(t, err, errNoHostUser)
+		require.ErrorIs(t, err, errNoHostUser)
 		assert.Empty(t, get())
 	})
 
@@ -272,7 +272,7 @@ func TestClient_RunTool(t *testing.T) {
 		args := get()
 		assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
 		assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
-		assert.Equal(t, "", argAfter(args, "--entrypoint"))
+		assert.Empty(t, argAfter(args, "--entrypoint"))
 		assert.Equal(t, []string{"agentic-claude", "--resume"}, args[len(args)-2:])
 	})
 }

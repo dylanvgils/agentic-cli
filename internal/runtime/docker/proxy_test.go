@@ -451,7 +451,7 @@ func Test_proxyHandle_checkStarted(t *testing.T) {
 		err := handle.checkStarted()
 
 		// Assert
-		assert.ErrorContains(t, err, "proxy exited on start")
+		require.ErrorContains(t, err, "proxy exited on start")
 		assert.ErrorContains(t, err, "load proxy CA: bad key")
 	})
 

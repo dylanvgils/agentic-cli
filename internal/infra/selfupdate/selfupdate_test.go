@@ -199,7 +199,7 @@ func Test_updater_update(t *testing.T) {
 			err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 			// Assert
-			assert.ErrorIs(t, err, tc.wantErr)
+			require.ErrorIs(t, err, tc.wantErr)
 			assertFileContent(t, targetPath, "old binary")
 		})
 	}

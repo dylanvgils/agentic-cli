@@ -51,7 +51,7 @@ func TestClient_Clone(t *testing.T) {
 		require.NoError(t, err)
 		calls := get()
 		require.Len(t, calls, 1)
-		assert.Equal(t, "", calls[0].dir)
+		assert.Empty(t, calls[0].dir)
 		assert.Equal(t, append(slices.Clone(remoteProtocols), "clone", "--", "git@example.com:acme/marketplace.git", "/tmp/acme"), calls[0].args)
 	})
 
@@ -119,7 +119,7 @@ func TestClient_FetchReset(t *testing.T) {
 		err := client.FetchReset("/tmp/acme")
 
 		// Assert
-		assert.ErrorContains(t, err, "git fetch")
+		require.ErrorContains(t, err, "git fetch")
 		assert.Len(t, get(), 1, "reset must not run after a failed fetch")
 	})
 
