@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 )
 
@@ -27,7 +28,7 @@ type Updater func(tool, image string) error
 // Request names the tool image to check and where its check timestamp and run config live.
 type Request struct {
 	Home  string
-	RC    *rc.AgenticRC
+	RC    *agenticrc.Config
 	Tool  string
 	Image string
 }
@@ -61,7 +62,7 @@ func (s *Service) Check(req Request, confirm Confirm, update Updater) error {
 
 // fetchIfDue fetches toolName's latest upstream version if due, saves the check timestamp on success (so a failed fetch retries instead of backing off), and returns (installed, latest, true) if newer.
 func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest string, ok bool) {
-	state, err := rc.LoadState(home)
+	state, err := agentichome.LoadState(home)
 	if err != nil {
 		return "", "", false
 	}

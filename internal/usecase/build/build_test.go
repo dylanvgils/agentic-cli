@@ -4,7 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +87,7 @@ func TestService_Apply(t *testing.T) {
 		assert.Equal(t, []string{"claude", "copilot", "opencode"}, *built)
 		assert.Equal(t, "=> agentic-claude\n=> agentic-copilot\n=> agentic-opencode\n", out)
 		assert.True(t, pruned)
-		state, err := rc.LoadState(home)
+		state, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.Contains(t, state.LastToolVersionCheck, "claude")
 		assert.Contains(t, state.LastToolVersionCheck, "opencode")
@@ -96,14 +97,14 @@ func TestService_Apply(t *testing.T) {
 		// Arrange
 		iostreamstest.StubErr(t)
 		home := t.TempDir()
-		installs := []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		installs := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
 		// Act
 		err := New(&fakeDocker{}, home).Apply(newPlan(tools.BuildOptions{CustomInstalls: installs}, "claude"))
 
 		// Assert
 		require.NoError(t, err)
-		stored, ok := rc.LoadCustomInstalls(home, rc.CustomInstallsHash(installs))
+		stored, ok := agentichome.LoadCustomInstalls(home, agentichome.CustomInstallsHash(installs))
 		assert.True(t, ok)
 		assert.Equal(t, installs, stored)
 	})
@@ -146,7 +147,7 @@ func TestService_Apply(t *testing.T) {
 		require.ErrorContains(t, err, "build failed")
 		assert.Equal(t, []string{"claude"}, *built)
 		assert.False(t, pruned)
-		state, err := rc.LoadState(home)
+		state, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.NotContains(t, state.LastToolVersionCheck, "claude")
 	})

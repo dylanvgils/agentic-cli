@@ -1,4 +1,4 @@
-package rc
+package agentichome
 
 import (
 	"crypto/sha256"
@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
@@ -18,7 +19,7 @@ const CustomInstallsDirName = "custom-installs"
 var validCustomInstallsHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // CustomInstallsHash returns the content hash an image records for installs; empty when there are none.
-func CustomInstallsHash(installs []RCCustomInstall) string {
+func CustomInstallsHash(installs []agenticrc.CustomInstall) string {
 	if len(installs) == 0 {
 		return ""
 	}
@@ -32,7 +33,7 @@ func CustomInstallsHash(installs []RCCustomInstall) string {
 }
 
 // SaveCustomInstalls stores installs under toolHome by CustomInstallsHash, so `agentic update` can rebuild them later; a no-op without installs.
-func SaveCustomInstalls(toolHome string, installs []RCCustomInstall) error {
+func SaveCustomInstalls(toolHome string, installs []agenticrc.CustomInstall) error {
 	hash := CustomInstallsHash(installs)
 	if hash == "" {
 		return nil
@@ -54,7 +55,7 @@ func SaveCustomInstalls(toolHome string, installs []RCCustomInstall) error {
 }
 
 // LoadCustomInstalls returns the installs stored under hash; ok is false when the file is missing or its content doesn't match hash.
-func LoadCustomInstalls(toolHome, hash string) (installs []RCCustomInstall, ok bool) {
+func LoadCustomInstalls(toolHome, hash string) (installs []agenticrc.CustomInstall, ok bool) {
 	if !validCustomInstallsHash.MatchString(hash) {
 		return nil, false
 	}

@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 )
 
 const (
@@ -117,18 +118,18 @@ func SkipWithoutInternet(t *testing.T, host string) {
 
 // approveSettings records the guarded settings in the .agenticrc.toml at rcPath as approved, as the settings prompt would.
 func approveSettings(rcPath string) error {
-	layers, err := rc.FindLayers(filepath.Dir(rcPath))
+	project, err := agenticrc.Load(filepath.Dir(rcPath))
 	if err != nil {
 		return err
 	}
-	cfg, err := rc.LoadState(agenticHome)
+	cfg, err := agentichome.LoadState(agenticHome)
 	if err != nil {
 		return err
 	}
 
-	for _, layer := range layers {
+	for _, layer := range project.Layers {
 		if layer.Path == rcPath {
-			return cfg.ApproveSettings(layer, agenticHome)
+			return cfg.ApproveSettings(layer.Path, layer.ApprovalHashes(), agenticHome)
 		}
 	}
 	return nil

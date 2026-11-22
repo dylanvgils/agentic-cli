@@ -1,4 +1,4 @@
-package rc
+package agentichome
 
 import (
 	"os"
@@ -170,112 +170,68 @@ func Test_State_Trust(t *testing.T) {
 	})
 }
 
-func Test_State_ChangedSettings(t *testing.T) {
+func Test_State_ApprovedHashes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
-	mounts := func(m ...string) RCLayer {
-		rc := &AgenticRC{}
-		rc.Run.Mounts = m
-		return RCLayer{Path: path, RC: rc}
-	}
+	hashes := map[string]string{"run.mounts": "example-hash"}
 
-	t.Run("unset setting never approved is unchanged", func(t *testing.T) {
+	t.Run("returns what was approved for the file", func(t *testing.T) {
 		// Arrange
 		cfg := &State{}
+		require.NoError(t, cfg.ApproveSettings(path, hashes, t.TempDir()))
 
 		// Act
-		changed := cfg.ChangedSettings(mounts())
+		approved := cfg.ApprovedHashes(path)
 
 		// Assert
-		assert.Empty(t, changed)
-	})
-
-	t.Run("new setting is changed", func(t *testing.T) {
-		// Arrange
-		cfg := &State{}
-
-		// Act
-		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
-
-		// Assert
-		assert.Equal(t, []GuardedSetting{{"run.mounts", []string{"~/.example:/x:rw"}}}, changed)
-	})
-
-	t.Run("approved setting is unchanged", func(t *testing.T) {
-		// Arrange
-		cfg := &State{}
-		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
-
-		// Act
-		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
-
-		// Assert
-		assert.Empty(t, changed)
-	})
-
-	t.Run("cleared approved setting is changed", func(t *testing.T) {
-		// Arrange
-		cfg := &State{}
-		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
-
-		// Act
-		changed := cfg.ChangedSettings(mounts())
-
-		// Assert
-		require.Len(t, changed, 1)
-		assert.Equal(t, "run.mounts", changed[0].Key)
+		assert.Equal(t, hashes, approved)
 	})
 
 	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
 		// Arrange
 		cfg := &State{}
-		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+		require.NoError(t, cfg.ApproveSettings(path, hashes, t.TempDir()))
 		planted := filepath.Join(t.TempDir(), ".agenticrc.toml")
 		symlinkOrSkip(t, path, planted)
-		layer := mounts("~/.example:/x:rw")
-		layer.Path = planted
 
 		// Act
-		changed := cfg.ChangedSettings(layer)
+		approved := cfg.ApprovedHashes(planted)
 
 		// Assert
-		assert.Len(t, changed, 1)
+		assert.Nil(t, approved)
 	})
 
-	t.Run("approved file reached through a linked dir is unchanged", func(t *testing.T) {
+	t.Run("approved file reached through a linked dir keeps its approval", func(t *testing.T) {
 		// Arrange
 		cfg := &State{}
-		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+		require.NoError(t, cfg.ApproveSettings(path, hashes, t.TempDir()))
 		link := filepath.Join(t.TempDir(), "link")
 		symlinkOrSkip(t, filepath.Dir(path), link)
-		layer := mounts("~/.example:/x:rw")
-		layer.Path = filepath.Join(link, ".agenticrc.toml")
 
 		// Act
-		changed := cfg.ChangedSettings(layer)
+		approved := cfg.ApprovedHashes(filepath.Join(link, ".agenticrc.toml"))
 
 		// Assert
-		assert.Empty(t, changed)
+		assert.Equal(t, hashes, approved)
 	})
 }
 
 func Test_State_ApproveSettings(t *testing.T) {
 	// Arrange
-	home := t.TempDir()
+	toolHome := t.TempDir()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	rc := &AgenticRC{Namespace: "work"}
-	layer := RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
+	path := filepath.Join(dir, ".agenticrc.toml")
+	hashes := map[string]string{"namespace": "example-hash"}
 	cfg := &State{}
 
 	// Act
-	err = cfg.ApproveSettings(layer, home)
+	err = cfg.ApproveSettings(path, hashes, toolHome)
 
 	// Assert
 	require.NoError(t, err)
-	reloaded, err := LoadState(home)
+	reloaded, err := LoadState(toolHome)
 	require.NoError(t, err)
-	approved := reloaded.ApprovedSettings[layer.Path]
-	assert.Equal(t, map[string]string{"namespace": GuardedSetting{"namespace", "work"}.hash()}, approved)
+	assert.Equal(t, hashes, reloaded.ApprovedSettings[path])
 }
 
 func TestStateFile(t *testing.T) {

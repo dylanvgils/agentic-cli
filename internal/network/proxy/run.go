@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
@@ -53,7 +53,7 @@ func ConfigFromEnv() (Config, error) {
 		Monitor:         monitor,
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
-		ClientNets:      rc.SplitEnvValues(os.Getenv(EnvClientNets)),
+		ClientNets:      splitEnvValues(os.Getenv(EnvClientNets)),
 		AuthToken:       os.Getenv(EnvAuthToken),
 	}, nil
 }
@@ -181,4 +181,19 @@ func loadCA(dir string) (certs.CA, error) {
 		return certs.CA{}, fmt.Errorf("proxy CA must be name-constrained to the hosts it decrypts")
 	}
 	return ca, nil
+}
+
+// splitEnvValues splits a comma-separated value string and skips empty parts.
+func splitEnvValues(value string) []string {
+	var result []string
+
+	for pair := range strings.SplitSeq(value, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		result = append(result, pair)
+	}
+
+	return result
 }

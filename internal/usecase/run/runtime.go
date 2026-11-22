@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -116,14 +116,14 @@ func (s *Service) runner(runtime sandbox.Runtime, backend string) (runner, error
 		return dockerRunner{
 			docker:        s.docker,
 			sidecarImages: s.sidecarImages,
-			nativeBackend: backend == rc.BackendNative,
+			nativeBackend: backend == agenticrc.BackendNative,
 		}, nil
 	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{
 			docker:        s.docker,
 			microsandbox:  s.microsandbox,
 			sidecarImages: s.sidecarImages,
-			agenticProxy:  backend == rc.BackendAgentic,
+			agenticProxy:  backend == agenticrc.BackendAgentic,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown runtime %q", runtime)

@@ -47,8 +47,8 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	namespace := resolveNamespace(cmd, project.RC)
-	opts := buildOptsFromFlags(cmd, project.RC)
+	namespace := resolveNamespace(cmd, project.Config)
+	opts := buildOptsFromFlags(cmd, project.Config)
 	dryRun, _ := cmd.Flags().GetBool(dryRunFlagName)
 	names := args
 	if all, _ := cmd.Flags().GetBool(allFlagName); all {

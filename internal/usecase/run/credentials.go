@@ -6,7 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
@@ -29,28 +30,24 @@ func checkProxyTrust(target Target, info *docker.ImageInfo) error {
 	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential and path rule hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }
 
-// resolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
-func resolveCredentials(layers []rc.RCLayer, toolHome string) ([]credentials.Resolved, error) {
-	agenticRC, err := rc.Merge(layers)
-	if err != nil {
-		return nil, err
-	}
-	if len(agenticRC.Run.Proxy.Credentials) == 0 {
+// resolveCredentials reads the secrets of every credential approved declares, refusing to run while any layer's entries are unapproved.
+func resolveCredentials(approved approvedConfig, toolHome string) ([]credentials.Resolved, error) {
+	if len(approved.rc.Run.Proxy.Credentials) == 0 {
 		return nil, nil
 	}
 
 	// Checked here too, so no caller can read a secret the user hasn't approved
-	state, err := rc.LoadState(toolHome)
+	state, err := agentichome.LoadState(toolHome)
 	if err != nil {
 		return nil, fmt.Errorf("load credential approvals: %w", err)
 	}
-	for _, layer := range layers {
-		if slices.ContainsFunc(state.ChangedSettings(layer), func(s rc.GuardedSetting) bool { return s.Key == rc.CredentialsSetting }) {
+	for _, layer := range approved.layers {
+		if slices.ContainsFunc(layer.ChangedSettings(state.ApprovedHashes(layer.Path)), func(s agenticrc.GuardedSetting) bool { return s.Key == agenticrc.CredentialsSetting }) {
 			return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", layer.Path)
 		}
 	}
 
-	return credentials.Resolve(agenticRC.Run.Proxy.Credentials)
+	return credentials.Resolve(approved.rc.Run.Proxy.Credentials)
 }
 
 // credentialSetup checks c's credentials against the run; the runtime sets the placeholders itself. A no-op without

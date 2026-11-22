@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -273,7 +274,7 @@ func TestStampImageLabels(t *testing.T) {
 	t.Run("maps the build options and detected versions to labels", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, client, "21.0.1\n", nil)
-		installs := []rc.RCCustomInstall{
+		installs := []agenticrc.CustomInstall{
 			{Name: "helm", Run: []string{"echo helm"}},
 			{Name: "golangci-lint", Run: []string{"echo lint"}},
 		}
@@ -296,7 +297,7 @@ func TestStampImageLabels(t *testing.T) {
 		assert.Contains(t, capturedArgs, "--label="+LabelVersionArgs+"="+tools.BaseLayer+"@"+tools.DefaultVersions.Debian+",java@17")
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
 		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
-		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstallsHash+"="+rc.CustomInstallsHash(installs))
+		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstallsHash+"="+agentichome.CustomInstallsHash(installs))
 		assert.Contains(t, capturedArgs, "--label="+LabelCacheBust+"=2026-08-21T07:18:37Z")
 		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelBuilt+"="))
 		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCLIVersion+"="))

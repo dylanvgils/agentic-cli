@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
@@ -35,7 +35,7 @@ type parsedArgs struct {
 // invocation is an `agentic run` call resolved against the working dir's config.
 type invocation struct {
 	parsedArgs
-	project    rc.Project
+	project    agenticrc.Project
 	toolConfig tools.ToolConfig
 }
 
@@ -134,7 +134,7 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 		return invocation{}, loadErr
 	}
 
-	parsed, err := parseArgs(args, resolveNamespace(cmd, project.RC))
+	parsed, err := parseArgs(args, resolveNamespace(cmd, project.Config))
 	if err != nil {
 		return invocation{}, err
 	}

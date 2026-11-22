@@ -3,12 +3,12 @@ package precedence
 import (
 	"slices"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // Mounts parses the tool's built-in mounts, --volume flag values, and .agenticrc.toml mounts, in that order; user bind mounts are read-only unless they set rw.
-func Mounts(toolMounts, extra []string, agenticRC *rc.AgenticRC, toolHome, containerHome string) ([]sandbox.Mount, error) {
+func Mounts(toolMounts, extra []string, rc *agenticrc.Config, toolHome, containerHome string) ([]sandbox.Mount, error) {
 	var mounts []sandbox.Mount
 	for _, spec := range toolMounts {
 		m, err := sandbox.ParseMount(spec, toolHome, containerHome)
@@ -18,7 +18,7 @@ func Mounts(toolMounts, extra []string, agenticRC *rc.AgenticRC, toolHome, conta
 		mounts = append(mounts, m)
 	}
 
-	for _, spec := range slices.Concat(extra, agenticRC.Run.Mounts) {
+	for _, spec := range slices.Concat(extra, rc.Run.Mounts) {
 		m, err := sandbox.ParseUserMount(spec, toolHome, containerHome)
 		if err != nil {
 			return nil, err
@@ -29,12 +29,12 @@ func Mounts(toolMounts, extra []string, agenticRC *rc.AgenticRC, toolHome, conta
 }
 
 // Ports parses --port flag values, then .agenticrc.toml ports; a flag replaces a config port with the same host port.
-func Ports(flags []string, agenticRC *rc.AgenticRC) ([]sandbox.PortMapping, error) {
+func Ports(flags []string, rc *agenticrc.Config) ([]sandbox.PortMapping, error) {
 	ports, err := sandbox.ParsePorts(flags)
 	if err != nil {
 		return nil, err
 	}
-	fromRC, err := sandbox.ParsePorts(agenticRC.Run.Ports)
+	fromRC, err := sandbox.ParsePorts(rc.Run.Ports)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +48,8 @@ func Ports(flags []string, agenticRC *rc.AgenticRC) ([]sandbox.PortMapping, erro
 }
 
 // Env merges .agenticrc.toml env entries with --env flags, rc first so a flag with the same key wins.
-func Env(flags []string, agenticRC *rc.AgenticRC) []string {
-	env := append([]string{}, agenticRC.Run.Env...)
+func Env(flags []string, rc *agenticrc.Config) []string {
+	env := append([]string{}, rc.Run.Env...)
 	env = append(env, flags...)
 
 	return env
@@ -57,29 +57,29 @@ func Env(flags []string, agenticRC *rc.AgenticRC) []string {
 
 // ToolArgs merges tool's .agenticrc.toml args with the command line's, rc first; a run skipping the entrypoint gets only
 // the command line's, as those are a command rather than tool flags.
-func ToolArgs(tool string, cliArgs []string, skipEntrypoint bool, agenticRC *rc.AgenticRC) []string {
+func ToolArgs(tool string, cliArgs []string, skipEntrypoint bool, rc *agenticrc.Config) []string {
 	if skipEntrypoint {
 		return cliArgs
 	}
 
-	args := append([]string{}, agenticRC.Run.Args[tool]...)
+	args := append([]string{}, rc.Run.Args[tool]...)
 	args = append(args, cliArgs...)
 
 	return args
 }
 
 // ResourceLimitsFor resolves each limit through flag, then rc, then hardcoded default.
-func ResourceLimitsFor(flags sandbox.ResourceLimits, agenticRC *rc.AgenticRC) sandbox.ResourceLimits {
-	return flags.Or(sandbox.ResourceLimits(agenticRC.Run.RCLimits)).Or(sandbox.DefaultLimits)
+func ResourceLimitsFor(flags sandbox.ResourceLimits, rc *agenticrc.Config) sandbox.ResourceLimits {
+	return flags.Or(sandbox.ResourceLimits(rc.Run.Limits)).Or(sandbox.DefaultLimits)
 }
 
 // Runtime resolves where the tool runs through flag, then rc, then Docker.
-func Runtime(flag sandbox.Runtime, agenticRC *rc.AgenticRC) sandbox.Runtime {
+func Runtime(flag sandbox.Runtime, rc *agenticrc.Config) sandbox.Runtime {
 	if flag != "" {
 		return flag
 	}
-	if agenticRC.Run.Runtime != "" {
-		return sandbox.Runtime(agenticRC.Run.Runtime)
+	if rc.Run.Runtime != "" {
+		return sandbox.Runtime(rc.Run.Runtime)
 	}
 	return sandbox.RuntimeDocker
 }

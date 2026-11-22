@@ -1,4 +1,4 @@
-package rc
+package agentichome
 
 import (
 	"encoding/json"
@@ -81,36 +81,17 @@ func (state *State) Trust(dir, toolHome string) error {
 	return state.Save(toolHome)
 }
 
-// ChangedSettings returns the guarded settings of layer that differ from what the user last approved for its file; never-approved settings count as approved unset.
-func (state *State) ChangedSettings(layer RCLayer) []GuardedSetting {
-	approved := state.ApprovedSettings[approvalKey(layer.Path)]
-
-	var changed []GuardedSetting
-	for _, setting := range GuardedSettings(layer.RC) {
-		want, ok := approved[setting.Key]
-		if !ok {
-			want = GuardedSetting{}.hash()
-		}
-		if setting.hash() != want {
-			changed = append(changed, setting)
-		}
-	}
-	return changed
+// ApprovedHashes returns the setting hashes the user last approved for the config file at path.
+func (state *State) ApprovedHashes(path string) map[string]string {
+	return state.ApprovedSettings[approvalKey(path)]
 }
 
-// ApproveSettings records layer's guarded settings as approved for its file and saves the state.
-func (state *State) ApproveSettings(layer RCLayer, toolHome string) error {
-	hashes := make(map[string]string)
-	for _, setting := range GuardedSettings(layer.RC) {
-		if setting.IsSet() {
-			hashes[setting.Key] = setting.hash()
-		}
-	}
-
+// ApproveSettings records hashes as the approved guarded settings of the config file at path and saves the state.
+func (state *State) ApproveSettings(path string, hashes map[string]string, toolHome string) error {
 	if state.ApprovedSettings == nil {
 		state.ApprovedSettings = make(map[string]map[string]string)
 	}
-	state.ApprovedSettings[approvalKey(layer.Path)] = hashes
+	state.ApprovedSettings[approvalKey(path)] = hashes
 	return state.Save(toolHome)
 }
 

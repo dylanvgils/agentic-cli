@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -21,7 +21,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 		// Arrange
 		disabled := false
 		c := newTestRunConfig(t)
-		c.RC = &rc.AgenticRC{Run: rc.RCRun{Instructions: rc.RCInstructions{Enabled: &disabled}}}
+		c.RC = &agenticrc.Config{Run: agenticrc.Run{Instructions: agenticrc.Instructions{Enabled: &disabled}}}
 
 		// Act
 		content, err := newTestService(&fakeDocker{}, nil).buildInstructions(c)
@@ -44,10 +44,10 @@ func Test_Service_buildInstructions(t *testing.T) {
 	noDaemon := &fakeMicrosandbox{capabilities: func(bool) sandbox.Capabilities {
 		return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}}
 	}}
-	custom := rc.RCInstructions{Custom: "Always run go test before finishing."}
-	proxyRC := rc.RCProxy{
+	custom := agenticrc.Instructions{Custom: "Always run go test before finishing."}
+	proxyRC := agenticrc.Proxy{
 		AllowedHosts: []string{"extra.example.test"},
-		AllowedPaths: []rc.RCAllowedPath{
+		AllowedPaths: []agenticrc.AllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		},
 	}
@@ -58,7 +58,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 		msb    *fakeMicrosandbox
 		tool   string
 		flags  Flags
-		rc     rc.RCRun
+		rc     agenticrc.Run
 		// pin sets what resolveRun wouldn't, to reach a renderer branch
 		pin func(c *runConfig)
 	}{
@@ -72,7 +72,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 			docker: built,
 			tool:   "claude",
 			flags:  Flags{Volumes: []string{"./data:/data:ro"}},
-			rc:     rc.RCRun{Mounts: []string{"go-mod:$CONTAINER_HOME/go"}, Instructions: custom},
+			rc:     agenticrc.Run{Mounts: []string{"go-mod:$CONTAINER_HOME/go"}, Instructions: custom},
 		},
 		{
 			golden: "container-proxy-dind",
@@ -83,9 +83,9 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Dind:       precedence.DindInput{DindFlag: true},
 				DindLimits: sandbox.ResourceLimits{CPUs: "2"},
 			},
-			rc: rc.RCRun{
+			rc: agenticrc.Run{
 				Proxy: proxyRC,
-				Dind:  rc.RCDind{RCLimits: rc.RCLimits{Memory: "6g"}},
+				Dind:  agenticrc.Dind{Limits: agenticrc.Limits{Memory: "6g"}},
 			},
 		},
 		{
@@ -106,7 +106,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 			docker: built,
 			tool:   "copilot",
 			flags:  Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}},
-			rc:     rc.RCRun{Proxy: proxyRC},
+			rc:     agenticrc.Run{Proxy: proxyRC},
 		},
 		{
 			golden: "vm",
@@ -120,7 +120,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 					Memory: "6g",
 				},
 			},
-			rc: rc.RCRun{Instructions: custom},
+			rc: agenticrc.Run{Instructions: custom},
 		},
 		{
 			golden: "vm-proxy-dind",
@@ -132,7 +132,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Proxy:   precedence.ProxyInput{ProxyFlag: true},
 				Dind:    precedence.DindInput{DindFlag: true},
 			},
-			rc: rc.RCRun{Proxy: proxyRC},
+			rc: agenticrc.Run{Proxy: proxyRC},
 		},
 		{
 			golden: "vm-ports-dind",
@@ -154,7 +154,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Runtime: sandbox.RuntimeMicrosandbox,
 				Proxy: precedence.ProxyInput{
 					ProxyFlag: true,
-					Backend:   rc.BackendAgentic,
+					Backend:   agenticrc.BackendAgentic,
 				},
 				Dind: precedence.DindInput{DindFlag: true},
 			},
@@ -182,7 +182,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Tool:   tools.Configs[tc.tool],
 				Flags:  tc.flags,
 			}
-			c, err := resolveWith(t, svc, req, &rc.AgenticRC{Run: tc.rc})
+			c, err := resolveWith(t, svc, req, &agenticrc.Config{Run: tc.rc})
 			require.NoError(t, err)
 			if tc.pin != nil {
 				tc.pin(&c)
@@ -310,7 +310,7 @@ func TestPreviewInstructions(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		disabled := false
-		req.Project.RC.Run.Instructions.Enabled = &disabled
+		req.Project.Config.Run.Instructions.Enabled = &disabled
 
 		// Act
 		content, err := newTestService(&fakeDocker{}, nil).PreviewInstructions(req)
@@ -347,10 +347,10 @@ func Test_instructionsEnabled(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			agenticRC := &rc.AgenticRC{Run: rc.RCRun{Instructions: rc.RCInstructions{Enabled: tc.enabled}}}
+			rc := &agenticrc.Config{Run: agenticrc.Run{Instructions: agenticrc.Instructions{Enabled: tc.enabled}}}
 
 			// Act
-			enabled := instructionsEnabled(agenticRC)
+			enabled := instructionsEnabled(rc)
 
 			// Assert
 			assert.Equal(t, tc.want, enabled)

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -16,9 +16,9 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	// Complete from the flag or default namespace when the config is broken (nil RC)
+	// Complete from the flag or default namespace when the config is broken (nil Config)
 	project, _ := currentProject(cmd)
-	namespace := resolveNamespace(cmd, project.RC)
+	namespace := resolveNamespace(cmd, project.Config)
 
 	var names []string
 	for _, name := range tools.Names() {
@@ -94,7 +94,7 @@ func proxyIntegrationsFunc(_ *cobra.Command, _ []string, _ string) ([]string, co
 
 // proxyBackendsFunc completes --proxy-backend with the backend names.
 func proxyBackendsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return []string{rc.BackendNative, rc.BackendAgentic}, cobra.ShellCompDirectiveNoFileComp
+	return []string{agenticrc.BackendNative, agenticrc.BackendAgentic}, cobra.ShellCompDirectiveNoFileComp
 }
 
 // runtimesFunc completes --runtime with every runtime's name.

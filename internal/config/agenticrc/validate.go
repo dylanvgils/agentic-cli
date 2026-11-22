@@ -1,4 +1,4 @@
-package rc
+package agenticrc
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/pathpattern"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -30,7 +31,7 @@ func CheckProxyBackend(name string) error {
 }
 
 // validateRC checks one layer's values; the caller prefixes the error with the layer's path.
-func validateRC(rc *AgenticRC) error {
+func validateRC(rc *Config) error {
 	if err := validateRun(rc.Run); err != nil {
 		return err
 	}
@@ -45,20 +46,20 @@ func validateRC(rc *AgenticRC) error {
 }
 
 // validateRun checks the [run] table and the tables under it.
-func validateRun(run RCRun) error {
+func validateRun(run Run) error {
 	if run.Runtime != "" {
 		if _, err := sandbox.ParseRuntime(run.Runtime); err != nil {
 			return fmt.Errorf("[run] %w", err)
 		}
 	}
 
-	if err := validateLimits(run.RCLimits); err != nil {
+	if err := validateLimits(run.Limits); err != nil {
 		return fmt.Errorf("[run] %w", err)
 	}
 	if _, err := sandbox.ParsePorts(run.Ports); err != nil {
 		return fmt.Errorf("[run] ports: %w", err)
 	}
-	if err := validateLimits(run.Dind.RCLimits); err != nil {
+	if err := validateLimits(run.Dind.Limits); err != nil {
 		return fmt.Errorf("[run.dind] %w", err)
 	}
 
@@ -66,7 +67,7 @@ func validateRun(run RCRun) error {
 }
 
 // validateProxy checks the [run.proxy] table.
-func validateProxy(proxy RCProxy) error {
+func validateProxy(proxy Proxy) error {
 	if proxy.Mode != "" && proxy.Mode != ModeEnforce && proxy.Mode != ModeMonitor {
 		return fmt.Errorf("invalid [run.proxy] mode %q: must be %q or %q", proxy.Mode, ModeEnforce, ModeMonitor)
 	}
@@ -95,7 +96,7 @@ func validateProxy(proxy RCProxy) error {
 }
 
 // validateCredential checks the entry's shape and characters; hosts, headers and presets are checked when it is resolved.
-func validateCredential(cred RCCredential) error {
+func validateCredential(cred Credential) error {
 	if cred.Secret == "" {
 		return fmt.Errorf("secret must not be empty")
 	}
@@ -120,7 +121,7 @@ func validateCredential(cred RCCredential) error {
 
 // validateAllowedPath checks the rule's host is a single exact name and each of its paths is a valid pattern; the proxy
 // checks the host's characters when it loads the rules.
-func validateAllowedPath(rule RCAllowedPath) error {
+func validateAllowedPath(rule AllowedPath) error {
 	host := rule.Host
 	if host == "" {
 		return fmt.Errorf("host must not be empty")
@@ -133,7 +134,7 @@ func validateAllowedPath(rule RCAllowedPath) error {
 		return fmt.Errorf("host %q: paths must not be empty", host)
 	}
 	for _, pattern := range rule.Paths {
-		if err := ValidatePathPattern(pattern); err != nil {
+		if err := pathpattern.Validate(pattern); err != nil {
 			return fmt.Errorf("host %q: %w", host, err)
 		}
 	}
@@ -142,7 +143,7 @@ func validateAllowedPath(rule RCAllowedPath) error {
 
 // validateLimits refuses limits that are malformed or zero or below, which docker reads as no limit, so a file the agent can
 // edit can't lift them without a prompt.
-func validateLimits(limits RCLimits) error {
+func validateLimits(limits Limits) error {
 	if limits.PidsLimit != "" {
 		if n, err := strconv.Atoi(limits.PidsLimit); err != nil || n <= 0 {
 			return fmt.Errorf("pids_limit %q: must be a positive whole number", limits.PidsLimit)
@@ -161,7 +162,7 @@ func validateLimits(limits RCLimits) error {
 	return nil
 }
 
-func validateMarketplace(marketplace RCMarketplace) error {
+func validateMarketplace(marketplace Marketplace) error {
 	if err := validateEntryName("marketplace", marketplace.Name); err != nil {
 		return err
 	}
@@ -186,7 +187,7 @@ func isRemoteGitURL(url string) bool {
 }
 
 // validateCustomInstalls checks each [[build.custom_installs]] entry and that names are unique within the layer.
-func validateCustomInstalls(installs []RCCustomInstall) error {
+func validateCustomInstalls(installs []CustomInstall) error {
 	for _, install := range installs {
 		if err := validateCustomInstall(install); err != nil {
 			return err
@@ -199,7 +200,7 @@ func validateCustomInstalls(installs []RCCustomInstall) error {
 	return nil
 }
 
-func validateCustomInstall(install RCCustomInstall) error {
+func validateCustomInstall(install CustomInstall) error {
 	if err := validateEntryName("custom install", install.Name); err != nil {
 		return err
 	}
@@ -221,7 +222,7 @@ func validateEntryName(kind, name string) error {
 }
 
 // duplicateInstall returns the first custom install name that appears twice.
-func duplicateInstall(installs []RCCustomInstall) (string, bool) {
+func duplicateInstall(installs []CustomInstall) (string, bool) {
 	seen := make(map[string]bool, len(installs))
 	for _, install := range installs {
 		if seen[install.Name] {

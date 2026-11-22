@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
@@ -65,12 +65,12 @@ func (s *Service) buildInstructions(c runConfig) (string, error) {
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	choice := chooseRuntime(req.Flags, req.Project.RC)
+	choice := chooseRuntime(req.Flags, req.Project.Config)
 	r, err := s.runner(choice.name, choice.backend)
 	if err != nil {
 		return "", err
 	}
-	c, err := s.resolveRun(req, req.Project.RC, choice, r)
+	c, err := s.resolveRun(req, req.Project.Config, choice, r)
 	if err != nil {
 		return "", err
 	}
@@ -107,8 +107,8 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 	}, nil
 }
 
-func instructionsEnabled(agenticRC *rc.AgenticRC) bool {
-	enabled := agenticRC.Run.Instructions.Enabled
+func instructionsEnabled(rc *agenticrc.Config) bool {
+	enabled := rc.Run.Instructions.Enabled
 	return enabled == nil || *enabled
 }
 

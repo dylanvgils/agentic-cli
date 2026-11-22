@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -26,7 +26,7 @@ type Resolved struct {
 
 // Resolve reads each entry's secret, failing on invalid entries, a host claimed twice or an entry without env, which no
 // tool could send a placeholder in.
-func Resolve(entries []rc.RCCredential) ([]Resolved, error) {
+func Resolve(entries []agenticrc.Credential) ([]Resolved, error) {
 	var resolved []Resolved
 	var all []proxy.Credential
 	for i, entry := range entries {
@@ -46,7 +46,7 @@ func Resolve(entries []rc.RCCredential) ([]Resolved, error) {
 
 // Check validates entries without reading any secret: known presets and env names a tool can send the placeholder in. It
 // runs before any prompt; Resolve repeats it.
-func Check(entries []rc.RCCredential) error {
+func Check(entries []agenticrc.Credential) error {
 	for i, entry := range entries {
 		if _, err := checkEntry(entry); err != nil {
 			return fmt.Errorf("credential %d (%s): %w", i+1, describe(entry), err)
@@ -56,7 +56,7 @@ func Check(entries []rc.RCCredential) error {
 }
 
 // Hosts returns the hosts entries cover without reading any secret; an entry with an unknown preset is skipped.
-func Hosts(entries []rc.RCCredential) []string {
+func Hosts(entries []agenticrc.Credential) []string {
 	var hosts []string
 	for _, entry := range entries {
 		if e, err := expand(entry); err == nil {
@@ -67,7 +67,7 @@ func Hosts(entries []rc.RCCredential) []string {
 }
 
 // checkEntry expands entry and checks it has valid env names, which no tool could send the placeholder without.
-func checkEntry(entry rc.RCCredential) (preset, error) {
+func checkEntry(entry agenticrc.Credential) (preset, error) {
 	e, err := expand(entry)
 	if err != nil {
 		return preset{}, err
@@ -85,7 +85,7 @@ func checkEntry(entry rc.RCCredential) (preset, error) {
 }
 
 // resolveEntry checks entry and reads its secret.
-func resolveEntry(entry rc.RCCredential) (Resolved, error) {
+func resolveEntry(entry agenticrc.Credential) (Resolved, error) {
 	e, err := checkEntry(entry)
 	if err != nil {
 		return Resolved{}, err
@@ -121,7 +121,7 @@ func resolveEntry(entry rc.RCCredential) (Resolved, error) {
 
 // expand returns the entry's hosts, headers and env, from its preset or its own fields; an explicit env
 // replaces a preset's.
-func expand(entry rc.RCCredential) (preset, error) {
+func expand(entry agenticrc.Credential) (preset, error) {
 	if entry.Preset == "" {
 		return preset{hosts: entry.Hosts, headers: []string{entry.Header}, env: entry.Env}, nil
 	}
@@ -164,7 +164,7 @@ func readSecret(source SecretSource) (string, error) {
 }
 
 // describe names an entry in errors by its preset or hosts.
-func describe(entry rc.RCCredential) string {
+func describe(entry agenticrc.Credential) string {
 	if entry.Preset != "" {
 		return "preset " + entry.Preset
 	}

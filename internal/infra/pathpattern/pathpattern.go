@@ -1,4 +1,5 @@
-package rc
+// Package pathpattern validates and matches the URL path patterns of proxy path rules.
+package pathpattern
 
 import (
 	"fmt"
@@ -15,9 +16,9 @@ const (
 // patternForbidden are characters a path pattern can't hold: encodings, queries and separators other servers split on.
 const patternForbidden = "%?#;\\"
 
-// ValidatePathPattern checks that pattern is an absolute path of literal segments, "*" or a final "**", with no dot
+// Validate checks that pattern is an absolute path of literal segments, "*" or a final "**", with no dot
 // segments, empty inner segments or partial wildcards.
-func ValidatePathPattern(pattern string) error {
+func Validate(pattern string) error {
 	if !strings.HasPrefix(pattern, "/") {
 		return fmt.Errorf("path %q must start with /", pattern)
 	}
@@ -45,9 +46,9 @@ func ValidatePathPattern(pattern string) error {
 	return nil
 }
 
-// MatchPathPattern reports whether path matches a pattern ValidatePathPattern accepts: literal segments match exactly,
+// Match reports whether path matches a pattern Validate accepts: literal segments match exactly,
 // "*" one non-empty segment and a final "**" whatever is left, including nothing.
-func MatchPathPattern(pattern, path string) bool {
+func Match(pattern, path string) bool {
 	if !strings.HasPrefix(pattern, "/") || !strings.HasPrefix(path, "/") {
 		return false
 	}

@@ -3,7 +3,7 @@ package run
 import (
 	"io"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -45,7 +45,7 @@ type Microsandbox interface {
 // ToolUpdate names the tool image a run offers an update for, and where its check state and config live.
 type ToolUpdate struct {
 	Home  string
-	RC    *rc.AgenticRC
+	RC    *agenticrc.Config
 	Tool  string
 	Image string
 }
@@ -74,6 +74,6 @@ type Watchdog interface {
 // Prompter asks the user to approve what a run needs; a nil error means approved.
 type Prompter interface {
 	TrustDir(dir string) error
-	ApproveSettings(layer rc.RCLayer, changed []rc.GuardedSetting) error
+	ApproveSettings(layer agenticrc.Layer, changed []agenticrc.GuardedSetting) error
 	OfferToolUpdate(tool, installed, latest string) bool
 }

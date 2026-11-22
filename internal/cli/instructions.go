@@ -53,7 +53,7 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 		return run.Request{}, "", err
 	}
 
-	namespace := resolveNamespace(cmd, project.RC)
+	namespace := resolveNamespace(cmd, project.Config)
 	imageName, err := tools.ImageName(toolName, namespace)
 	if err != nil {
 		return run.Request{}, "", err

@@ -8,30 +8,30 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 // settingEffects says in a few words what each guarded setting controls, so the prompt shows what approving it allows.
 var settingEffects = map[string]string{
-	"root":                    "stops loading .agenticrc.toml files above this one",
-	"namespace":               "which image set runs are started from",
-	"docker_context":          "which Docker daemon runs the container",
-	"marketplaces":            "plugin repos cloned and mounted into the container",
-	"build.custom_installs":   "shell commands run at build time, unsandboxed",
-	"run.mounts":              "host paths mounted into the container",
-	"run.env":                 "host environment passed into the container",
-	"run.ports":               "host ports that connect to the container",
-	"run.args":                "extra args passed to the tool",
-	"run.runtime":             "whether the tool runs in a Docker container or a microsandbox VM",
-	"run.proxy.enabled":       "whether egress is limited to the allowlist proxy",
-	"run.proxy.mode":          "whether hosts off the allowlist are blocked or only logged",
-	"run.proxy.backend":       "whether microsandbox enforces the allowlist with its own rules or agentic-proxy",
-	"run.proxy.allowed_hosts": "hosts the container may reach",
-	"run.proxy.allowed_paths": "paths the container may reach on hosts the proxy decrypts",
-	rc.CredentialsSetting:     "host secrets the proxy reads and sends to these hosts",
-	"run.dind.enabled":        "whether the container gets its own Docker daemon",
+	"root":                       "stops loading .agenticrc.toml files above this one",
+	"namespace":                  "which image set runs are started from",
+	"docker_context":             "which Docker daemon runs the container",
+	"marketplaces":               "plugin repos cloned and mounted into the container",
+	"build.custom_installs":      "shell commands run at build time, unsandboxed",
+	"run.mounts":                 "host paths mounted into the container",
+	"run.env":                    "host environment passed into the container",
+	"run.ports":                  "host ports that connect to the container",
+	"run.args":                   "extra args passed to the tool",
+	"run.runtime":                "whether the tool runs in a Docker container or a microsandbox VM",
+	"run.proxy.enabled":          "whether egress is limited to the allowlist proxy",
+	"run.proxy.mode":             "whether hosts off the allowlist are blocked or only logged",
+	"run.proxy.backend":          "whether microsandbox enforces the allowlist with its own rules or agentic-proxy",
+	"run.proxy.allowed_hosts":    "hosts the container may reach",
+	"run.proxy.allowed_paths":    "paths the container may reach on hosts the proxy decrypts",
+	agenticrc.CredentialsSetting: "host secrets the proxy reads and sends to these hosts",
+	"run.dind.enabled":           "whether the container gets its own Docker daemon",
 }
 
 // ttyPrompter asks the user on the terminal; without one it refuses with a hint on how to approve instead.
@@ -59,7 +59,7 @@ func (p ttyPrompter) TrustDir(dir string) error {
 }
 
 // ApproveSettings shows a layer's changed guarded settings and returns an error unless the user approves them.
-func (p ttyPrompter) ApproveSettings(layer rc.RCLayer, changed []rc.GuardedSetting) error {
+func (p ttyPrompter) ApproveSettings(layer agenticrc.Layer, changed []agenticrc.GuardedSetting) error {
 	if !p.terminal {
 		return fmt.Errorf("settings in %s that reach outside the container changed (%s); run interactively to approve them", layer.Path, settingKeys(changed))
 	}
@@ -116,7 +116,7 @@ func (p ttyPrompter) ConfirmCachePrune() bool {
 }
 
 // describeCredential summarizes where an entry's secret is sent, plus where it is read from and its env vars, quoting each value so escape sequences print as text.
-func describeCredential(cred rc.RCCredential) (string, []string) {
+func describeCredential(cred agenticrc.Credential) (string, []string) {
 	target := fmt.Sprintf("preset %q", cred.Preset)
 	if cred.Preset == "" {
 		target = fmt.Sprintf("header %q on %s", cred.Header, quoteAll(cred.Hosts))
@@ -166,7 +166,7 @@ func describeDir(dir string) string {
 }
 
 // describeSetting renders setting as a header with its key and effect, plus its value lines with one or more per list item; a cleared setting has no values.
-func describeSetting(setting rc.GuardedSetting) (string, []string) {
+func describeSetting(setting agenticrc.GuardedSetting) (string, []string) {
 	header := setting.Key + " - " + settingEffects[setting.Key]
 	if !setting.IsSet() {
 		return header + " (removed)", nil
@@ -190,13 +190,13 @@ func describeSetting(setting rc.GuardedSetting) (string, []string) {
 // describeValue renders a custom install as its name with one quoted command per line, a credential as where it is sent with its details below, and any other value as json.
 func describeValue(value any) []string {
 	switch value := value.(type) {
-	case rc.RCCustomInstall:
+	case agenticrc.CustomInstall:
 		lines := []string{strconv.Quote(value.Name) + ":"}
 		for _, command := range value.Run {
 			lines = append(lines, "  "+strconv.Quote(command))
 		}
 		return lines
-	case rc.RCCredential:
+	case agenticrc.Credential:
 		target, details := describeCredential(value)
 		lines := []string{target}
 		for _, detail := range details {
@@ -211,7 +211,7 @@ func describeValue(value any) []string {
 }
 
 // settingKeys returns the keys of settings, comma-separated.
-func settingKeys(settings []rc.GuardedSetting) string {
+func settingKeys(settings []agenticrc.GuardedSetting) string {
 	keys := make([]string, 0, len(settings))
 	for _, setting := range settings {
 		keys = append(keys, setting.Key)

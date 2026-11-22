@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 		svc, _ := newTestService(t, releases)
 		home := t.TempDir()
 		lastCheck := time.Now().Add(-1 * time.Hour)
-		cfg := &rc.State{LastUpdateCheck: &lastCheck}
+		cfg := &agentichome.State{LastUpdateCheck: &lastCheck}
 		require.NoError(t, cfg.Save(home))
 
 		// Act
@@ -87,7 +87,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 		// Assert
 		assert.False(t, ok)
 		assert.Empty(t, latest)
-		cfg, err := rc.LoadState(home)
+		cfg, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.Nil(t, cfg.LastUpdateCheck)
 	})
@@ -104,7 +104,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 		// Assert
 		assert.False(t, ok)
 		assert.Empty(t, latest)
-		cfg, err := rc.LoadState(home)
+		cfg, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		require.NotNil(t, cfg.LastUpdateCheck)
 		assert.True(t, cfg.LastUpdateCheck.After(before))

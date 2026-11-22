@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -144,14 +145,14 @@ func Test_resolveAll(t *testing.T) {
 	t.Run("each image keeps its own recovered options", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		helmHash := storeCustomInstalls(t, home, rc.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+		helmHash := storeCustomInstalls(t, home, agenticrc.CustomInstall{Name: "helm", Run: []string{"echo helm"}})
 		d := &fakeDocker{listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Apt: "make,gcc"},
 				{Image: "work-claude", Namespace: "work", Tool: "claude", Apt: "cmake", CustomInstalls: "helm", CustomInstallsHash: helmHash},
 			}, nil
 		}}
-		opts := tools.BuildOptions{CustomInstalls: []rc.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}}
+		opts := tools.BuildOptions{CustomInstalls: []agenticrc.CustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}}
 
 		// Act
 		targets, err := New(d, &fakeUpstream{}, home).resolveAll("", opts, true)
@@ -162,7 +163,7 @@ func Test_resolveAll(t *testing.T) {
 		assert.Equal(t, []string{"make", "gcc"}, targets[0].Opts.AptPackages)
 		assert.Empty(t, targets[0].Opts.CustomInstalls)
 		assert.Equal(t, []string{"cmake"}, targets[1].Opts.AptPackages)
-		assert.Equal(t, []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, targets[1].Opts.CustomInstalls)
+		assert.Equal(t, []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, targets[1].Opts.CustomInstalls)
 	})
 
 	t.Run("list error propagates", func(t *testing.T) {
@@ -202,7 +203,7 @@ func TestService_Apply(t *testing.T) {
 		assert.NotEmpty(t, built.opts[0].CacheBust)
 		assert.Equal(t, built.opts[0].CacheBust, built.opts[1].CacheBust)
 		assert.True(t, pruned)
-		state, err := rc.LoadState(home)
+		state, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.Contains(t, state.LastToolVersionCheck, "claude")
 	})
@@ -222,7 +223,7 @@ func TestService_Apply(t *testing.T) {
 		require.ErrorContains(t, err, "build failed")
 		assert.Equal(t, []string{"agentic-claude"}, built.images)
 		assert.False(t, pruned)
-		state, err := rc.LoadState(home)
+		state, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.NotContains(t, state.LastToolVersionCheck, "claude")
 	})
@@ -347,23 +348,23 @@ func Test_Service_apply(t *testing.T) {
 }
 
 func TestService_ApplyRecovered(t *testing.T) {
-	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{CustomInstalls: []rc.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}}
+	rc := &agenticrc.Config{Build: agenticrc.Build{CustomInstalls: []agenticrc.CustomInstall{{Name: "helm", Run: []string{"true"}}}}}
 
 	t.Run("custom installs come from the built image, not rc", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		lintHash := storeCustomInstalls(t, home, rc.RCCustomInstall{Name: "golangci-lint", Run: []string{"echo lint"}})
+		lintHash := storeCustomInstalls(t, home, agenticrc.CustomInstall{Name: "golangci-lint", Run: []string{"echo lint"}})
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{CustomInstalls: "golangci-lint", CustomInstallsHash: lintHash}, nil)}
 		built := stubBuilds(d, nil)
 
 		// Act
 		var err error
-		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).ApplyRecovered("claude", "agentic-claude", agenticRC) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, &fakeUpstream{}, home).ApplyRecovered("claude", "agentic-claude", rc) })
 
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, built.opts, 1)
-		assert.Equal(t, []rc.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}, built.opts[0].CustomInstalls)
+		assert.Equal(t, []agenticrc.CustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}, built.opts[0].CustomInstalls)
 	})
 
 	t.Run("missing image builds with the rc's custom installs", func(t *testing.T) {
@@ -374,13 +375,13 @@ func TestService_ApplyRecovered(t *testing.T) {
 		// Act
 		var err error
 		iostreamstest.CaptureErr(t, func() {
-			err = newTestService(t, d, &fakeUpstream{}).ApplyRecovered("claude", "agentic-claude", agenticRC)
+			err = newTestService(t, d, &fakeUpstream{}).ApplyRecovered("claude", "agentic-claude", rc)
 		})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude"}, built.images)
-		assert.Equal(t, agenticRC.Build.CustomInstalls, built.opts[0].CustomInstalls)
+		assert.Equal(t, rc.Build.CustomInstalls, built.opts[0].CustomInstalls)
 	})
 
 	t.Run("build error propagates", func(t *testing.T) {
@@ -391,7 +392,7 @@ func TestService_ApplyRecovered(t *testing.T) {
 		// Act
 		var err error
 		iostreamstest.CaptureErr(t, func() {
-			err = newTestService(t, d, &fakeUpstream{}).ApplyRecovered("claude", "agentic-claude", agenticRC)
+			err = newTestService(t, d, &fakeUpstream{}).ApplyRecovered("claude", "agentic-claude", rc)
 		})
 
 		// Assert
@@ -403,14 +404,14 @@ func Test_rebuild(t *testing.T) {
 	t.Run("stores custom installs before building", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		installs := []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		installs := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
 		// Act
 		err := New(&fakeDocker{}, &fakeUpstream{}, home).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{CustomInstalls: installs})
 
 		// Assert
 		require.NoError(t, err)
-		stored, ok := rc.LoadCustomInstalls(home, rc.CustomInstallsHash(installs))
+		stored, ok := agentichome.LoadCustomInstalls(home, agentichome.CustomInstallsHash(installs))
 		assert.True(t, ok)
 		assert.Equal(t, installs, stored)
 	})
@@ -529,7 +530,7 @@ func Test_rebuild(t *testing.T) {
 func Test_recoverOpts(t *testing.T) {
 	// Arrange
 	home := t.TempDir()
-	hash := storeCustomInstalls(t, home, rc.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+	hash := storeCustomInstalls(t, home, agenticrc.CustomInstall{Name: "helm", Run: []string{"echo helm"}})
 	info := &docker.ImageInfo{
 		Base:               "node@24,java@21",
 		Apt:                "make",
@@ -543,27 +544,27 @@ func Test_recoverOpts(t *testing.T) {
 	// Assert
 	assert.Contains(t, result.BaseOverride, "java")
 	assert.Equal(t, []string{"make", "cmake"}, result.AptPackages)
-	assert.Equal(t, []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, result.CustomInstalls)
+	assert.Equal(t, []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, result.CustomInstalls)
 }
 
 func Test_recoverCustomInstalls(t *testing.T) {
-	configHelm := rc.RCCustomInstall{Name: "helm", Run: []string{"echo config"}}
+	configHelm := agenticrc.CustomInstall{Name: "helm", Run: []string{"echo config"}}
 
 	t.Run("stored installs win over config", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		hash := storeCustomInstalls(t, home, rc.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+		hash := storeCustomInstalls(t, home, agenticrc.CustomInstall{Name: "helm", Run: []string{"echo helm"}})
 
 		// Act
-		installs := recoverCustomInstalls(home, &docker.ImageInfo{CustomInstalls: "helm", CustomInstallsHash: hash}, []rc.RCCustomInstall{configHelm})
+		installs := recoverCustomInstalls(home, &docker.ImageInfo{CustomInstalls: "helm", CustomInstallsHash: hash}, []agenticrc.CustomInstall{configHelm})
 
 		// Assert
-		assert.Equal(t, []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, installs)
+		assert.Equal(t, []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, installs)
 	})
 
 	t.Run("image without custom installs ignores config", func(t *testing.T) {
 		// Act
-		installs := recoverCustomInstalls(t.TempDir(), &docker.ImageInfo{}, []rc.RCCustomInstall{configHelm})
+		installs := recoverCustomInstalls(t.TempDir(), &docker.ImageInfo{}, []agenticrc.CustomInstall{configHelm})
 
 		// Assert
 		assert.Empty(t, installs)
@@ -571,13 +572,13 @@ func Test_recoverCustomInstalls(t *testing.T) {
 
 	t.Run("unstored installs are looked up by name in config", func(t *testing.T) {
 		// Arrange
-		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm", CustomInstallsHash: rc.CustomInstallsHash([]rc.RCCustomInstall{configHelm})}
+		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm", CustomInstallsHash: agentichome.CustomInstallsHash([]agenticrc.CustomInstall{configHelm})}
 
 		// Act
-		installs := recoverCustomInstalls(t.TempDir(), info, []rc.RCCustomInstall{{Name: "kubectl"}, configHelm})
+		installs := recoverCustomInstalls(t.TempDir(), info, []agenticrc.CustomInstall{{Name: "kubectl"}, configHelm})
 
 		// Assert
-		assert.Equal(t, []rc.RCCustomInstall{configHelm}, installs)
+		assert.Equal(t, []agenticrc.CustomInstall{configHelm}, installs)
 	})
 
 	t.Run("names missing from config are dropped with a warning", func(t *testing.T) {
@@ -586,10 +587,10 @@ func Test_recoverCustomInstalls(t *testing.T) {
 		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm,terraform"}
 
 		// Act
-		installs := recoverCustomInstalls(t.TempDir(), info, []rc.RCCustomInstall{configHelm})
+		installs := recoverCustomInstalls(t.TempDir(), info, []agenticrc.CustomInstall{configHelm})
 
 		// Assert
-		assert.Equal(t, []rc.RCCustomInstall{configHelm}, installs)
+		assert.Equal(t, []agenticrc.CustomInstall{configHelm}, installs)
 		assert.Contains(t, errLog.String(), "agentic-claude: custom installs terraform not found")
 	})
 }

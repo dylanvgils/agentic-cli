@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/spf13/cobra"
@@ -54,12 +55,12 @@ func init() {
 }
 
 func showConfig(_ *cobra.Command, _ []string) error {
-	cliConfig, err := rc.LoadConfig(toolHome)
+	cliConfig, err := agentichome.LoadConfig(toolHome)
 	if err != nil {
 		return err
 	}
 
-	state, err := rc.LoadState(toolHome)
+	state, err := agentichome.LoadState(toolHome)
 	if err != nil {
 		return err
 	}
@@ -69,24 +70,24 @@ func showConfig(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	layers, err := rc.FindLayers(cwd)
+	project, err := agenticrc.Load(cwd)
 	if err != nil {
 		return err
 	}
 
 	printGlobalConfig(toolHome, cliConfig, state)
 	iostreams.Println()
-	printProjectConfig(layers)
+	printProjectConfig(project.Layers)
 	return nil
 }
 
-func printGlobalConfig(home string, cfg *rc.CliConfig, state *rc.State) {
+func printGlobalConfig(home string, cfg *agentichome.Config, state *agentichome.State) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Global (%s)\n", rc.ConfigFile(home))
+	fmt.Fprintf(&b, "Global (%s)\n", agentichome.ConfigFile(home))
 	fmt.Fprintf(&b, "  registry: %s\n", orNotSet(cfg.Registry))
 	fmt.Fprintf(&b, "  docker_context: %s\n", orNotSet(cfg.DockerContext))
 
-	stateFile := rc.StateFile(home)
+	stateFile := agentichome.StateFile(home)
 	if len(state.TrustedDirs) == 0 {
 		fmt.Fprintf(&b, "  trusted_dirs: (none)  [%s]\n", stateFile)
 	} else {
@@ -99,7 +100,7 @@ func printGlobalConfig(home string, cfg *rc.CliConfig, state *rc.State) {
 	iostreams.Print(b.String())
 }
 
-func printProjectConfig(layers []rc.RCLayer) {
+func printProjectConfig(layers []agenticrc.Layer) {
 	if len(layers) == 0 {
 		iostreams.Println("Project (.agenticrc.toml)")
 		iostreams.Println("  (no .agenticrc.toml files found)")
@@ -121,69 +122,69 @@ func printProjectConfig(layers []rc.RCLayer) {
 }
 
 // projectSections resolves every project key against layers, grouped by TOML table.
-func projectSections(layers []rc.RCLayer) []section {
+func projectSections(layers []agenticrc.Layer) []section {
 	versions := resolveEffectiveVersions(layers)
-	runLimits := limitFields(layers, func(agenticRC *rc.AgenticRC) rc.RCLimits { return agenticRC.Run.RCLimits }, sandbox.DefaultLimits)
+	runLimits := limitFields(layers, func(rc *agenticrc.Config) agenticrc.Limits { return rc.Run.Limits }, sandbox.DefaultLimits)
 
 	// Unset sidecar limits inherit the tool's
 	dindDefaults := sandbox.ResourceLimits{PidsLimit: runLimits[0].value(), CPUs: runLimits[1].value(), Memory: runLimits[2].value()}
-	dindLimits := limitFields(layers, func(agenticRC *rc.AgenticRC) rc.RCLimits { return agenticRC.Run.Dind.RCLimits }, dindDefaults)
+	dindLimits := limitFields(layers, func(rc *agenticrc.Config) agenticrc.Limits { return rc.Run.Dind.Limits }, dindDefaults)
 
 	return []section{
 		{fields: []field{
-			scalarField(layers, "namespace", func(agenticRC *rc.AgenticRC) string { return agenticRC.Namespace }, rc.DefaultNamespace),
-			scalarField(layers, "docker_context", func(agenticRC *rc.AgenticRC) string { return agenticRC.DockerContext }, ""),
+			scalarField(layers, "namespace", func(rc *agenticrc.Config) string { return rc.Namespace }, agenticrc.DefaultNamespace),
+			scalarField(layers, "docker_context", func(rc *agenticrc.Config) string { return rc.DockerContext }, ""),
 			listField(layers, "marketplaces", marketplaceNames),
 		}},
 		{header: "build", fields: []field{
-			listField(layers, "bases", func(agenticRC *rc.AgenticRC) []string { return baseNames(agenticRC, versions) }),
-			listField(layers, "apt_packages", func(agenticRC *rc.AgenticRC) []string { return agenticRC.Build.AptPackages }),
+			listField(layers, "bases", func(rc *agenticrc.Config) []string { return baseNames(rc, versions) }),
+			listField(layers, "apt_packages", func(rc *agenticrc.Config) []string { return rc.Build.AptPackages }),
 			listField(layers, "custom_installs", customInstallNames),
 		}},
 		{header: "run", fields: append(runLimits,
-			listField(layers, "mounts", func(agenticRC *rc.AgenticRC) []string { return agenticRC.Run.Mounts }),
+			listField(layers, "mounts", func(rc *agenticrc.Config) []string { return rc.Run.Mounts }),
 			listField(layers, "env", envKeys),
 			listField(layers, "args", toolArgs),
-			boolField(layers, "check_updates", func(agenticRC *rc.AgenticRC) *bool { return agenticRC.Run.CheckUpdates }, true),
+			boolField(layers, "check_updates", func(rc *agenticrc.Config) *bool { return rc.Run.CheckUpdates }, true),
 		)},
 		{header: "run.instructions", fields: []field{
-			boolField(layers, "enabled", func(agenticRC *rc.AgenticRC) *bool { return agenticRC.Run.Instructions.Enabled }, true),
+			boolField(layers, "enabled", func(rc *agenticrc.Config) *bool { return rc.Run.Instructions.Enabled }, true),
 			listField(layers, "custom", customInstructions),
 		}},
 		{header: "run.proxy", fields: []field{
-			boolField(layers, "enabled", func(agenticRC *rc.AgenticRC) *bool { return agenticRC.Run.Proxy.Enabled }, proxyEnabledDefault(layers)),
-			scalarField(layers, "mode", func(agenticRC *rc.AgenticRC) string { return agenticRC.Run.Proxy.Mode }, rc.ModeEnforce),
-			listField(layers, "allowed_hosts", func(agenticRC *rc.AgenticRC) []string { return agenticRC.Run.Proxy.AllowedHosts }),
+			boolField(layers, "enabled", func(rc *agenticrc.Config) *bool { return rc.Run.Proxy.Enabled }, proxyEnabledDefault(layers)),
+			scalarField(layers, "mode", func(rc *agenticrc.Config) string { return rc.Run.Proxy.Mode }, agenticrc.ModeEnforce),
+			listField(layers, "allowed_hosts", func(rc *agenticrc.Config) []string { return rc.Run.Proxy.AllowedHosts }),
 			listField(layers, "allowed_paths", allowedPaths),
 			listField(layers, "credentials", credentialNames),
 		}},
 		{header: "run.dind", fields: append([]field{
-			boolField(layers, "enabled", func(agenticRC *rc.AgenticRC) *bool { return agenticRC.Run.Dind.Enabled }, false),
+			boolField(layers, "enabled", func(rc *agenticrc.Config) *bool { return rc.Run.Dind.Enabled }, false),
 		}, dindLimits...)},
 	}
 }
 
 // proxyEnabledDefault reports whether the proxy runs when no layer sets enabled: monitor mode or credentials turn it on.
-func proxyEnabledDefault(layers []rc.RCLayer) bool {
-	mode, _, _ := innermost(layers, func(agenticRC *rc.AgenticRC) string { return agenticRC.Run.Proxy.Mode }, func(v string) bool { return v != "" })
-	if mode == rc.ModeMonitor {
+func proxyEnabledDefault(layers []agenticrc.Layer) bool {
+	mode, _, _ := innermost(layers, func(rc *agenticrc.Config) string { return rc.Run.Proxy.Mode }, func(v string) bool { return v != "" })
+	if mode == agenticrc.ModeMonitor {
 		return true
 	}
 
-	return slices.ContainsFunc(layers, func(l rc.RCLayer) bool { return len(l.RC.Run.Proxy.Credentials) > 0 })
+	return slices.ContainsFunc(layers, func(l agenticrc.Layer) bool { return len(l.Config.Run.Proxy.Credentials) > 0 })
 }
 
 // limitFields returns the pids_limit, cpus and memory fields of the limits get picks, falling back to def.
-func limitFields(layers []rc.RCLayer, get func(*rc.AgenticRC) rc.RCLimits, def sandbox.ResourceLimits) []field {
+func limitFields(layers []agenticrc.Layer, get func(*agenticrc.Config) agenticrc.Limits, def sandbox.ResourceLimits) []field {
 	return []field{
-		scalarField(layers, "pids_limit", func(agenticRC *rc.AgenticRC) string { return get(agenticRC).PidsLimit }, def.PidsLimit),
-		scalarField(layers, "cpus", func(agenticRC *rc.AgenticRC) string { return get(agenticRC).CPUs }, def.CPUs),
-		scalarField(layers, "memory", func(agenticRC *rc.AgenticRC) string { return get(agenticRC).Memory }, def.Memory),
+		scalarField(layers, "pids_limit", func(rc *agenticrc.Config) string { return get(rc).PidsLimit }, def.PidsLimit),
+		scalarField(layers, "cpus", func(rc *agenticrc.Config) string { return get(rc).CPUs }, def.CPUs),
+		scalarField(layers, "memory", func(rc *agenticrc.Config) string { return get(rc).Memory }, def.Memory),
 	}
 }
 
 // scalarField resolves a string key: innermost layer wins, else def, else no entry.
-func scalarField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) string, def string) field {
+func scalarField(layers []agenticrc.Layer, key string, get func(*agenticrc.Config) string, def string) field {
 	isSet := func(v string) bool { return v != "" }
 	if v, path, ok := innermost(layers, get, isSet); ok {
 		return field{key: key, entries: []entry{{value: v, source: path}}}
@@ -197,7 +198,7 @@ func scalarField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) string
 }
 
 // boolField resolves a bool key: innermost layer that sets it wins, else def.
-func boolField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) *bool, def bool) field {
+func boolField(layers []agenticrc.Layer, key string, get func(*agenticrc.Config) *bool, def bool) field {
 	isSet := func(v *bool) bool { return v != nil }
 	if v, path, ok := innermost(layers, get, isSet); ok {
 		return field{key: key, entries: []entry{{value: strconv.FormatBool(*v), source: path}}}
@@ -207,10 +208,10 @@ func boolField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) *bool, d
 }
 
 // listField resolves a list key: every layer's values, outermost first.
-func listField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) []string) field {
+func listField(layers []agenticrc.Layer, key string, get func(*agenticrc.Config) []string) field {
 	f := field{key: key, list: true}
 	for _, layer := range layers {
-		for _, v := range get(layer.RC) {
+		for _, v := range get(layer.Config) {
 			f.entries = append(f.entries, entry{value: v, source: layer.Path})
 		}
 	}
@@ -219,9 +220,9 @@ func listField(layers []rc.RCLayer, key string, get func(*rc.AgenticRC) []string
 }
 
 // innermost returns the value from the innermost layer where isSet holds, and that layer's path.
-func innermost[T any](layers []rc.RCLayer, get func(*rc.AgenticRC) T, isSet func(T) bool) (T, string, bool) {
+func innermost[T any](layers []agenticrc.Layer, get func(*agenticrc.Config) T, isSet func(T) bool) (T, string, bool) {
 	for i := len(layers) - 1; i >= 0; i-- {
-		if v := get(layers[i].RC); isSet(v) {
+		if v := get(layers[i].Config); isSet(v) {
 			return v, layers[i].Path, true
 		}
 	}
@@ -269,9 +270,9 @@ func sourceTag(source string) string {
 }
 
 // baseNames returns rc's bases, with their effective version inlined as name@version.
-func baseNames(agenticRC *rc.AgenticRC, versions map[string]string) []string {
-	names := make([]string, len(agenticRC.Build.Bases))
-	for i, name := range agenticRC.Build.Bases {
+func baseNames(rc *agenticrc.Config, versions map[string]string) []string {
+	names := make([]string, len(rc.Build.Bases))
+	for i, name := range rc.Build.Bases {
 		if v, ok := versions[name]; ok {
 			names[i] = name + "@" + v
 		} else {
@@ -282,46 +283,46 @@ func baseNames(agenticRC *rc.AgenticRC, versions map[string]string) []string {
 }
 
 // customInstallNames returns the names of rc's custom installs.
-func customInstallNames(agenticRC *rc.AgenticRC) []string {
-	names := make([]string, len(agenticRC.Build.CustomInstalls))
-	for i, ci := range agenticRC.Build.CustomInstalls {
+func customInstallNames(rc *agenticrc.Config) []string {
+	names := make([]string, len(rc.Build.CustomInstalls))
+	for i, ci := range rc.Build.CustomInstalls {
 		names[i] = ci.Name
 	}
 	return names
 }
 
 // envKeys returns the keys of rc's env entries, leaving out values that may hold secrets.
-func envKeys(agenticRC *rc.AgenticRC) []string {
-	keys := make([]string, len(agenticRC.Run.Env))
-	for i, env := range agenticRC.Run.Env {
+func envKeys(rc *agenticrc.Config) []string {
+	keys := make([]string, len(rc.Run.Env))
+	for i, env := range rc.Run.Env {
 		keys[i], _, _ = strings.Cut(env, "=")
 	}
 	return keys
 }
 
 // toolArgs returns each tool's args in rc as "tool: args", sorted by tool.
-func toolArgs(agenticRC *rc.AgenticRC) []string {
-	tools := slices.Sorted(maps.Keys(agenticRC.Run.Args))
+func toolArgs(rc *agenticrc.Config) []string {
+	tools := slices.Sorted(maps.Keys(rc.Run.Args))
 	entries := make([]string, len(tools))
 	for i, tool := range tools {
-		entries[i] = tool + ": " + strings.Join(agenticRC.Run.Args[tool], " ")
+		entries[i] = tool + ": " + strings.Join(rc.Run.Args[tool], " ")
 	}
 	return entries
 }
 
 // allowedPaths returns each of rc's path rules as its host followed by its paths.
-func allowedPaths(agenticRC *rc.AgenticRC) []string {
-	rules := make([]string, len(agenticRC.Run.Proxy.AllowedPaths))
-	for i, rule := range agenticRC.Run.Proxy.AllowedPaths {
+func allowedPaths(rc *agenticrc.Config) []string {
+	rules := make([]string, len(rc.Run.Proxy.AllowedPaths))
+	for i, rule := range rc.Run.Proxy.AllowedPaths {
 		rules[i] = rule.Host + " " + strings.Join(rule.Paths, ", ")
 	}
 	return rules
 }
 
 // credentialNames returns each of rc's credentials as its preset, or its hosts when it has none.
-func credentialNames(agenticRC *rc.AgenticRC) []string {
-	names := make([]string, len(agenticRC.Run.Proxy.Credentials))
-	for i, cred := range agenticRC.Run.Proxy.Credentials {
+func credentialNames(rc *agenticrc.Config) []string {
+	names := make([]string, len(rc.Run.Proxy.Credentials))
+	for i, cred := range rc.Run.Proxy.Credentials {
 		names[i] = cred.Preset
 		if names[i] == "" {
 			names[i] = strings.Join(cred.Hosts, ", ")
@@ -331,9 +332,9 @@ func credentialNames(agenticRC *rc.AgenticRC) []string {
 }
 
 // marketplaceNames returns each of rc's marketplaces as "name (url)", plus the tools it is limited to.
-func marketplaceNames(agenticRC *rc.AgenticRC) []string {
-	names := make([]string, len(agenticRC.Marketplaces))
-	for i, m := range agenticRC.Marketplaces {
+func marketplaceNames(rc *agenticrc.Config) []string {
+	names := make([]string, len(rc.Marketplaces))
+	for i, m := range rc.Marketplaces {
 		names[i] = fmt.Sprintf("%s (%s)", m.Name, m.URL)
 		if len(m.Tools) > 0 {
 			names[i] += " tools: " + strings.Join(m.Tools, ", ")
@@ -343,8 +344,8 @@ func marketplaceNames(agenticRC *rc.AgenticRC) []string {
 }
 
 // customInstructions summarizes rc's custom instructions by line count, since the text can be long.
-func customInstructions(agenticRC *rc.AgenticRC) []string {
-	custom := strings.TrimSpace(agenticRC.Run.Instructions.Custom)
+func customInstructions(rc *agenticrc.Config) []string {
+	custom := strings.TrimSpace(rc.Run.Instructions.Custom)
 	if custom == "" {
 		return nil
 	}
@@ -365,11 +366,11 @@ func orNotSet(v string) string {
 }
 
 // resolveEffectiveVersions builds the version map for bases: innermost RC layer wins per key.
-func resolveEffectiveVersions(layers []rc.RCLayer) map[string]string {
+func resolveEffectiveVersions(layers []agenticrc.Layer) map[string]string {
 	versions := map[string]string{}
 
 	for _, layer := range layers {
-		for name, v := range layer.RC.Build.Versions {
+		for name, v := range layer.Config.Build.Versions {
 			if v != "" {
 				versions[name] = v
 			}

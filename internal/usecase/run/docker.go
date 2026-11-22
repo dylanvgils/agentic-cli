@@ -29,12 +29,12 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 // minDockerEngine, and warns that other engines can't be checked and that the native proxy backend is ignored; a dry run
 // starts nothing, so it skips the daemon checks.
 func (r dockerRunner) Check(req Request) error {
-	needs := requiredFeatures(req.Flags, req.Project.RC)
+	needs := requiredFeatures(req.Flags, req.Project.Config)
 	if r.nativeBackend && (needs.Proxy || needs.CredentialInjection) {
 		logging.Warnf("%s is ignored: Docker always uses agentic-proxy", proxyBackendSource(req))
 	}
 
-	if precedence.DindEnabled(req.Flags.Dind, req.Project.RC) {
+	if precedence.DindEnabled(req.Flags.Dind, req.Project.Config) {
 		if err := r.requireDockerLayer(req); err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func (r dockerRunner) Check(req Request) error {
 		return nil
 	}
 
-	if portsSet(req.Flags, req.Project.RC) {
+	if portsSet(req.Flags, req.Project.Config) {
 		if err := r.docker.RequireLocalContext(portsSource(req) + " would open the ports on that machine"); err != nil {
 			return err
 		}

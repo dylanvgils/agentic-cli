@@ -22,7 +22,6 @@ linters:
             - "!$test"
           allow:
             - $gostd
-            - github.com/dylanvgils/agentic-cli/internal/config/rc
             - github.com/dylanvgils/agentic-cli/internal/infra
             - github.com/dylanvgils/agentic-cli/internal/network/certs
             - golang.org/x/sys/unix
@@ -187,6 +186,23 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
               desc: runtime/microsandbox never imports runtime/docker
+        # config: agenticrc < agentichome < precedence
+        config-agenticrc:
+          files:
+            - "**/internal/config/agenticrc/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/config/agentichome
+              desc: agenticrc sits below agentichome
+            - pkg: github.com/dylanvgils/agentic-cli/internal/config/precedence
+              desc: agenticrc sits below precedence
+        config-agentichome:
+          files:
+            - "**/internal/config/agentichome/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/config/precedence
+              desc: agentichome sits below precedence
         # usecases get other usecases injected; only migrate's own migrations are imported. The longer allow entry wins
         # over the deny prefix.
         usecase-imports:

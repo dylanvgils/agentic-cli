@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -118,13 +118,13 @@ func Test_dindInput(t *testing.T) {
 
 func Test_buildOptsFromFlags(t *testing.T) {
 	// Arrange
-	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java"}}}
+	rc := &agenticrc.Config{Build: agenticrc.Build{Bases: []string{"java"}}}
 	cmd := &cobra.Command{Use: "test"}
 	addBuildFlags(cmd)
 	require.NoError(t, cmd.Flags().Set("base-exact", ""))
 
 	// Act
-	opts := buildOptsFromFlags(cmd, agenticRC)
+	opts := buildOptsFromFlags(cmd, rc)
 
 	// Assert - an empty --base-exact produces debian only
 	assert.Empty(t, opts.BaseOverride)

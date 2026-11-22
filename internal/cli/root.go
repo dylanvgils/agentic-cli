@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
@@ -54,7 +54,7 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 
 func init() {
 	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv(rc.EnvHome); env != "" {
+	if env := os.Getenv(agentichome.Env); env != "" {
 		defaultHome = env
 	}
 
@@ -108,7 +108,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 
 // resolveContext resolves the active Docker context from --docker-context, .agenticrc.toml, or agentic.json and builds dockerClient for it; if none are set, the docker CLI's own context resolution applies.
 func resolveContext(cmd *cobra.Command) error {
-	// A broken config (nil RC) doesn't stop commands that don't need it; the ones that do report it
+	// A broken config (nil Config) doesn't stop commands that don't need it; the ones that do report it
 	project, _ := currentProject(cmd)
 
 	flagVal, _ := cmd.Flags().GetString(dockerContextFlagName)
@@ -118,7 +118,7 @@ func resolveContext(cmd *cobra.Command) error {
 		}
 	}
 
-	dockerClient = docker.New(precedence.DockerContext(flagVal, project.RC, toolHome), commandLog)
+	dockerClient = docker.New(precedence.DockerContext(flagVal, project.Config, toolHome), commandLog)
 	return nil
 }
 
@@ -152,7 +152,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !newRunService().ToolNeedsMarketplaceSync(toolConfig, project.RC, args[0]) {
+	if !newRunService().ToolNeedsMarketplaceSync(toolConfig, project.Config, args[0]) {
 		return nil
 	}
 

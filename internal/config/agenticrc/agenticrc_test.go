@@ -1,4 +1,4 @@
-package rc
+package agenticrc
 
 import (
 	"testing"
@@ -7,30 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarketplacesFor(t *testing.T) {
+func TestConfig_MarketplacesFor(t *testing.T) {
 	t.Run("no tools filter matches every tool", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{Marketplaces: []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+		rc := &Config{Marketplaces: []Marketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
 		// Act
-		result := MarketplacesFor(rc, "claude")
+		result := rc.MarketplacesFor("claude")
 
 		// Assert
-		assert.Equal(t, []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}, result)
+		assert.Equal(t, []Marketplace{{Name: "acme", URL: "git@example.com:acme.git"}}, result)
 	})
 
 	t.Run("tools filter matches only listed tools", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{Marketplaces: []RCMarketplace{
+		rc := &Config{Marketplaces: []Marketplace{
 			{Name: "claude-only", URL: "git@example.com:c.git", Tools: []string{"claude"}},
 			{Name: "copilot-only", URL: "git@example.com:p.git", Tools: []string{"copilot"}},
 		}}
 
 		// Act
-		result := MarketplacesFor(rc, "claude")
+		result := rc.MarketplacesFor("claude")
 
 		// Assert
-		assert.Equal(t, []RCMarketplace{{Name: "claude-only", URL: "git@example.com:c.git", Tools: []string{"claude"}}}, result)
+		assert.Equal(t, []Marketplace{{Name: "claude-only", URL: "git@example.com:c.git", Tools: []string{"claude"}}}, result)
 	})
 }
 
@@ -136,35 +136,35 @@ url = "git@example.com:shared.git"
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, &AgenticRC{
+		assert.Equal(t, &Config{
 			Root:      true,
 			Namespace: "myproject",
-			Build: RCBuild{
+			Build: Build{
 				AptPackages: []string{"make", "gcc"},
 				Bases:       []string{"java", "dotnet"},
 				Versions:    map[string]string{"node": "22", "java": "17"},
-				CustomInstalls: []RCCustomInstall{
+				CustomInstalls: []CustomInstall{
 					{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}},
 				},
 			},
-			Run: RCRun{
-				Mounts:   []string{"~/.cache:/cache", "$HOME/.m2:/m2"},
-				Args:     map[string][]string{"copilot": {"--disable-client-telemetry"}},
-				Runtime:  "microsandbox",
-				RCLimits: RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
-				Dind:     RCDind{RCLimits: RCLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}},
-				Proxy: RCProxy{
+			Run: Run{
+				Mounts:  []string{"~/.cache:/cache", "$HOME/.m2:/m2"},
+				Args:    map[string][]string{"copilot": {"--disable-client-telemetry"}},
+				Runtime: "microsandbox",
+				Limits:  Limits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+				Dind:    Dind{Limits: Limits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}},
+				Proxy: Proxy{
 					Mode:         ModeMonitor,
 					Integrations: []string{"maven"},
-					Credentials: []RCCredential{
+					Credentials: []Credential{
 						{Preset: "example", Secret: "~/.example/secret"},
 						{Hosts: []string{"api.example.test"}, Header: "Authorization", Env: []string{"EXAMPLE_TOKEN"}, Secret: "/example/secret"},
 					},
-					AllowedPaths: []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/org/repo/**", "/org/*/README.md"}}},
+					AllowedPaths: []AllowedPath{{Host: "raw.example.test", Paths: []string{"/org/repo/**", "/org/*/README.md"}}},
 				},
-				Instructions: RCInstructions{Enabled: &disabled, Custom: "Always run go test before finishing."},
+				Instructions: Instructions{Enabled: &disabled, Custom: "Always run go test before finishing."},
 			},
-			Marketplaces: []RCMarketplace{
+			Marketplaces: []Marketplace{
 				{Name: "acme", URL: "git@example.com:acme.git", Tools: []string{"claude"}},
 				{Name: "shared", URL: "git@example.com:shared.git"},
 			},
@@ -176,7 +176,7 @@ url = "git@example.com:shared.git"
 		rc := mustParseRC(t, "")
 
 		// Assert
-		assert.Equal(t, &AgenticRC{}, rc)
+		assert.Equal(t, &Config{}, rc)
 	})
 
 	t.Run("unknown key returns error with path", func(t *testing.T) {
@@ -214,10 +214,10 @@ url = "git@example.com:shared.git"
 	})
 }
 
-func TestFindLayers(t *testing.T) {
+func Test_findLayers(t *testing.T) {
 	t.Run("no files", func(t *testing.T) {
 		// Act
-		layers, err := FindLayers(t.TempDir())
+		layers, err := findLayers(t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -231,15 +231,15 @@ func TestFindLayers(t *testing.T) {
 		childRC := writeRCIn(t, dirs[1], "[run]\ncpus = \"8\"\n")
 
 		// Act
-		layers, err := FindLayers(dirs[1])
+		layers, err := findLayers(dirs[1])
 
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)
-		assert.Equal(t, "2", layers[0].RC.Run.CPUs)
+		assert.Equal(t, "2", layers[0].Config.Run.CPUs)
 		assert.Equal(t, childRC, layers[1].Path)
-		assert.Equal(t, "8", layers[1].RC.Run.CPUs)
+		assert.Equal(t, "8", layers[1].Config.Run.CPUs)
 	})
 
 	t.Run("stops at root", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestFindLayers(t *testing.T) {
 		childRC := writeRCIn(t, dirs[2], "[run]\ncpus = \"8\"\n")
 
 		// Act
-		layers, err := FindLayers(dirs[2])
+		layers, err := findLayers(dirs[2])
 
 		// Assert - grandparent excluded because parent has root=true
 		require.NoError(t, err)
@@ -265,7 +265,7 @@ func TestFindLayers(t *testing.T) {
 		rcPath := writeRCIn(t, dir, "not valid toml [[[")
 
 		// Act
-		layers, err := FindLayers(dir)
+		layers, err := findLayers(dir)
 
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
@@ -273,7 +273,7 @@ func TestFindLayers(t *testing.T) {
 	})
 }
 
-func TestLoadProject(t *testing.T) {
+func TestLoad(t *testing.T) {
 	t.Run("returns the work dir, its layers and their merge", func(t *testing.T) {
 		// Arrange
 		dirs := nestedDirs(t, 1)
@@ -281,14 +281,14 @@ func TestLoadProject(t *testing.T) {
 		childRC := writeRCIn(t, dirs[1], `namespace = "inner"`)
 
 		// Act
-		project, err := LoadProject(dirs[1])
+		project, err := Load(dirs[1])
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, dirs[1], project.WorkDir)
 		require.Len(t, project.Layers, 2)
 		assert.Equal(t, childRC, project.Layers[1].Path)
-		assert.Equal(t, "inner", project.RC.Namespace)
+		assert.Equal(t, "inner", project.Config.Namespace)
 	})
 
 	t.Run("invalid file returns error", func(t *testing.T) {
@@ -297,25 +297,10 @@ func TestLoadProject(t *testing.T) {
 		rcPath := writeRCIn(t, dir, "not valid toml [[[")
 
 		// Act
-		project, err := LoadProject(dir)
+		project, err := Load(dir)
 
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
 		assert.Equal(t, Project{WorkDir: dir}, project)
 	})
-}
-
-func TestFindAndLoad(t *testing.T) {
-	// Arrange
-	dirs := nestedDirs(t, 1)
-	writeRCIn(t, dirs[0], "root = true\n[run]\ncpus = \"2\"\nmounts = [\"parent-vol:/mnt/p\"]\n")
-	writeRCIn(t, dirs[1], "[run]\ncpus = \"8\"\nmounts = [\"child-vol:/mnt/c\"]\n")
-
-	// Act
-	rc, err := FindAndLoad(dirs[1])
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "8", rc.Run.CPUs)
-	assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.Mounts)
 }

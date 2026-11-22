@@ -1,4 +1,4 @@
-package rc
+package agenticrc
 
 import (
 	"testing"
@@ -9,15 +9,15 @@ import (
 
 func TestMergeConfigs(t *testing.T) {
 	enabled, disabled := true, false
-	outer := &AgenticRC{
+	outer := &Config{
 		Namespace:     "outer",
 		DockerContext: "outer-context",
-		Run: RCRun{
+		Run: Run{
 			Runtime:      "microsandbox",
-			Proxy:        RCProxy{Enabled: &enabled, Mode: ModeMonitor, Backend: BackendAgentic},
-			Dind:         RCDind{Enabled: &enabled, RCLimits: RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}},
-			Instructions: RCInstructions{Enabled: &enabled},
-			RCLimits:     RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+			Proxy:        Proxy{Enabled: &enabled, Mode: ModeMonitor, Backend: BackendAgentic},
+			Dind:         Dind{Enabled: &enabled, Limits: Limits{PidsLimit: "512", CPUs: "8", Memory: "8g"}},
+			Instructions: Instructions{Enabled: &enabled},
+			Limits:       Limits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
 			CheckUpdates: &enabled,
 		},
 	}
@@ -27,27 +27,27 @@ func TestMergeConfigs(t *testing.T) {
 		result := mergeConfigs(nil)
 
 		// Assert
-		assert.Equal(t, AgenticRC{}, scalarsOf(result))
+		assert.Equal(t, Config{}, scalarsOf(result))
 		assert.Empty(t, result.Run.Mounts)
 	})
 
 	t.Run("inner scalars win, explicit false included", func(t *testing.T) {
 		// Arrange
-		inner := &AgenticRC{
+		inner := &Config{
 			Namespace:     "inner",
 			DockerContext: "inner-context",
-			Run: RCRun{
+			Run: Run{
 				Runtime:      "docker",
-				Proxy:        RCProxy{Enabled: &disabled, Mode: ModeEnforce, Backend: BackendNative},
-				Dind:         RCDind{Enabled: &disabled, RCLimits: RCLimits{PidsLimit: "100", CPUs: "1", Memory: "1g"}},
-				Instructions: RCInstructions{Enabled: &disabled},
-				RCLimits:     RCLimits{PidsLimit: "200", CPUs: "4", Memory: "4g"},
+				Proxy:        Proxy{Enabled: &disabled, Mode: ModeEnforce, Backend: BackendNative},
+				Dind:         Dind{Enabled: &disabled, Limits: Limits{PidsLimit: "100", CPUs: "1", Memory: "1g"}},
+				Instructions: Instructions{Enabled: &disabled},
+				Limits:       Limits{PidsLimit: "200", CPUs: "4", Memory: "4g"},
 				CheckUpdates: &disabled,
 			},
 		}
 
 		// Act
-		result := mergeConfigs([]*AgenticRC{inner, outer})
+		result := mergeConfigs([]*Config{inner, outer})
 
 		// Assert
 		assert.Equal(t, scalarsOf(inner), scalarsOf(result))
@@ -55,7 +55,7 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("outer scalars fill what inner leaves unset", func(t *testing.T) {
 		// Act
-		result := mergeConfigs([]*AgenticRC{{}, outer})
+		result := mergeConfigs([]*Config{{}, outer})
 
 		// Assert
 		assert.Equal(t, scalarsOf(outer), scalarsOf(result))
@@ -63,71 +63,71 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("run and dind limits merge per limit", func(t *testing.T) {
 		// Arrange
-		inner := &AgenticRC{Run: RCRun{
-			RCLimits: RCLimits{CPUs: "4"},
-			Dind:     RCDind{RCLimits: RCLimits{CPUs: "1"}},
+		inner := &Config{Run: Run{
+			Limits: Limits{CPUs: "4"},
+			Dind:   Dind{Limits: Limits{CPUs: "1"}},
 		}}
 
 		// Act
-		result := mergeConfigs([]*AgenticRC{inner, outer})
+		result := mergeConfigs([]*Config{inner, outer})
 
 		// Assert
-		assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "4", Memory: "2g"}, result.Run.RCLimits)
-		assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "1", Memory: "8g"}, result.Run.Dind.RCLimits)
+		assert.Equal(t, Limits{PidsLimit: "512", CPUs: "4", Memory: "2g"}, result.Run.Limits)
+		assert.Equal(t, Limits{PidsLimit: "512", CPUs: "1", Memory: "8g"}, result.Run.Dind.Limits)
 	})
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		inner := &AgenticRC{
-			Build: RCBuild{
+		inner := &Config{
+			Build: Build{
 				AptPackages:    []string{"gcc"},
 				Bases:          []string{"java"},
-				CustomInstalls: []RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo inner"}}},
+				CustomInstalls: []CustomInstall{{Name: "golangci-lint", Run: []string{"echo inner"}}},
 			},
-			Run: RCRun{
+			Run: Run{
 				Mounts: []string{"inner-vol:/mnt/i"},
 				Env:    []string{"inner-env=1"},
 				Ports:  []string{"3000"},
 				Args:   map[string][]string{"copilot": {"--inner"}},
-				Proxy: RCProxy{
+				Proxy: Proxy{
 					AllowedHosts: []string{"inner.example.test"},
-					Credentials:  []RCCredential{{Preset: "inner-preset", Secret: "/inner"}},
-					AllowedPaths: []RCAllowedPath{{Host: "inner.example.test", Paths: []string{"/inner"}}},
+					Credentials:  []Credential{{Preset: "inner-preset", Secret: "/inner"}},
+					AllowedPaths: []AllowedPath{{Host: "inner.example.test", Paths: []string{"/inner"}}},
 					Integrations: []string{"gradle"},
 				},
 			},
-			Marketplaces: []RCMarketplace{{Name: "inner-mp", URL: "git@example.com:i.git"}},
+			Marketplaces: []Marketplace{{Name: "inner-mp", URL: "git@example.com:i.git"}},
 		}
-		outer := &AgenticRC{
-			Build: RCBuild{
+		outer := &Config{
+			Build: Build{
 				AptPackages:    []string{"make"},
 				Bases:          []string{"dotnet"},
-				CustomInstalls: []RCCustomInstall{{Name: "helm", Run: []string{"echo outer"}}},
+				CustomInstalls: []CustomInstall{{Name: "helm", Run: []string{"echo outer"}}},
 			},
-			Run: RCRun{
+			Run: Run{
 				Mounts: []string{"outer-vol:/mnt/o"},
 				Env:    []string{"outer-env=1"},
 				Ports:  []string{"8080:80"},
 				Args:   map[string][]string{"copilot": {"--outer"}, "claude": {"--other"}},
-				Proxy: RCProxy{
+				Proxy: Proxy{
 					AllowedHosts: []string{"outer.example.test"},
-					Credentials:  []RCCredential{{Preset: "outer-preset", Secret: "/outer"}},
-					AllowedPaths: []RCAllowedPath{{Host: "outer.example.test", Paths: []string{"/outer"}}},
+					Credentials:  []Credential{{Preset: "outer-preset", Secret: "/outer"}},
+					AllowedPaths: []AllowedPath{{Host: "outer.example.test", Paths: []string{"/outer"}}},
 					Integrations: []string{"maven"},
 				},
 			},
-			Marketplaces: []RCMarketplace{{Name: "outer-mp", URL: "git@example.com:o.git"}},
+			Marketplaces: []Marketplace{{Name: "outer-mp", URL: "git@example.com:o.git"}},
 		}
 
 		// Act
-		result := mergeConfigs([]*AgenticRC{inner, outer})
+		result := mergeConfigs([]*Config{inner, outer})
 
 		// Assert
-		assert.Equal(t, RCBuild{
+		assert.Equal(t, Build{
 			AptPackages: []string{"make", "gcc"},
 			Bases:       []string{"dotnet", "java"},
 			Versions:    map[string]string{},
-			CustomInstalls: []RCCustomInstall{
+			CustomInstalls: []CustomInstall{
 				{Name: "helm", Run: []string{"echo outer"}},
 				{Name: "golangci-lint", Run: []string{"echo inner"}},
 			},
@@ -136,16 +136,16 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []string{"outer-env=1", "inner-env=1"}, result.Run.Env)
 		assert.Equal(t, []string{"8080:80", "3000"}, result.Run.Ports)
 		assert.Equal(t, map[string][]string{"copilot": {"--outer", "--inner"}, "claude": {"--other"}}, result.Run.Args)
-		assert.Equal(t, RCProxy{
+		assert.Equal(t, Proxy{
 			AllowedHosts: []string{"outer.example.test", "inner.example.test"},
-			Credentials:  []RCCredential{{Preset: "outer-preset", Secret: "/outer"}, {Preset: "inner-preset", Secret: "/inner"}},
-			AllowedPaths: []RCAllowedPath{
+			Credentials:  []Credential{{Preset: "outer-preset", Secret: "/outer"}, {Preset: "inner-preset", Secret: "/inner"}},
+			AllowedPaths: []AllowedPath{
 				{Host: "outer.example.test", Paths: []string{"/outer"}},
 				{Host: "inner.example.test", Paths: []string{"/inner"}},
 			},
 			Integrations: []string{"maven", "gradle"},
 		}, result.Run.Proxy)
-		assert.Equal(t, []RCMarketplace{
+		assert.Equal(t, []Marketplace{
 			{Name: "outer-mp", URL: "git@example.com:o.git"},
 			{Name: "inner-mp", URL: "git@example.com:i.git"},
 		}, result.Marketplaces)
@@ -153,11 +153,11 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("versions innermost wins per key", func(t *testing.T) {
 		// Arrange
-		inner := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "22", "java": "17"}}}
-		outer := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "20", "dotnet": "8"}}}
+		inner := &Config{Build: Build{Versions: map[string]string{"node": "22", "java": "17"}}}
+		outer := &Config{Build: Build{Versions: map[string]string{"node": "20", "dotnet": "8"}}}
 
 		// Act
-		result := mergeConfigs([]*AgenticRC{inner, outer})
+		result := mergeConfigs([]*Config{inner, outer})
 
 		// Assert
 		assert.Equal(t, map[string]string{"node": "22", "java": "17", "dotnet": "8"}, result.Build.Versions)
@@ -165,11 +165,11 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("empty inner version falls through to the outer value", func(t *testing.T) {
 		// Arrange
-		inner := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "", "java": ""}}}
-		outer := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "22"}}}
+		inner := &Config{Build: Build{Versions: map[string]string{"node": "", "java": ""}}}
+		outer := &Config{Build: Build{Versions: map[string]string{"node": "22"}}}
 
 		// Act
-		result := mergeConfigs([]*AgenticRC{inner, outer})
+		result := mergeConfigs([]*Config{inner, outer})
 
 		// Assert - empty values are unset, so java stays out of the map and build uses its default
 		assert.Equal(t, map[string]string{"node": "22"}, result.Build.Versions)
@@ -187,11 +187,11 @@ func TestMergeConfigs(t *testing.T) {
 	} {
 		t.Run("instructions custom text "+tc.name, func(t *testing.T) {
 			// Arrange
-			inner := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Custom: tc.inner}}}
-			outer := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Custom: tc.outer}}}
+			inner := &Config{Run: Run{Instructions: Instructions{Custom: tc.inner}}}
+			outer := &Config{Run: Run{Instructions: Instructions{Custom: tc.outer}}}
 
 			// Act
-			result := mergeConfigs([]*AgenticRC{inner, outer})
+			result := mergeConfigs([]*Config{inner, outer})
 
 			// Assert
 			assert.Equal(t, tc.want, result.Run.Instructions.Custom)
@@ -201,32 +201,32 @@ func TestMergeConfigs(t *testing.T) {
 
 func Test_mergeLimits(t *testing.T) {
 	// Arrange
-	parent := RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}
-	limits := RCLimits{CPUs: "2"}
+	parent := Limits{PidsLimit: "512", CPUs: "8", Memory: "8g"}
+	limits := Limits{CPUs: "2"}
 
 	// Act
 	result := mergeLimits(limits, parent)
 
 	// Assert - each limit merges on its own
-	assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
+	assert.Equal(t, Limits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
 }
 
-func TestMerge(t *testing.T) {
+func Test_merge(t *testing.T) {
 	t.Run("innermost scalar wins and lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		layers := []RCLayer{
-			{Path: "/outer", RC: &AgenticRC{Run: RCRun{
-				RCLimits: RCLimits{CPUs: "2"},
-				Proxy:    RCProxy{Credentials: []RCCredential{{Preset: "github", Secret: "/example.test/gh"}}},
+		layers := []Layer{
+			{Path: "/outer", Config: &Config{Run: Run{
+				Limits: Limits{CPUs: "2"},
+				Proxy:  Proxy{Credentials: []Credential{{Preset: "github", Secret: "/example.test/gh"}}},
 			}}},
-			{Path: "/inner", RC: &AgenticRC{Run: RCRun{
-				RCLimits: RCLimits{CPUs: "8"},
-				Proxy:    RCProxy{Credentials: []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}},
+			{Path: "/inner", Config: &Config{Run: Run{
+				Limits: Limits{CPUs: "8"},
+				Proxy:  Proxy{Credentials: []Credential{{Preset: "anthropic", Secret: "/example.test/key"}}},
 			}}},
 		}
 
 		// Act
-		rc, err := Merge(layers)
+		rc, err := merge(layers)
 
 		// Assert
 		require.NoError(t, err)
@@ -236,19 +236,20 @@ func TestMerge(t *testing.T) {
 		assert.Equal(t, "anthropic", rc.Run.Proxy.Credentials[1].Preset)
 	})
 
-	t.Run("duplicate custom install name returns error", func(t *testing.T) {
+	t.Run("duplicate custom install name returns error naming its files", func(t *testing.T) {
 		// Arrange
-		install := RCCustomInstall{Name: "helm", Run: []string{"true"}}
-		layers := []RCLayer{
-			{Path: "/outer", RC: &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{install}}}},
-			{Path: "/inner", RC: &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{install}}}},
+		install := CustomInstall{Name: "helm", Run: []string{"true"}}
+		layers := []Layer{
+			{Path: "/outer", Config: &Config{Build: Build{CustomInstalls: []CustomInstall{install}}}},
+			{Path: "/middle", Config: &Config{}},
+			{Path: "/inner", Config: &Config{Build: Build{CustomInstalls: []CustomInstall{install}}}},
 		}
 
 		// Act
-		rc, err := Merge(layers)
+		rc, err := merge(layers)
 
 		// Assert
-		assert.ErrorContains(t, err, "must be unique")
+		require.EqualError(t, err, `custom install "helm" in /outer and /inner: name must be unique across .agenticrc.toml layers`)
 		assert.Nil(t, rc)
 	})
 }

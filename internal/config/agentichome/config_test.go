@@ -1,4 +1,4 @@
-package rc
+package agentichome
 
 import (
 	"os"
@@ -63,17 +63,17 @@ func TestConfigFile(t *testing.T) {
 func TestCliConfig_LogRetention(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		cfg  CliConfig
+		cfg  Config
 		want time.Duration
 	}{
 		{
 			name: "uses log_retention_days",
-			cfg:  CliConfig{LogRetentionDays: 7},
+			cfg:  Config{LogRetentionDays: 7},
 			want: 7 * 24 * time.Hour,
 		},
 		{
 			name: "falls back to the default",
-			cfg:  CliConfig{},
+			cfg:  Config{},
 			want: defaultLogRetentionDays * 24 * time.Hour,
 		},
 	} {

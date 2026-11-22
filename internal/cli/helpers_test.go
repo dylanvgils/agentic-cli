@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
@@ -449,7 +449,7 @@ func withTempToolHome(t *testing.T) {
 		require.NoError(t, err)
 		trusted = append(trusted, resolved)
 	}
-	cfg := &rc.State{TrustedDirs: trusted}
+	cfg := &agentichome.State{TrustedDirs: trusted}
 	require.NoError(t, cfg.Save(homeDir))
 	orig := toolHome
 	toolHome = homeDir
