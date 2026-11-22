@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
@@ -107,8 +107,8 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 	}, nil
 }
 
-func instructionsEnabled(rc *config.AgenticRC) bool {
-	enabled := rc.Run.Instructions.Enabled
+func instructionsEnabled(agenticRC *rc.AgenticRC) bool {
+	enabled := agenticRC.Run.Instructions.Enabled
 	return enabled == nil || *enabled
 }
 

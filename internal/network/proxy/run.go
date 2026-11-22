@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
@@ -53,7 +53,7 @@ func ConfigFromEnv() (Config, error) {
 		Monitor:         monitor,
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
-		ClientNets:      config.SplitEnvValues(os.Getenv(EnvClientNets)),
+		ClientNets:      rc.SplitEnvValues(os.Getenv(EnvClientNets)),
 		AuthToken:       os.Getenv(EnvAuthToken),
 	}, nil
 }

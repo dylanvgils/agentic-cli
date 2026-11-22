@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -243,27 +243,27 @@ func newProxyRunSpec(t *testing.T, mode sandbox.EgressMode) sandbox.RunSpec {
 
 // runtimeRequest returns a Request that runs on runtime.
 func runtimeRequest(runtime sandbox.Runtime) Request {
-	return Request{Project: config.Project{RC: &config.AgenticRC{}}, Flags: Flags{Runtime: runtime}}
+	return Request{Project: rc.Project{RC: &rc.AgenticRC{}}, Flags: Flags{Runtime: runtime}}
 }
 
 // msbRequest returns a microsandbox Request with flags whose config, when set edits it, comes from one project layer.
-func msbRequest(flags Flags, set func(*config.AgenticRC)) Request {
+func msbRequest(flags Flags, set func(*rc.AgenticRC)) Request {
 	return layeredRequest(sandbox.RuntimeMicrosandbox, flags, set)
 }
 
 // dockerRequest is msbRequest for the default runtime, Docker.
-func dockerRequest(flags Flags, set func(*config.AgenticRC)) Request {
+func dockerRequest(flags Flags, set func(*rc.AgenticRC)) Request {
 	return layeredRequest("", flags, set)
 }
 
 // layeredRequest returns a Request on runtime with flags whose config, when set edits it, comes from one project layer.
-func layeredRequest(runtime sandbox.Runtime, flags Flags, set func(*config.AgenticRC)) Request {
+func layeredRequest(runtime sandbox.Runtime, flags Flags, set func(*rc.AgenticRC)) Request {
 	flags.Runtime = runtime
-	rc := &config.AgenticRC{}
-	req := Request{Project: config.Project{RC: rc}, Flags: flags}
+	agenticRC := &rc.AgenticRC{}
+	req := Request{Project: rc.Project{RC: agenticRC}, Flags: flags}
 	if set != nil {
-		set(rc)
-		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+		set(agenticRC)
+		req.Project.Layers = []rc.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: agenticRC}}
 	}
 	return req
 }
@@ -375,7 +375,7 @@ func stubRunImage(m *fakeMicrosandbox) *string {
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves and tool updates are declined.
 type fakePrompter struct {
 	trustDir        func(string) error
-	approveSettings func(config.RCLayer, []config.GuardedSetting) error
+	approveSettings func(rc.RCLayer, []rc.GuardedSetting) error
 
 	trustAsked     []string
 	settingsAsked  [][]string
@@ -390,7 +390,7 @@ func (f *fakePrompter) TrustDir(dir string) error {
 	return f.trustDir(dir)
 }
 
-func (f *fakePrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
+func (f *fakePrompter) ApproveSettings(layer rc.RCLayer, changed []rc.GuardedSetting) error {
 	var keys []string
 	for _, setting := range changed {
 		keys = append(keys, setting.Key)
@@ -440,17 +440,17 @@ func appendFile(path, content string) error {
 }
 
 // credentialLayer returns a config layer declaring one generic credential reading secret.
-func credentialLayer(t *testing.T, secret string) config.RCLayer {
+func credentialLayer(t *testing.T, secret string) rc.RCLayer {
 	t.Helper()
-	rc := &config.AgenticRC{}
-	rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Env: []string{"EXAMPLE_API_KEY"}, Secret: secret}}
-	return config.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: rc}
+	agenticRC := &rc.AgenticRC{}
+	agenticRC.Run.Proxy.Credentials = []rc.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Env: []string{"EXAMPLE_API_KEY"}, Secret: secret}}
+	return rc.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: agenticRC}
 }
 
 // approveSettings records layer's guarded settings as approved in toolHome's state.json.
-func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
+func approveSettings(t *testing.T, layer rc.RCLayer, toolHome string) {
 	t.Helper()
-	cfg, err := config.LoadState(toolHome)
+	cfg, err := rc.LoadState(toolHome)
 	require.NoError(t, err)
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
@@ -461,7 +461,7 @@ func newResolveRequest(t *testing.T) Request {
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
 		Tool:    tools.Configs["claude"],
-		Project: config.Project{WorkDir: t.TempDir(), RC: &config.AgenticRC{}},
+		Project: rc.Project{WorkDir: t.TempDir(), RC: &rc.AgenticRC{}},
 		Flags:   Flags{ToolHome: t.TempDir()},
 	}
 }
@@ -473,7 +473,7 @@ func newCredentialRequest(t *testing.T) Request {
 	secret := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(secret, []byte("test-secret\n"), 0o600))
 	layer := credentialLayer(t, secret)
-	req.Project.Layers = []config.RCLayer{layer}
+	req.Project.Layers = []rc.RCLayer{layer}
 	req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
 	return req
 }
@@ -521,8 +521,8 @@ func newSyncingService(d Docker, sync func([]marketplace.Entry, func(marketplace
 }
 
 // approvedRC returns rc as approved config, as checkSettings would once the user approved it.
-func approvedRC(rc *config.AgenticRC) approvedConfig {
-	return approvedConfig{rc: rc}
+func approvedRC(agenticRC *rc.AgenticRC) approvedConfig {
+	return approvedConfig{rc: agenticRC}
 }
 
 // writeProxyLog writes lines as a proxy access log in a temp dir and returns its path.
@@ -563,7 +563,7 @@ func newTestRunConfig(t *testing.T) runConfig {
 			ImageName: "agentic-claude",
 		},
 		Tool: tools.Configs["claude"],
-		RC:   &config.AgenticRC{},
+		RC:   &rc.AgenticRC{},
 		Homes: homes{
 			Tool:      t.TempDir(),
 			Container: "/home/agent",
@@ -572,25 +572,25 @@ func newTestRunConfig(t *testing.T) runConfig {
 }
 
 // resolvedConfig resolves flags and rc for claude through svc, as Resolve does.
-func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *config.AgenticRC) runConfig {
+func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, agenticRC *rc.AgenticRC) runConfig {
 	t.Helper()
 	req := Request{
 		Target: target,
 		Tool:   tools.Configs["claude"],
 		Flags:  flags,
 	}
-	c, err := resolveWith(t, svc, req, rc)
+	c, err := resolveWith(t, svc, req, agenticRC)
 	require.NoError(t, err)
 	return c
 }
 
 // resolveWith resolves req against rc through svc on the runner rc picks, as Resolve does.
-func resolveWith(t *testing.T, svc *Service, req Request, rc *config.AgenticRC) (runConfig, error) {
+func resolveWith(t *testing.T, svc *Service, req Request, agenticRC *rc.AgenticRC) (runConfig, error) {
 	t.Helper()
-	choice := chooseRuntime(req.Flags, rc)
+	choice := chooseRuntime(req.Flags, agenticRC)
 	r, err := svc.runner(choice.name, choice.backend)
 	require.NoError(t, err)
-	return svc.resolveRun(req, rc, choice, r)
+	return svc.resolveRun(req, agenticRC, choice, r)
 }
 
 // busyPort returns a loopback port a listener holds until the test ends.

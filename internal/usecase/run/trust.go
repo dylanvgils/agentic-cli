@@ -5,19 +5,19 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 )
 
 // approvedConfig is a project's config once checkSettings approved its guarded settings; only checkSettings builds one,
 // so reordering Resolve can't let a run use settings the user hasn't seen.
 type approvedConfig struct {
-	layers []config.RCLayer
-	rc     *config.AgenticRC
+	layers []rc.RCLayer
+	rc     *rc.AgenticRC
 }
 
 // CheckContextTrust has the user approve changed settings before a docker_context from a config file picks the Docker daemon, and trust dir first when its own file sets it.
-func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag bool, prompter Prompter) error {
-	if !slices.ContainsFunc(layers, func(l config.RCLayer) bool { return l.RC.DockerContext != "" }) {
+func CheckContextTrust(dir, toolHome string, layers []rc.RCLayer, trustFlag bool, prompter Prompter) error {
+	if !slices.ContainsFunc(layers, func(l rc.RCLayer) bool { return l.RC.DockerContext != "" }) {
 		return nil
 	}
 
@@ -26,13 +26,13 @@ func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag 
 			return err
 		}
 	}
-	_, err := checkSettings(config.Project{Layers: layers}, toolHome, prompter)
+	_, err := checkSettings(rc.Project{Layers: layers}, toolHome, prompter)
 	return err
 }
 
 // checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
 func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
-	state, err := config.LoadState(toolHome)
+	state, err := rc.LoadState(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust state: %w", err)
 	}
@@ -52,8 +52,8 @@ func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 
 // checkSettings has prompter approve each layer's guarded settings whenever they change, since the agent can edit any config file in a dir it ran in.
 // The returned approvedConfig is what a run reads its settings from, so none can be used before this approval.
-func checkSettings(project config.Project, toolHome string, prompter Prompter) (approvedConfig, error) {
-	state, err := config.LoadState(toolHome)
+func checkSettings(project rc.Project, toolHome string, prompter Prompter) (approvedConfig, error) {
+	state, err := rc.LoadState(toolHome)
 	if err != nil {
 		return approvedConfig{}, fmt.Errorf("load trust state: %w", err)
 	}
@@ -76,11 +76,11 @@ func checkSettings(project config.Project, toolHome string, prompter Prompter) (
 }
 
 // workspaceLayer returns dir's own config file from layers.
-func workspaceLayer(dir string, layers []config.RCLayer) (config.RCLayer, bool) {
+func workspaceLayer(dir string, layers []rc.RCLayer) (rc.RCLayer, bool) {
 	for _, layer := range layers {
 		if filepath.Dir(layer.Path) == dir {
 			return layer, true
 		}
 	}
-	return config.RCLayer{}, false
+	return rc.RCLayer{}, false
 }

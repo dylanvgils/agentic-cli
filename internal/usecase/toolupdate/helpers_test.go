@@ -3,7 +3,7 @@ package toolupdate
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
@@ -36,7 +36,7 @@ func newRequest(t *testing.T) Request {
 	t.Helper()
 	return Request{
 		Home:  t.TempDir(),
-		RC:    &config.AgenticRC{},
+		RC:    &rc.AgenticRC{},
 		Tool:  "claude",
 		Image: "agentic-claude",
 	}

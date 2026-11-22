@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +13,7 @@ type projectKey struct{}
 
 // loadedProject is a project load's result, error included, so each reader decides whether a broken rc is fatal.
 type loadedProject struct {
-	project config.Project
+	project rc.Project
 	err     error
 }
 
@@ -30,7 +30,7 @@ func withProject(cmd *cobra.Command) {
 }
 
 // currentProject returns the project persistentPreRunE loaded for the working dir, loading it now when RunE ran without pre-run or in another dir.
-func currentProject(cmd *cobra.Command) (config.Project, error) {
+func currentProject(cmd *cobra.Command) (rc.Project, error) {
 	if ctx := cmd.Context(); ctx != nil {
 		if loaded, ok := ctx.Value(projectKey{}).(loadedProject); ok {
 			if cwd, err := os.Getwd(); err == nil && cwd == loaded.project.WorkDir {
@@ -53,11 +53,11 @@ func projectNamespace(cmd *cobra.Command) (string, error) {
 }
 
 // loadCurrentProject loads the project for the working dir.
-func loadCurrentProject() (config.Project, error) {
+func loadCurrentProject() (rc.Project, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return config.Project{}, err
+		return rc.Project{}, err
 	}
 
-	return config.LoadProject(cwd)
+	return rc.LoadProject(cwd)
 }

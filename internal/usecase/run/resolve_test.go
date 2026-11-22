@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -203,10 +203,10 @@ func TestService_Resolve(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		iostreamstest.StubOut(t)
-		rc := &config.AgenticRC{}
-		rc.Run.Mounts = []string{"~/.example:/x:rw"}
-		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.WorkDir, ".agenticrc.toml"), RC: rc}}
-		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
+		agenticRC := &rc.AgenticRC{}
+		agenticRC.Run.Mounts = []string{"~/.example:/x:rw"}
+		req.Project.Layers = []rc.RCLayer{{Path: filepath.Join(req.Project.WorkDir, ".agenticrc.toml"), RC: agenticRC}}
+		p := &fakePrompter{approveSettings: func(rc.RCLayer, []rc.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
 		_, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Resolve(req, p)
@@ -220,7 +220,7 @@ func TestService_Resolve(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		layer := credentialLayer(t, "/example.test/key")
-		req.Project.Layers = []config.RCLayer{layer}
+		req.Project.Layers = []rc.RCLayer{layer}
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
@@ -235,9 +235,9 @@ func TestService_Resolve(t *testing.T) {
 		// Arrange
 		req := newResolveRequest(t)
 		layer := credentialLayer(t, "/example.test/key")
-		req.Project.Layers = []config.RCLayer{layer}
+		req.Project.Layers = []rc.RCLayer{layer}
 		req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
-		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
+		req.Flags.Proxy = precedence.ProxyInput{NoProxy: true}
 		p := &fakePrompter{}
 
 		// Act
@@ -245,7 +245,7 @@ func TestService_Resolve(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
-		assert.Equal(t, [][]string{{config.CredentialsSetting}}, p.settingsAsked)
+		assert.Equal(t, [][]string{{rc.CredentialsSetting}}, p.settingsAsked)
 	})
 
 	t.Run("approved credentials reach the run config with an injection notice", func(t *testing.T) {
@@ -281,7 +281,7 @@ func TestService_Resolve(t *testing.T) {
 func Test_Service_offerToolUpdate(t *testing.T) {
 	// Arrange
 	req := newResolveRequest(t)
-	approved := approvedRC(&config.AgenticRC{})
+	approved := approvedRC(&rc.AgenticRC{})
 	var got ToolUpdate
 	u := &fakeToolUpdates{offer: func(update ToolUpdate, _ func(string, string, string) bool) error {
 		got = update
@@ -342,7 +342,7 @@ func Test_Service_resolveRun(t *testing.T) {
 
 	t.Run("copies the flags and resolves proxy, dind and limits against the config", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{}
+		agenticRC := &rc.AgenticRC{}
 		tool := tools.ToolConfig{Runtime: tools.RuntimeConfig{
 			WebSearchTool: "WebSearch",
 			Mounts:        func() []string { return []string{"$TOOL_HOME/data:$CONTAINER_HOME/.data"} },
@@ -354,8 +354,8 @@ func Test_Service_resolveRun(t *testing.T) {
 				ToolHome:   "/example.test/home",
 				DryRun:     true,
 				Registry:   "registry.example.test",
-				Proxy:      resolve.ProxyInput{MonitorFlag: true},
-				Dind:       resolve.DindInput{DindFlag: true},
+				Proxy:      precedence.ProxyInput{MonitorFlag: true},
+				Dind:       precedence.DindInput{DindFlag: true},
 				Volumes:    []string{"/example.test/a:/a"},
 				Env:        []string{"FOO=bar"},
 				Ports:      []string{"3000"},
@@ -366,7 +366,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		c, err := resolveWith(t, newSvc(daemonCaps), req, rc)
+		c, err := resolveWith(t, newSvc(daemonCaps), req, agenticRC)
 
 		// Assert
 		require.NoError(t, err)
@@ -375,7 +375,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		assert.Equal(t, runConfig{
 			Target: target,
 			Tool:   tools.ToolConfig{Runtime: tools.RuntimeConfig{WebSearchTool: "WebSearch"}},
-			RC:     rc,
+			RC:     agenticRC,
 			Image:  image,
 			Runtime: runtimeConfig{
 				Name: sandbox.RuntimeMicrosandbox,
@@ -404,16 +404,16 @@ func Test_Service_resolveRun(t *testing.T) {
 
 	t.Run("a proxy conflict is an error", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
+		agenticRC := &rc.AgenticRC{}
+		agenticRC.Run.Proxy.Credentials = []rc.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Proxy: resolve.ProxyInput{NoProxy: true}},
+			Flags:  Flags{Proxy: precedence.ProxyInput{NoProxy: true}},
 		}
 
 		// Act
-		_, err := resolveWith(t, newSvc(daemonCaps), req, rc)
+		_, err := resolveWith(t, newSvc(daemonCaps), req, agenticRC)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
@@ -428,7 +428,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}
 
 		// Act
-		_, err := resolveWith(t, newSvc(daemonCaps), req, &config.AgenticRC{})
+		_, err := resolveWith(t, newSvc(daemonCaps), req, &rc.AgenticRC{})
 
 		// Assert
 		require.EqualError(t, err, `port "http": "http" must be a number from 1 to 65535`)
@@ -441,7 +441,7 @@ func Test_Service_resolveRun(t *testing.T) {
 		}, nil)
 
 		// Act
-		_, err := resolveWith(t, svc, Request{Target: target, Tool: tools.Configs["claude"]}, &config.AgenticRC{})
+		_, err := resolveWith(t, svc, Request{Target: target, Tool: tools.Configs["claude"]}, &rc.AgenticRC{})
 
 		// Assert
 		require.EqualError(t, err, "inspect agentic-claude: docker daemon unreachable")
@@ -452,11 +452,11 @@ func Test_Service_resolveRun(t *testing.T) {
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}},
+			Flags:  Flags{Proxy: precedence.ProxyInput{Integrations: []string{"bogus"}}},
 		}
 
 		// Act
-		_, err := resolveWith(t, newSvc(daemonCaps), req, &config.AgenticRC{})
+		_, err := resolveWith(t, newSvc(daemonCaps), req, &rc.AgenticRC{})
 
 		// Assert
 		require.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
@@ -467,11 +467,11 @@ func Test_Service_resolveRun(t *testing.T) {
 		req := Request{
 			Target: target,
 			Tool:   tools.Configs["claude"],
-			Flags:  Flags{Dind: resolve.DindInput{DindFlag: true}},
+			Flags:  Flags{Dind: precedence.DindInput{DindFlag: true}},
 		}
 
 		// Act
-		c, err := resolveWith(t, newSvc(noDaemonCaps), req, &config.AgenticRC{})
+		c, err := resolveWith(t, newSvc(noDaemonCaps), req, &rc.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -480,11 +480,11 @@ func Test_Service_resolveRun(t *testing.T) {
 
 	t.Run("credentials leave the proxy off when the runtime injects them", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
+		agenticRC := &rc.AgenticRC{}
+		agenticRC.Run.Proxy.Credentials = []rc.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 
 		// Act
-		c, err := resolveWith(t, newSvc(noDaemonCaps), Request{Target: target, Tool: tools.Configs["claude"]}, rc)
+		c, err := resolveWith(t, newSvc(noDaemonCaps), Request{Target: target, Tool: tools.Configs["claude"]}, agenticRC)
 
 		// Assert
 		require.NoError(t, err)
@@ -497,7 +497,7 @@ func Test_requireSameRuntime(t *testing.T) {
 	wantErr := "the approved config picks a different runtime than the one checked"
 	for _, tc := range []struct {
 		name    string
-		rc      config.RCRun
+		rc      rc.RCRun
 		wantErr string
 	}{
 		{
@@ -505,18 +505,18 @@ func Test_requireSameRuntime(t *testing.T) {
 		},
 		{
 			name:    "refuses another runtime",
-			rc:      config.RCRun{Runtime: string(sandbox.RuntimeMicrosandbox)},
+			rc:      rc.RCRun{Runtime: string(sandbox.RuntimeMicrosandbox)},
 			wantErr: wantErr,
 		},
 		{
 			name:    "refuses another backend",
-			rc:      config.RCRun{Proxy: config.RCProxy{Backend: config.BackendNative}},
+			rc:      rc.RCRun{Proxy: rc.RCProxy{Backend: rc.BackendNative}},
 			wantErr: wantErr,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			err := requireSameRuntime(checked, Flags{}, &config.AgenticRC{Run: tc.rc})
+			err := requireSameRuntime(checked, Flags{}, &rc.AgenticRC{Run: tc.rc})
 
 			// Assert
 			if tc.wantErr == "" {

@@ -8,7 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
@@ -18,7 +19,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // Service builds RunSpecs and run-time instructions for `agentic run`.
@@ -46,7 +46,7 @@ type Target struct {
 type runConfig struct {
 	Target Target
 	Tool   tools.ToolConfig
-	RC     *config.AgenticRC
+	RC     *rc.AgenticRC
 	Image  *docker.ImageInfo // the tool image, nil when it isn't built
 
 	Runtime runtimeConfig
@@ -56,7 +56,7 @@ type runConfig struct {
 	Dind    sandbox.DindSpec       // Limits resolved against the tool's
 
 	Mounts runMounts
-	Env    []string // extra env from the flags; resolve.Env merges the config's
+	Env    []string // extra env from the flags; precedence.Env merges the config's
 	Ports  []sandbox.PortMapping
 
 	Registry string
@@ -133,8 +133,8 @@ func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
-func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
-	return needsMarketplaceSync(toolConfig, rc, tool)
+func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, agenticRC *rc.AgenticRC, tool string) bool {
+	return needsMarketplaceSync(toolConfig, agenticRC, tool)
 }
 
 // buildWithInstructions wraps build with run id's instructions snapshot mounted in; endRun saves it back.
@@ -159,13 +159,13 @@ func (s *Service) buildWithInstructions(id sandbox.RunID, c runConfig) (sandbox.
 }
 
 // syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
-func (s *Service) syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
-	if !needsMarketplaceSync(toolConfig, rc, tool) {
+func (s *Service) syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, agenticRC *rc.AgenticRC) (mounts, names []string, err error) {
+	if !needsMarketplaceSync(toolConfig, agenticRC, tool) {
 		return nil, nil, nil
 	}
 
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
-	results, err := s.syncMarketplaces(marketplaceEntries(rc, tool), func(e marketplace.Entry) string {
+	results, err := s.syncMarketplaces(marketplaceEntries(agenticRC, tool), func(e marketplace.Entry) string {
 		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
 	})
 	if err != nil {
@@ -178,16 +178,16 @@ func (s *Service) syncToolMarketplaces(toolHome, tool string, toolConfig tools.T
 }
 
 // needsMarketplaceSync backs ToolNeedsMarketplaceSync for callers without a Service.
-func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+func needsMarketplaceSync(toolConfig tools.ToolConfig, agenticRC *rc.AgenticRC, tool string) bool {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return false
 	}
-	return len(config.MarketplacesFor(rc, tool)) > 0
+	return len(rc.MarketplacesFor(agenticRC, tool)) > 0
 }
 
 // runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.
 func runEnv(c runConfig, mounts mountSet, marketplaceNames []string) ([]string, error) {
-	env := resolve.Env(c.Env, c.RC)
+	env := precedence.Env(c.Env, c.RC)
 	if err := validateEnv(env, c.Egress.Mode.Enabled(), c.Dind.Enabled, c.Egress.Integrations); err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 		WithEnv(env...).
 		WithPorts(c.Ports...).
 		WithSkipEntrypoint(c.Target.SkipEntrypoint).
-		WithToolArgs(resolve.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
+		WithToolArgs(precedence.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
 		WithEphemeralDirs(c.Tool.Runtime.EphemeralDirs()...).
 		WithLimits(c.Limits).
 		WithCredentials(sandboxCredentials(c.Egress.Credentials)...).
@@ -246,8 +246,8 @@ func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
 }
 
 // marketplaceEntries returns rc's marketplaces for tool as sync entries.
-func marketplaceEntries(rc *config.AgenticRC, tool string) []marketplace.Entry {
-	configured := config.MarketplacesFor(rc, tool)
+func marketplaceEntries(agenticRC *rc.AgenticRC, tool string) []marketplace.Entry {
+	configured := rc.MarketplacesFor(agenticRC, tool)
 	entries := make([]marketplace.Entry, len(configured))
 	for i, m := range configured {
 		entries[i] = marketplace.Entry{Name: m.Name, URL: m.URL}

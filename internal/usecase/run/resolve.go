@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // Request is an `agentic run` call: what to run, in which project, with which flags.
@@ -17,7 +17,7 @@ type Request struct {
 	Target Target
 	Tool   tools.ToolConfig
 	// Project is loaded once so the credentials the user approves are the ones the run uses
-	Project config.Project
+	Project rc.Project
 	Flags   Flags
 }
 
@@ -27,8 +27,8 @@ type Flags struct {
 	TrustDir   bool
 	DryRun     bool
 	Registry   string
-	Proxy      resolve.ProxyInput
-	Dind       resolve.DindInput
+	Proxy      precedence.ProxyInput
+	Dind       precedence.DindInput
 	Volumes    []string
 	Env        []string
 	Ports      []string
@@ -154,7 +154,7 @@ func (s *Service) approvedRun(req Request, approved approvedConfig, choice runti
 }
 
 // resolveRun resolves req against rc on choice's runner r, minus the credentials only a run reads.
-func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeChoice, r runner) (runConfig, error) {
+func (s *Service) resolveRun(req Request, agenticRC *rc.AgenticRC, choice runtimeChoice, r runner) (runConfig, error) {
 	flags := req.Flags
 	if err := sandbox.CheckEgressIntegrations(flags.Proxy.Integrations); err != nil {
 		return runConfig{}, fmt.Errorf("--proxy-integration: %w", err)
@@ -162,12 +162,12 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 
 	caps := r.Capabilities()
 
-	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
+	proxyMode, err := precedence.ProxyMode(flags.Proxy, agenticRC, caps.CredentialsViaProxy)
 	if err != nil {
 		return runConfig{}, err
 	}
 
-	ports, err := resolve.Ports(flags.Ports, rc)
+	ports, err := precedence.Ports(flags.Ports, agenticRC)
 	if err != nil {
 		return runConfig{}, err
 	}
@@ -182,16 +182,16 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 		containerHome = image.ContainerHome
 	}
 
-	mounts, err := resolve.Mounts(req.Tool.Runtime.Mounts(), flags.Volumes, rc, flags.ToolHome, containerHome)
+	mounts, err := precedence.Mounts(req.Tool.Runtime.Mounts(), flags.Volumes, agenticRC, flags.ToolHome, containerHome)
 	if err != nil {
 		return runConfig{}, err
 	}
 
-	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
+	limits := precedence.ResourceLimitsFor(flags.Limits, agenticRC)
 	return runConfig{
 		Target: req.Target,
 		Tool:   req.Tool,
-		RC:     rc,
+		RC:     agenticRC,
 		Image:  image,
 		Runtime: runtimeConfig{
 			Name: choice.name,
@@ -204,13 +204,13 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 		Egress: egressConfig{
 			Mode:         proxyMode,
 			Backend:      choice.backend,
-			Integrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps.Features),
+			Integrations: proxyIntegrations(flags.Proxy, agenticRC, proxyMode, caps.Features),
 		},
 		Limits: limits,
 		Dind: sandbox.DindSpec{
 			// A runtime without a daemon ignores dind, so its env names and registry hosts stay free
-			Enabled: caps.Dind && resolve.DindEnabled(flags.Dind, rc),
-			Limits:  resolve.DindResourceLimitsFor(flags.DindLimits, rc, limits),
+			Enabled: caps.Dind && precedence.DindEnabled(flags.Dind, agenticRC),
+			Limits:  precedence.DindResourceLimitsFor(flags.DindLimits, agenticRC, limits),
 		},
 		Mounts:   runMounts{Base: mounts},
 		Env:      flags.Env,
@@ -221,16 +221,16 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC, choice runtimeCh
 }
 
 // chooseRuntime picks a run's runtime and proxy backend: the flags, then rc, then Docker and its default backend.
-func chooseRuntime(flags Flags, rc *config.AgenticRC) runtimeChoice {
+func chooseRuntime(flags Flags, agenticRC *rc.AgenticRC) runtimeChoice {
 	return runtimeChoice{
-		name:    resolve.Runtime(flags.Runtime, rc),
-		backend: resolve.ProxyBackend(flags.Proxy, rc),
+		name:    precedence.Runtime(flags.Runtime, agenticRC),
+		backend: precedence.ProxyBackend(flags.Proxy, agenticRC),
 	}
 }
 
 // requireSameRuntime refuses an approved config that picks another runtime or backend than the checked one, so the run
 // never skips the checks that ran before the prompts.
-func requireSameRuntime(checked runtimeChoice, flags Flags, approved *config.AgenticRC) error {
+func requireSameRuntime(checked runtimeChoice, flags Flags, approved *rc.AgenticRC) error {
 	if chooseRuntime(flags, approved) != checked {
 		return errors.New("the approved config picks a different runtime than the one checked")
 	}

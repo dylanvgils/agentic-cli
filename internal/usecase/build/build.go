@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -62,7 +62,7 @@ func (s *Service) DryRun(plan Plan) error {
 // Apply builds each target, then prunes what the builds left behind; a build resets `agentic run`'s update check.
 func (s *Service) Apply(plan Plan) error {
 	opts := plan.Opts
-	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
+	if err := rc.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
 		return fmt.Errorf("saving custom installs: %w", err)
 	}
 
@@ -76,7 +76,7 @@ func (s *Service) Apply(plan Plan) error {
 			return err
 		}
 
-		state, err := config.LoadState(s.home)
+		state, err := rc.LoadState(s.home)
 		if err == nil {
 			err = state.MarkToolChecked(t.Name, time.Now(), s.home)
 		}

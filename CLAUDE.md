@@ -28,10 +28,10 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Within a layer:
   - `runtime/dind` (sidecar files) never imports `runtime/docker`; the sidecar's container lifecycle lives in `runtime/docker/dind.go`.
   - `runtime/docker` and `runtime/microsandbox` never import each other.
-  - Usecases import no other usecase except `usecase/resolve` (and `migrate` its own `migrate/migrations`); they get others injected through `deps.go`.
+  - Usecases import no other usecase (only `migrate` its own `migrate/migrations`); they get others injected through `deps.go`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
-  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
+  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config/rc`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
   - All settings, listen address included, come from `AGENTIC_PROXY_*` env vars.
   - `cmd/proxy/main_test.go` keeps the CLI's packages out transitively.
 - `depguard` in `.golangci.yml` enforces all of the above except `network/certs`: `layer-*` rules for the layers, one rule per package rule, strict allowlists for the proxy. A new layer or package rule needs a rule there too.
@@ -47,6 +47,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 ## Architecture
 
 - `internal/cli` is presentation only: parse flags, call domain packages, print.
+- Flag-over-config precedence lives in `internal/config/precedence` (run settings) and `tools.BuildOptionsFor` (build options); pure functions, no clients.
 - Logic moves to `internal/usecase/<what-it-does>` only when it's independent of `*cobra.Command` and glues several domain packages together. No package per command.
 - User approval goes through an interface or func the cli implements; usecases never read stdin.
 - A usecase that needs another usecase declares an interface for it in its `deps.go` and takes it in `New`; the cli builds the real one. Never build another usecase's `Service` or embed its `Docker` interface.

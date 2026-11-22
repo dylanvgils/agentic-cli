@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +72,7 @@ func Test_nodeStage(t *testing.T) {
 func Test_customInstallsStage(t *testing.T) {
 	t.Run("builds from prev stage with pipefail so a failed curl in a pipeline fails the build", func(t *testing.T) {
 		// Act
-		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
+		stage := customInstallsStage("base", []rc.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
 
 		// Assert
 		assert.Equal(t, df.From{Image: "base", As: "custom-installs"}, stage.From)
@@ -81,25 +81,25 @@ func Test_customInstallsStage(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		installs []config.RCCustomInstall
+		installs []rc.RCCustomInstall
 		wantRuns int
 		want     []string
 	}{
 		{
 			name:     "single entry with one line renders one RUN with name comment",
-			installs: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}},
+			installs: []rc.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}},
 			wantRuns: 1,
 			want:     []string{"# helm", "curl -fsSL https://get.helm.sh | bash"},
 		},
 		{
 			name:     "single entry with multiple lines chains them with &&",
-			installs: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}}},
+			installs: []rc.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}}},
 			wantRuns: 1,
 			want:     []string{"/tmp/get-helm.sh \\\n  && bash /tmp/get-helm.sh"},
 		},
 		{
 			name: "multiple entries each get their own RUN",
-			installs: []config.RCCustomInstall{
+			installs: []rc.RCCustomInstall{
 				{Name: "helm", Run: []string{"true"}},
 				{Name: "golangci-lint", Run: []string{"true"}},
 			},

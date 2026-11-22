@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 )
@@ -56,15 +56,15 @@ func addVersionFlags(cmd *cobra.Command) {
 }
 
 // resolveNamespace returns the effective namespace, preferring the --namespace flag over the rc file value.
-func resolveNamespace(cmd *cobra.Command, rc *config.AgenticRC) string {
+func resolveNamespace(cmd *cobra.Command, agenticRC *rc.AgenticRC) string {
 	v, _ := cmd.Flags().GetString("namespace")
-	return resolve.Namespace(v, rc)
+	return precedence.Namespace(v, agenticRC)
 }
 
 // collectRegistry returns the registry prefix from the --registry flag or the tool home config.
 func collectRegistry(cmd *cobra.Command) string {
 	v, _ := cmd.Flags().GetString("registry")
-	return resolve.Registry(v, toolHome)
+	return precedence.Registry(v, toolHome)
 }
 
 // addBuildFlags registers the base/apt/dry-run flags shared by build and update; --no-cache is registered separately since its description differs between them.
@@ -103,7 +103,7 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
 	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
 	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.EgressIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
-	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+config.BackendNative+" (msb rules, default) or "+config.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
+	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+rc.BackendNative+" (msb rules, default) or "+rc.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
 	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
 	_ = cmd.RegisterFlagCompletionFunc(proxyBackendFlag, proxyBackendsFunc)
@@ -136,14 +136,14 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 }
 
 // proxyInput reads the proxy-related flags.
-func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
+func proxyInput(cmd *cobra.Command) precedence.ProxyInput {
 	noProxy, _ := cmd.Flags().GetBool(noProxyFlagName)
 	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 	integrations, _ := cmd.Flags().GetStringSlice(proxyIntegrationFlag)
 	backend, _ := cmd.Flags().GetString(proxyBackendFlag)
 
-	return resolve.ProxyInput{
+	return precedence.ProxyInput{
 		NoProxy:      noProxy,
 		MonitorFlag:  monitorFlag,
 		ProxyFlag:    proxyFlag,
@@ -153,11 +153,11 @@ func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 }
 
 // dindInput reads the dind flags.
-func dindInput(cmd *cobra.Command) resolve.DindInput {
+func dindInput(cmd *cobra.Command) precedence.DindInput {
 	dindFlag, _ := cmd.Flags().GetBool("dind")
 	noDindFlag, _ := cmd.Flags().GetBool(noDindFlagName)
 
-	return resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
+	return precedence.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
 }
 
 // runtimeFlags reads the flags run and instructions share: home, runtime, proxy, dind and resource limits; an unset
@@ -173,7 +173,7 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 
 	proxy := proxyInput(cmd)
 	if proxy.Backend != "" {
-		if err := config.CheckProxyBackend(proxy.Backend); err != nil {
+		if err := rc.CheckProxyBackend(proxy.Backend); err != nil {
 			return run.Flags{}, fmt.Errorf("--%s: %w", proxyBackendFlag, err)
 		}
 	}
@@ -191,19 +191,19 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 }
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
-func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
-	return resolve.BuildOptions(buildInput(cmd), rc)
+func buildOptsFromFlags(cmd *cobra.Command, agenticRC *rc.AgenticRC) tools.BuildOptions {
+	return tools.BuildOptionsFor(buildInput(cmd), agenticRC)
 }
 
 // buildInput reads the build flags.
-func buildInput(cmd *cobra.Command) resolve.BuildInput {
+func buildInput(cmd *cobra.Command) tools.BuildFlags {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")
 	flagApt, _ := cmd.Flags().GetStringSlice("apt")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	pull, _ := cmd.Flags().GetBool("pull")
 	skipInstallChecksum, _ := cmd.Flags().GetBool("skip-install-checksum")
 
-	return resolve.BuildInput{
+	return tools.BuildFlags{
 		Bases:               flagBases,
 		BasesExact:          exactFlagValue(cmd, baseExactFlagName),
 		VersionOverrides:    collectVersionOverrides(cmd),

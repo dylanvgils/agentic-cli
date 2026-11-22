@@ -4,20 +4,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_proxyRules(t *testing.T) {
-	rc := &config.AgenticRC{}
-	rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	agenticRC := &rc.AgenticRC{}
+	agenticRC.Run.Proxy.AllowedPaths = []rc.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	agenticRC.Run.Proxy.Credentials = []rc.RCCredential{{Hosts: []string{"cred.example.test"}, Header: "Authorization", Secret: "/example/token"}}
 	c := runConfig{
 		Tool: tools.ToolConfig{Runtime: tools.RuntimeConfig{AllowedHosts: []string{"api.example.test"}}},
-		RC:   rc,
+		RC:   agenticRC,
 	}
 
 	t.Run("a runtime with path rules keeps the paths", func(t *testing.T) {
@@ -29,7 +30,7 @@ func Test_proxyRules(t *testing.T) {
 		rules := proxyRules(withPaths)
 
 		// Assert
-		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, rules)
+		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "cred.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, rules)
 	})
 
 	t.Run("a runtime without path rules allows their hosts whole", func(t *testing.T) {
@@ -37,13 +38,13 @@ func Test_proxyRules(t *testing.T) {
 		rules := proxyRules(c)
 
 		// Assert
-		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test"}}, rules)
+		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "cred.example.test"}, {Host: "raw.example.test"}}, rules)
 	})
 }
 
 func Test_proxyIntegrations(t *testing.T) {
-	rc := &config.AgenticRC{}
-	flags := resolve.ProxyInput{Integrations: []string{"maven"}}
+	agenticRC := &rc.AgenticRC{}
+	flags := precedence.ProxyInput{Integrations: []string{"maven"}}
 
 	for _, tc := range []struct {
 		name     string
@@ -69,7 +70,7 @@ func Test_proxyIntegrations(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			integrations := proxyIntegrations(flags, rc, tc.mode, tc.features)
+			integrations := proxyIntegrations(flags, agenticRC, tc.mode, tc.features)
 
 			// Assert
 			assert.Equal(t, tc.want, integrations)

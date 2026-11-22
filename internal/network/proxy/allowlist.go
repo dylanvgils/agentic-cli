@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 )
 
 // maxHostLen is the longest DNS name accepted as an exact host.
@@ -64,7 +64,7 @@ func (a *Allowlist) AllowsPath(host, path string) bool {
 	if !restricted {
 		return true
 	}
-	return slices.ContainsFunc(patterns, func(pattern string) bool { return config.MatchPathPattern(pattern, path) })
+	return slices.ContainsFunc(patterns, func(pattern string) bool { return rc.MatchPathPattern(pattern, path) })
 }
 
 // matchesHost reports whether host matches an entry, ignoring the port.

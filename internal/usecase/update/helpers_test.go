@@ -3,7 +3,7 @@ package update
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/require"
@@ -71,10 +71,10 @@ func (f *fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 }
 
 // storeCustomInstalls saves installs to the custom installs store under home and returns their hash.
-func storeCustomInstalls(t *testing.T, home string, installs ...config.RCCustomInstall) string {
+func storeCustomInstalls(t *testing.T, home string, installs ...rc.RCCustomInstall) string {
 	t.Helper()
-	require.NoError(t, config.SaveCustomInstalls(home, installs))
-	return config.CustomInstallsHash(installs)
+	require.NoError(t, rc.SaveCustomInstalls(home, installs))
+	return rc.CustomInstallsHash(installs)
 }
 
 // builds records the BuildTool calls a fakeDocker gets.

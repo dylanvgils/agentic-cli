@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -19,7 +19,7 @@ func Test_Service_openRunLog(t *testing.T) {
 	t.Run("creates the log dir, prunes old dirs and opens the command log in it", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"log_retention_days":1}`), 0o640))
+		require.NoError(t, os.WriteFile(rc.ConfigFile(home), []byte(`{"log_retention_days":1}`), 0o640))
 		oldDir := logging.Dir(home, "ba9876543210", time.Now().Add(-48*time.Hour))
 		require.NoError(t, os.MkdirAll(oldDir, 0o750))
 		logDir := logging.Dir(home, "0123456789ab", time.Now())

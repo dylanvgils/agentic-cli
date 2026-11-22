@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -94,7 +94,7 @@ func proxyIntegrationsFunc(_ *cobra.Command, _ []string, _ string) ([]string, co
 
 // proxyBackendsFunc completes --proxy-backend with the backend names.
 func proxyBackendsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return []string{config.BackendNative, config.BackendAgentic}, cobra.ShellCompDirectiveNoFileComp
+	return []string{rc.BackendNative, rc.BackendAgentic}, cobra.ShellCompDirectiveNoFileComp
 }
 
 // runtimesFunc completes --runtime with every runtime's name.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -40,7 +40,7 @@ const (
 	// LabelCustomInstalls records the comma-separated custom_installs names, for `agentic inspect` and the instructions block.
 	LabelCustomInstalls = "agentic.custom-installs"
 
-	// LabelCustomInstallsHash records config.CustomInstallsHash of the custom_installs, the key `agentic update`
+	// LabelCustomInstallsHash records rc.CustomInstallsHash of the custom_installs, the key `agentic update`
 	// uses to read their run commands back from $AGENTIC_HOME instead of the current .agenticrc.toml.
 	LabelCustomInstallsHash = "agentic.custom-installs.hash"
 
@@ -261,7 +261,7 @@ func (c *Client) stampImageLabels(image, tool string, opts tools.BuildOptions) {
 		VersionArgs:        buildVersionArgsLabel(layers, opts.Versions),
 		Apt:                strings.Join(opts.AptPackages, ","),
 		CustomInstalls:     strings.Join(customInstallNames, ","),
-		CustomInstallsHash: config.CustomInstallsHash(opts.CustomInstalls),
+		CustomInstallsHash: rc.CustomInstallsHash(opts.CustomInstalls),
 		Built:              buildBuiltLabel(),
 		CLIVersion:         buildinfo.Version,
 		CacheBust:          opts.CacheBust,

@@ -3,7 +3,7 @@ package credentials
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("preset expands to its hosts, headers and env", func(t *testing.T) {
 		// Act
-		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Secret: secret}})
+		resolved, err := Resolve([]rc.RCCredential{{Preset: "example", Secret: secret}})
 
 		// Assert
 		require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("explicit env replaces the preset env", func(t *testing.T) {
 		// Act
-		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}})
+		resolved, err := Resolve([]rc.RCCredential{{Preset: "example", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}})
 
 		// Assert
 		require.NoError(t, err)
@@ -47,10 +47,10 @@ func TestResolve(t *testing.T) {
 
 	t.Run("generic entry uses its own host, header and env", func(t *testing.T) {
 		// Arrange
-		entry := config.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
+		entry := rc.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
 
 		// Act
-		resolved, err := Resolve([]config.RCCredential{entry})
+		resolved, err := Resolve([]rc.RCCredential{entry})
 
 		// Assert
 		require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("entries merged from several config levels resolve in order", func(t *testing.T) {
 		// Act
-		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Secret: secret}, {Preset: "other", Secret: secret}})
+		resolved, err := Resolve([]rc.RCCredential{{Preset: "example", Secret: secret}, {Preset: "other", Secret: secret}})
 
 		// Assert
 		require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("invalid entries are rejected", func(t *testing.T) {
-		cases := map[string]config.RCCredential{
+		cases := map[string]rc.RCCredential{
 			`unknown preset "bogus"`:                {Preset: "bogus", Secret: secret},
 			"credential 1 (api.custom.test)":        {Hosts: []string{"api.custom.test"}, Header: "X Api", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
 			`invalid env name "BAD-NAME"`:           {Preset: "example", Env: []string{"BAD-NAME"}, Secret: secret},
@@ -86,7 +86,7 @@ func TestResolve(t *testing.T) {
 		}
 		for want, entry := range cases {
 			// Act
-			_, err := Resolve([]config.RCCredential{entry})
+			_, err := Resolve([]rc.RCCredential{entry})
 
 			// Assert
 			assert.ErrorContains(t, err, want)
@@ -95,7 +95,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("host claimed by two entries is rejected", func(t *testing.T) {
 		// Arrange
-		entries := []config.RCCredential{
+		entries := []rc.RCCredential{
 			{Preset: "example", Secret: secret},
 			{Hosts: []string{"API.example.test"}, Header: "Authorization", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
 		}
@@ -118,7 +118,7 @@ func TestResolve(t *testing.T) {
 			path := writeSecret(t, content)
 
 			// Act
-			_, err := Resolve([]config.RCCredential{{Preset: "example", Secret: path}})
+			_, err := Resolve([]rc.RCCredential{{Preset: "example", Secret: path}})
 
 			// Assert
 			assert.ErrorContains(t, err, want)
@@ -130,7 +130,7 @@ func TestResolve(t *testing.T) {
 		path := writeSecret(t, "test-secret\nsecond-line")
 
 		// Act
-		_, err := Resolve([]config.RCCredential{{Preset: "example", Secret: path}})
+		_, err := Resolve([]rc.RCCredential{{Preset: "example", Secret: path}})
 
 		// Assert
 		require.Error(t, err)
@@ -145,7 +145,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("accepts presets and entries with env without reading secrets", func(t *testing.T) {
 		// Arrange
-		entries := []config.RCCredential{
+		entries := []rc.RCCredential{
 			{Preset: "example", Secret: "/missing/secret"},
 			{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Env: []string{"CUSTOM_KEY"}, Secret: "/missing/secret"},
 		}
@@ -159,7 +159,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("names the entry without env", func(t *testing.T) {
 		// Arrange
-		entries := []config.RCCredential{{Preset: "example"}, {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key"}}
+		entries := []rc.RCCredential{{Preset: "example"}, {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key"}}
 
 		// Act
 		err := Check(entries)
@@ -170,7 +170,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("refuses an unknown preset", func(t *testing.T) {
 		// Act
-		err := Check([]config.RCCredential{{Preset: "unknown"}})
+		err := Check([]rc.RCCredential{{Preset: "unknown"}})
 
 		// Assert
 		assert.EqualError(t, err, `credential 1 (preset unknown): unknown preset "unknown"`)
@@ -184,7 +184,7 @@ func TestHosts(t *testing.T) {
 
 	t.Run("expands presets and generic entries without reading secrets", func(t *testing.T) {
 		// Arrange
-		entries := []config.RCCredential{
+		entries := []rc.RCCredential{
 			{Preset: "example", Secret: "/missing/secret"},
 			{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: "/missing/secret"},
 		}
@@ -198,7 +198,7 @@ func TestHosts(t *testing.T) {
 
 	t.Run("unknown preset is skipped", func(t *testing.T) {
 		// Act
-		hosts := Hosts([]config.RCCredential{{Preset: "unknown", Secret: "/missing/secret"}})
+		hosts := Hosts([]rc.RCCredential{{Preset: "unknown", Secret: "/missing/secret"}})
 
 		// Assert
 		assert.Empty(t, hosts)

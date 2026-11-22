@@ -19,7 +19,9 @@ agentic-cli/
 │   │   ├── logging/             # Messages to the user on Err (Info, Warn, Step, ...)
 │   │   ├── platform/            # Platform-specific paths and utilities
 │   │   └── selfupdate/          # Downloads and installs new releases from GitHub
-│   ├── config/                  # .agenticrc.toml loading and run spec
+│   ├── config/                  # What agentic is configured with
+│   │   ├── precedence/          # Puts CLI flags on top of the merged config to give each run setting its effective value
+│   │   └── rc/                  # .agenticrc.toml loading and run spec
 │   ├── image/                   # What goes into the tool images
 │   │   ├── dockerfile/          # Dockerfile DSL (stages, instructions, builder)
 │   │   ├── instructions/        # Merges the managed block into each tool's global instructions file on the host
@@ -39,7 +41,6 @@ agentic-cli/
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── migrate/             # Versioned changes to $AGENTIC_HOME's on-disk layout
-│       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
 │       ├── run/                 # `agentic run`: checks and prompts, the sandbox.RunSpec, and a runner per runtime (docker, microsandbox)
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolruns/            # Read-only views of tools on the runtimes: running tools for `agentic ps`, tool images for `agentic images`
