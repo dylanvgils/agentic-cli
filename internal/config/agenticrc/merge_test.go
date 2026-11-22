@@ -236,11 +236,12 @@ func Test_merge(t *testing.T) {
 		assert.Equal(t, "anthropic", rc.Run.Proxy.Credentials[1].Preset)
 	})
 
-	t.Run("duplicate custom install name returns error", func(t *testing.T) {
+	t.Run("duplicate custom install name returns error naming its files", func(t *testing.T) {
 		// Arrange
 		install := CustomInstall{Name: "helm", Run: []string{"true"}}
 		layers := []Layer{
 			{Path: "/outer", Config: &Config{Build: Build{CustomInstalls: []CustomInstall{install}}}},
+			{Path: "/middle", Config: &Config{}},
 			{Path: "/inner", Config: &Config{Build: Build{CustomInstalls: []CustomInstall{install}}}},
 		}
 
@@ -248,7 +249,7 @@ func Test_merge(t *testing.T) {
 		rc, err := merge(layers)
 
 		// Assert
-		assert.ErrorContains(t, err, "must be unique")
+		require.EqualError(t, err, `custom install "helm" in /outer and /inner: name must be unique across .agenticrc.toml layers`)
 		assert.Nil(t, rc)
 	})
 }

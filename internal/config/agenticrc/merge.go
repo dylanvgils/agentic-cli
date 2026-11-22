@@ -1,6 +1,10 @@
 package agenticrc
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
 
 // merge combines layers ordered outermost-to-innermost, as returned by findLayers.
 func merge(layers []Layer) (*Config, error) {
@@ -11,10 +15,21 @@ func merge(layers []Layer) (*Config, error) {
 
 	merged := mergeConfigs(configs)
 	if name, ok := duplicateInstall(merged.Build.CustomInstalls); ok {
-		return nil, fmt.Errorf("custom install %q: name must be unique across .agenticrc.toml layers", name)
+		return nil, fmt.Errorf("custom install %q in %s: name must be unique across .agenticrc.toml layers", name, strings.Join(installPaths(layers, name), " and "))
 	}
 
 	return merged, nil
+}
+
+// installPaths returns the paths of the layers that declare the custom install name, outermost first.
+func installPaths(layers []Layer, name string) []string {
+	var paths []string
+	for _, layer := range layers {
+		if slices.ContainsFunc(layer.Config.Build.CustomInstalls, func(ci CustomInstall) bool { return ci.Name == name }) {
+			paths = append(paths, layer.Path)
+		}
+	}
+	return paths
 }
 
 func mergeConfigs(configs []*Config) *Config {
