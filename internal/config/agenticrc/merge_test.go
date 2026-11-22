@@ -214,7 +214,7 @@ func Test_mergeConfigs_everyKey(t *testing.T) {
 		// Assert
 		for key, v := range agenticrctest.Leaves(result) {
 			if key != notMerged {
-				assert.False(t, isUnset(v), "%s was set in an outer layer but lost in the merge", key)
+				assert.True(t, GuardedSetting{Value: v.Interface()}.IsSet(), "%s was set in an outer layer but lost in the merge", key)
 			}
 		}
 	})

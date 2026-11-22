@@ -59,14 +59,6 @@ func scalarsOf(rc *Config) Config {
 	}
 }
 
-// isUnset reports whether a setting's value is zero; an empty list or map counts as unset.
-func isUnset(v reflect.Value) bool {
-	if v.Kind() == reflect.Slice || v.Kind() == reflect.Map {
-		return v.Len() == 0
-	}
-	return v.IsZero()
-}
-
 // assertMerged checks that v, merged from an "outer" and an "inner" filled layer, holds both layers' list entries and
 // the inner scalars; map values are checked per entry.
 func assertMerged(t *testing.T, key string, v reflect.Value) {
