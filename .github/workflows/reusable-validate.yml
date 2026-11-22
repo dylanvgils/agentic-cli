@@ -111,8 +111,18 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
 
+  # Only the smokePackages (test/integration/platform/setup.go) need every image; a new test/integration package goes in features
   integration:
+    name: integration (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: smoke
+            pkgs: images microsandbox
+          - name: features
+            pkgs: container egress lifecycle network proxy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -122,4 +132,4 @@ jobs:
       - uses: ./.github/actions/setup-msb
 
       - name: Integration tests
-        run: make test-integration MSB=1
+        run: make test-integration MSB=1 PKGS="${{ matrix.pkgs }}"
