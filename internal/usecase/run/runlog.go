@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -21,9 +21,9 @@ func (s *Service) openRunLog(logDir, toolHome string) error {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 
-	cfg, err := config.LoadConfig(toolHome)
+	cfg, err := rc.LoadConfig(toolHome)
 	if err != nil {
-		cfg = &config.CliConfig{}
+		cfg = &rc.CliConfig{}
 	}
 	logging.Prune(toolHome, cfg.LogRetention())
 

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 )
 
 // PruneKind categorizes the outcome Prune reached for one registry entry or clone dir.
@@ -29,11 +29,11 @@ type PruneResult struct {
 func LiveProjects(dirName, name string, projects []string) []string {
 	var live []string
 	for _, dir := range projects {
-		rc, err := config.FindAndLoad(dir)
+		agenticRC, err := rc.FindAndLoad(dir)
 		if err != nil {
 			continue
 		}
-		for _, m := range rc.Marketplaces {
+		for _, m := range agenticRC.Marketplaces {
 			if m.Name == name && CloneDirName(m.URL) == dirName {
 				live = append(live, dir)
 				break

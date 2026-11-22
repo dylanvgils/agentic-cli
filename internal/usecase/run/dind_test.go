@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_dockerRunner_requireDockerLayer(t *testing.T) {
-	req := Request{Target: Target{ToolName: "claude", ImageName: "agentic-claude"}, Flags: Flags{Dind: resolve.DindInput{DindFlag: true}}}
+	req := Request{Target: Target{ToolName: "claude", ImageName: "agentic-claude"}, Flags: Flags{Dind: precedence.DindInput{DindFlag: true}}}
 
 	t.Run("image with docker layer passes", func(t *testing.T) {
 		// Arrange

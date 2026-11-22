@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -87,7 +87,7 @@ func (s *Service) Apply(plan Plan) error {
 			return err
 		}
 
-		state, err := config.LoadState(s.home)
+		state, err := rc.LoadState(s.home)
 		if err == nil {
 			err = state.MarkToolChecked(t.Name, time.Now(), s.home)
 		}
@@ -103,8 +103,8 @@ func (s *Service) Apply(plan Plan) error {
 
 // ApplyRecovered rebuilds image for tool with its recovered build options; it's the apply func of `agentic run`'s update
 // prompt.
-func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
-	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}
+func (s *Service) ApplyRecovered(tool, image string, agenticRC *rc.AgenticRC) error {
+	opts := tools.BuildOptions{CustomInstalls: agenticRC.Build.CustomInstalls}
 	if info, err := s.docker.InspectImage(image); err == nil && info != nil {
 		opts = recoverOpts(s.home, info, opts)
 	}
@@ -211,7 +211,7 @@ func (s *Service) rebuild(tool, image string, info *docker.ImageInfo, upToDate b
 		opts.CacheBust = docker.NewCacheBust()
 	}
 
-	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
+	if err := rc.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
 		return fmt.Errorf("saving custom installs: %w", err)
 	}
 
@@ -241,19 +241,19 @@ func recoverOpts(home string, info *docker.ImageInfo, opts tools.BuildOptions) t
 
 // recoverCustomInstalls returns the custom installs info was built with from the store under home. When they aren't stored
 // (an older image, or built from another machine), it looks the image's install names up in configInstalls and warns about any missing.
-func recoverCustomInstalls(home string, info *docker.ImageInfo, configInstalls []config.RCCustomInstall) []config.RCCustomInstall {
-	if installs, ok := config.LoadCustomInstalls(home, info.CustomInstallsHash); ok {
+func recoverCustomInstalls(home string, info *docker.ImageInfo, configInstalls []rc.RCCustomInstall) []rc.RCCustomInstall {
+	if installs, ok := rc.LoadCustomInstalls(home, info.CustomInstallsHash); ok {
 		return installs
 	}
 
-	var installs []config.RCCustomInstall
+	var installs []rc.RCCustomInstall
 	var missing []string
 	for name := range strings.SplitSeq(info.CustomInstalls, ",") {
 		if name == "" {
 			continue
 		}
 
-		idx := slices.IndexFunc(configInstalls, func(ci config.RCCustomInstall) bool { return ci.Name == name })
+		idx := slices.IndexFunc(configInstalls, func(ci rc.RCCustomInstall) bool { return ci.Name == name })
 		if idx < 0 {
 			missing = append(missing, name)
 			continue

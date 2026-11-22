@@ -7,7 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
@@ -17,7 +18,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/migrate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/spf13/cobra"
@@ -54,7 +54,7 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 
 func init() {
 	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv(config.EnvHome); env != "" {
+	if env := os.Getenv(rc.EnvHome); env != "" {
 		defaultHome = env
 	}
 
@@ -118,7 +118,7 @@ func resolveContext(cmd *cobra.Command) error {
 		}
 	}
 
-	dockerClient = docker.New(resolve.DockerContext(flagVal, project.RC, toolHome), commandLog)
+	dockerClient = docker.New(precedence.DockerContext(flagVal, project.RC, toolHome), commandLog)
 	return nil
 }
 

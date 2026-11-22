@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
@@ -15,7 +16,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,15 +31,15 @@ func Test_Service_build(t *testing.T) {
 			ToolHome: t.TempDir(),
 			Volumes:  []string{"/host:/container:rw"},
 			Ports:    []string{"3000"},
-			Proxy:    resolve.ProxyInput{MonitorFlag: true},
+			Proxy:    precedence.ProxyInput{MonitorFlag: true},
 			DryRun:   true,
 		}
-		rc := &config.AgenticRC{Run: config.RCRun{
-			RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+		agenticRC := &rc.AgenticRC{Run: rc.RCRun{
+			RCLimits: rc.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
 			Args:     map[string][]string{"claude": {"--from-rc"}},
 		}}
 		svc := newTestService(d, nil)
-		c := resolvedConfig(t, svc, target, flags, rc)
+		c := resolvedConfig(t, svc, target, flags, agenticRC)
 
 		// Act
 		rs, err := svc.build(c)
@@ -68,10 +68,10 @@ func Test_Service_build(t *testing.T) {
 		// Arrange
 		chdirSymlinkWorkspace(t)
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"$PWD/escape:/workspace/escape"}}}
+		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Mounts: []string{"$PWD/escape:/workspace/escape"}}}
 
 		svc := newTestService(d, nil)
-		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, rc)
+		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, agenticRC)
 
 		// Act
 		_, err := svc.build(c)
@@ -83,16 +83,16 @@ func Test_Service_build(t *testing.T) {
 	t.Run("proxy wired with the resolved rules", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: []rc.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
 
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
-		c := resolvedConfig(t, svc, target, flags, rc)
+		c := resolvedConfig(t, svc, target, flags, agenticRC)
 
 		// Act
 		rs, err := svc.build(c)
@@ -108,16 +108,16 @@ func Test_Service_build(t *testing.T) {
 		// Arrange
 		untrusted := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil }}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: []rc.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
 
 		svc := newTestService(untrusted, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
-		c := resolvedConfig(t, svc, target, flags, rc)
+		c := resolvedConfig(t, svc, target, flags, agenticRC)
 
 		// Act
 		_, err := svc.build(c)
@@ -135,7 +135,7 @@ func Test_Service_build(t *testing.T) {
 		{
 			name:     "proxy credentials wired for the docker runtime to place",
 			svc:      newTestService(d, nil),
-			flags:    Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}},
+			flags:    Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}},
 			wantMode: sandbox.EgressEnforce,
 		},
 		{
@@ -150,7 +150,7 @@ func Test_Service_build(t *testing.T) {
 			target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 			flags := tc.flags
 			flags.ToolHome = t.TempDir()
-			c := resolvedConfig(t, tc.svc, target, flags, &config.AgenticRC{})
+			c := resolvedConfig(t, tc.svc, target, flags, &rc.AgenticRC{})
 			c.Egress.Credentials = []credentials.Resolved{{
 				Hosts:   []string{"api.example.test"},
 				Headers: []string{"X-Api-Key"},
@@ -181,9 +181,9 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
-		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
+		c := resolvedConfig(t, svc, target, flags, &rc.AgenticRC{})
 		c.Egress.Credentials = []credentials.Resolved{resolved}
 
 		// Act
@@ -200,10 +200,10 @@ func Test_Service_build(t *testing.T) {
 		flags := Flags{
 			ToolHome: t.TempDir(),
 			Volumes:  []string{dir + ":/data"},
-			Proxy:    resolve.ProxyInput{ProxyFlag: true},
+			Proxy:    precedence.ProxyInput{ProxyFlag: true},
 		}
 		svc := newTestService(d, nil)
-		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
+		c := resolvedConfig(t, svc, target, flags, &rc.AgenticRC{})
 		c.Egress.Credentials = []credentials.Resolved{{Path: filepath.Join(dir, "token")}}
 
 		// Act
@@ -220,10 +220,10 @@ func Test_Service_build(t *testing.T) {
 		svc := newTestService(d, nil)
 		flags := Flags{
 			ToolHome: t.TempDir(),
-			Dind:     resolve.DindInput{DindFlag: true},
+			Dind:     precedence.DindInput{DindFlag: true},
 			Env:      []string{"DOCKER_HOST=unix:///var/run/docker.sock"},
 		}
-		c := resolvedConfig(t, svc, target, flags, &config.AgenticRC{})
+		c := resolvedConfig(t, svc, target, flags, &rc.AgenticRC{})
 
 		// Act
 		_, err := svc.build(c)
@@ -238,9 +238,9 @@ func Test_Service_build(t *testing.T) {
 			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
 		})
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+		agenticRC := &rc.AgenticRC{Marketplaces: []rc.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
-		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, rc)
+		c := resolvedConfig(t, svc, target, Flags{ToolHome: t.TempDir()}, agenticRC)
 
 		// Act
 		rs, err := svc.build(c)
@@ -270,16 +270,16 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 }
 
 func TestToolNeedsMarketplaceSync(t *testing.T) {
-	acme := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+	acme := &rc.AgenticRC{Marketplaces: []rc.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
 	for _, tc := range []struct {
 		name string
 		tool string
-		rc   *config.AgenticRC
+		rc   *rc.AgenticRC
 		want bool
 	}{
 		{name: "tool without marketplace support returns false", tool: "opencode", rc: acme},
-		{name: "marketplace-capable tool with no marketplaces configured returns false", tool: "claude", rc: &config.AgenticRC{}},
+		{name: "marketplace-capable tool with no marketplaces configured returns false", tool: "claude", rc: &rc.AgenticRC{}},
 		{name: "marketplace-capable tool with marketplaces configured returns true", tool: "claude", rc: acme, want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,14 +293,14 @@ func TestToolNeedsMarketplaceSync(t *testing.T) {
 }
 
 func Test_Service_syncToolMarketplaces(t *testing.T) {
-	acme := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+	acme := &rc.AgenticRC{Marketplaces: []rc.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 	synced := func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
 		return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
 	}
 
 	t.Run("tool that doesn't need marketplace sync returns nil", func(t *testing.T) {
 		// Act
-		mounts, names, err := newTestService(&fakeDocker{}, nil).syncToolMarketplaces("/home", "claude", tools.Configs["claude"], &config.AgenticRC{})
+		mounts, names, err := newTestService(&fakeDocker{}, nil).syncToolMarketplaces("/home", "claude", tools.Configs["claude"], &rc.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)

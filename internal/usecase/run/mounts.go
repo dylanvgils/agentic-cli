@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -98,7 +98,7 @@ func (m mountSet) checkSymlinks() error {
 
 // checkConfigNotMounted refuses any mount exposing agentic.json or state.json, so the agent can't change machine-wide settings, trust dirs or approve settings itself.
 func (m mountSet) checkConfigNotMounted() error {
-	for _, file := range []string{config.ConfigFile(m.toolHome), config.StateFile(m.toolHome)} {
+	for _, file := range []string{rc.ConfigFile(m.toolHome), rc.StateFile(m.toolHome)} {
 		if root, ok := findRoot(file, m.hostPaths()); ok {
 			return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
 		}

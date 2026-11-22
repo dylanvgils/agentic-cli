@@ -1,12 +1,11 @@
-package resolve
+package precedence
 
 import (
 	"fmt"
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -32,16 +31,16 @@ type ProxyInput struct {
 
 // ProxyMode resolves whether the proxy is off, enforcing or monitoring; when proxyInjects, credentials turn it on and refuse an
 // explicit off.
-func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.EgressMode, error) {
-	mode := RequestedProxyMode(in, rc)
-	if mode.Enabled() || !proxyInjects || len(rc.Run.Proxy.Credentials) == 0 {
+func ProxyMode(in ProxyInput, agenticRC *rc.AgenticRC, proxyInjects bool) (sandbox.EgressMode, error) {
+	mode := RequestedProxyMode(in, agenticRC)
+	if mode.Enabled() || !proxyInjects || len(agenticRC.Run.Proxy.Credentials) == 0 {
 		return mode, nil
 	}
 
 	if in.NoProxy {
 		return sandbox.EgressOff, fmt.Errorf("--no-proxy cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
-	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
+	if agenticRC.Run.Proxy.Enabled != nil && !*agenticRC.Run.Proxy.Enabled {
 		return sandbox.EgressOff, fmt.Errorf("[run.proxy] enabled = false cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
 
@@ -49,26 +48,26 @@ func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.
 }
 
 // ProxyBackend returns the proxy backend --proxy-backend or rc picks, or "" for the runtime's default.
-func ProxyBackend(in ProxyInput, rc *config.AgenticRC) string {
+func ProxyBackend(in ProxyInput, agenticRC *rc.AgenticRC) string {
 	if in.Backend != "" {
 		return in.Backend
 	}
-	return rc.Run.Proxy.Backend
+	return agenticRC.Run.Proxy.Backend
 }
 
 // ProxyIntegrations returns rc's proxy integrations plus the flag's, sorted and unique.
-func ProxyIntegrations(in ProxyInput, rc *config.AgenticRC) []string {
-	names := slices.Concat(rc.Run.Proxy.Integrations, in.Integrations)
+func ProxyIntegrations(in ProxyInput, agenticRC *rc.AgenticRC) []string {
+	names := slices.Concat(agenticRC.Run.Proxy.Integrations, in.Integrations)
 	return slices.Compact(slices.Sorted(slices.Values(names)))
 }
 
 // ProxyRules returns the hosts proxyAllowList merges, allowed whole unless path rules name them, then rc's path rules.
 // Path rules also limit a host a wildcard allows, as the proxy lets them win.
-func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []sandbox.AllowRule {
-	pathRules := mergePathRules(rc.Run.Proxy.AllowedPaths)
+func ProxyRules(toolAllowedHosts, credentialHosts []string, dindEnabled bool, agenticRC *rc.AgenticRC) []sandbox.AllowRule {
+	pathRules := mergePathRules(agenticRC.Run.Proxy.AllowedPaths)
 
 	var rules []sandbox.AllowRule
-	for _, host := range proxyAllowList(toolAllowedHosts, dindEnabled, rc) {
+	for _, host := range proxyAllowList(toolAllowedHosts, credentialHosts, dindEnabled, agenticRC) {
 		if ruleIndex(pathRules, normalizeHost(host)) < 0 {
 			rules = append(rules, sandbox.AllowRule{Host: host})
 		}
@@ -77,7 +76,7 @@ func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticR
 }
 
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
-func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.EgressMode {
+func RequestedProxyMode(in ProxyInput, agenticRC *rc.AgenticRC) sandbox.EgressMode {
 	if in.NoProxy {
 		return sandbox.EgressOff
 	}
@@ -88,14 +87,14 @@ func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.EgressMode 
 		return sandbox.EgressEnforce
 	}
 
-	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
+	if agenticRC.Run.Proxy.Enabled != nil && !*agenticRC.Run.Proxy.Enabled {
 		return sandbox.EgressOff
 	}
-	if rc.Run.Proxy.Mode == config.ModeMonitor {
+	if agenticRC.Run.Proxy.Mode == rc.ModeMonitor {
 		return sandbox.EgressMonitor
 	}
 
-	if rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled {
+	if agenticRC.Run.Proxy.Enabled != nil && *agenticRC.Run.Proxy.Enabled {
 		return sandbox.EgressEnforce
 	}
 
@@ -104,13 +103,13 @@ func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.EgressMode 
 
 // proxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on,
 // keeping the first of any duplicates.
-func proxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []string {
+func proxyAllowList(toolAllowedHosts, credentialHosts []string, dindEnabled bool, agenticRC *rc.AgenticRC) []string {
 	allow := append([]string{}, toolAllowedHosts...)
 	if dindEnabled {
 		allow = append(allow, dindRegistryHosts...)
 	}
-	allow = append(allow, rc.Run.Proxy.AllowedHosts...)
-	allow = append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
+	allow = append(allow, agenticRC.Run.Proxy.AllowedHosts...)
+	allow = append(allow, credentialHosts...)
 
 	seen := make(map[string]bool, len(allow))
 	return slices.DeleteFunc(allow, func(host string) bool {
@@ -121,7 +120,7 @@ func proxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 }
 
 // mergePathRules merges rules per normalized host in first-seen order, without duplicate paths.
-func mergePathRules(rules []config.RCAllowedPath) []sandbox.AllowRule {
+func mergePathRules(rules []rc.RCAllowedPath) []sandbox.AllowRule {
 	var merged []sandbox.AllowRule
 	for _, rule := range rules {
 		host := normalizeHost(rule.Host)

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // featurePolicy is how a run handles a feature its runtime lacks.
@@ -106,20 +106,20 @@ func (r featureRule) reported(missing sandbox.Features) bool {
 }
 
 // requiredFeatures returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
-func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
-	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
-	dind := resolve.DindEnabled(flags.Dind, rc)
-	ports := portsSet(flags, rc)
+func requiredFeatures(flags Flags, agenticRC *rc.AgenticRC) sandbox.Features {
+	proxyMode := precedence.RequestedProxyMode(flags.Proxy, agenticRC)
+	dind := precedence.DindEnabled(flags.Dind, agenticRC)
+	ports := portsSet(flags, agenticRC)
 	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
 		ProxyMonitor:        proxyMode == sandbox.EgressMonitor,
 		Dind:                dind,
-		DindLimits:          dind && dindLimitsSet(flags, rc),
-		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
-		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
-		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
-		PidsLimit:           flags.Limits.PidsLimit != "" || rc.Run.PidsLimit != "",
-		PortsWithProxy:      ports && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
+		DindLimits:          dind && dindLimitsSet(flags, agenticRC),
+		CredentialInjection: len(agenticRC.Run.Proxy.Credentials) > 0,
+		PathRules:           len(agenticRC.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(agenticRC.Run.Proxy.Credentials) > 0),
+		ProxyIntegrations:   len(precedence.ProxyIntegrations(flags.Proxy, agenticRC)) > 0 && (proxyMode.Enabled() || len(agenticRC.Run.Proxy.Credentials) > 0),
+		PidsLimit:           flags.Limits.PidsLimit != "" || agenticRC.Run.PidsLimit != "",
+		PortsWithProxy:      ports && (proxyMode.Enabled() || len(agenticRC.Run.Proxy.Credentials) > 0),
 	}
 }
 
@@ -199,7 +199,7 @@ func runtimeSource(req Request) string {
 		return "--runtime " + string(req.Flags.Runtime)
 	}
 	key := fmt.Sprintf("[run] runtime = %q", req.Project.RC.Run.Runtime)
-	return layerSource(req.Project.Layers, key, func(rc *config.AgenticRC) bool { return rc.Run.Runtime != "" })
+	return layerSource(req.Project.Layers, key, func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Runtime != "" })
 }
 
 // proxyBackendSource names what picks req's proxy backend: --proxy-backend, or [run.proxy] backend and the innermost layer
@@ -209,7 +209,7 @@ func proxyBackendSource(req Request) string {
 		return "--proxy-backend " + req.Flags.Proxy.Backend
 	}
 	key := fmt.Sprintf("[run.proxy] backend = %q", req.Project.RC.Run.Proxy.Backend)
-	return layerSource(req.Project.Layers, key, func(rc *config.AgenticRC) bool { return rc.Run.Proxy.Backend != "" })
+	return layerSource(req.Project.Layers, key, func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Proxy.Backend != "" })
 }
 
 // proxySource names what asks for the proxy in req: its flag, or the [run.proxy] key and the innermost layer setting it.
@@ -219,10 +219,10 @@ func proxySource(req Request) string {
 		return "--proxy-monitor"
 	case req.Flags.Proxy.ProxyFlag:
 		return "--proxy"
-	case req.Project.RC.Run.Proxy.Mode == config.ModeMonitor:
-		return layerSource(req.Project.Layers, "[run.proxy] mode", func(rc *config.AgenticRC) bool { return rc.Run.Proxy.Mode == config.ModeMonitor })
+	case req.Project.RC.Run.Proxy.Mode == rc.ModeMonitor:
+		return layerSource(req.Project.Layers, "[run.proxy] mode", func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Proxy.Mode == rc.ModeMonitor })
 	default:
-		return layerSource(req.Project.Layers, "[run.proxy] enabled", func(rc *config.AgenticRC) bool { return rc.Run.Proxy.Enabled != nil })
+		return layerSource(req.Project.Layers, "[run.proxy] enabled", func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Proxy.Enabled != nil })
 	}
 }
 
@@ -231,17 +231,17 @@ func dindSource(req Request) string {
 	if req.Flags.Dind.DindFlag {
 		return "--dind"
 	}
-	return layerSource(req.Project.Layers, "[run.dind] enabled", func(rc *config.AgenticRC) bool { return rc.Run.Dind.Enabled != nil })
+	return layerSource(req.Project.Layers, "[run.dind] enabled", func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Dind.Enabled != nil })
 }
 
 // credentialsSource names the innermost layer that declares proxy credentials.
 func credentialsSource(req Request) string {
-	return layerSource(req.Project.Layers, "[[run.proxy.credentials]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Credentials) > 0 })
+	return layerSource(req.Project.Layers, "[[run.proxy.credentials]]", func(agenticRC *rc.AgenticRC) bool { return len(agenticRC.Run.Proxy.Credentials) > 0 })
 }
 
 // pathRulesSource names the innermost layer that declares proxy path rules.
 func pathRulesSource(req Request) string {
-	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.AllowedPaths) > 0 })
+	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(agenticRC *rc.AgenticRC) bool { return len(agenticRC.Run.Proxy.AllowedPaths) > 0 })
 }
 
 // integrationsSource names what sets proxy integrations in req: --proxy-integration, or the innermost layer setting them.
@@ -249,7 +249,7 @@ func integrationsSource(req Request) string {
 	if len(req.Flags.Proxy.Integrations) > 0 {
 		return "--proxy-integration"
 	}
-	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
+	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(agenticRC *rc.AgenticRC) bool { return len(agenticRC.Run.Proxy.Integrations) > 0 })
 }
 
 // portsSource names what sets ports in req: --port, or [run] ports and the innermost layer setting them.
@@ -257,26 +257,26 @@ func portsSource(req Request) string {
 	if len(req.Flags.Ports) > 0 {
 		return "--port"
 	}
-	return layerSource(req.Project.Layers, "[run] ports", func(rc *config.AgenticRC) bool { return len(rc.Run.Ports) > 0 })
+	return layerSource(req.Project.Layers, "[run] ports", func(agenticRC *rc.AgenticRC) bool { return len(agenticRC.Run.Ports) > 0 })
 }
 
 // refusePortsWithProxy errors on ports in a run of req on runtime whose egress goes through the proxy, naming what turns
 // it on.
 func refusePortsWithProxy(req Request, runtime sandbox.Runtime) error {
 	cause, hint := credentialsSource(req), "use --runtime microsandbox"
-	if resolve.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
+	if precedence.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
 		cause, hint = proxySource(req), "pass --no-proxy or "+hint
 	}
 	return fmt.Errorf("%s can't be used with the egress proxy (%s) on the %s runtime, as its run network has no route to the host; %s", portsSource(req), cause, runtime, hint)
 }
 
 // dindLimitsSet reports whether flags or rc set Docker daemon limits.
-func dindLimitsSet(flags Flags, rc *config.AgenticRC) bool {
-	return flags.DindLimits != (sandbox.ResourceLimits{}) || rc.Run.Dind.RCLimits != (config.RCLimits{})
+func dindLimitsSet(flags Flags, agenticRC *rc.AgenticRC) bool {
+	return flags.DindLimits != (sandbox.ResourceLimits{}) || agenticRC.Run.Dind.RCLimits != (rc.RCLimits{})
 }
 
 // layerSource returns key plus the path of the innermost layer where set holds, or key alone when none does.
-func layerSource(layers []config.RCLayer, key string, set func(*config.AgenticRC) bool) string {
+func layerSource(layers []rc.RCLayer, key string, set func(*rc.AgenticRC) bool) string {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if layers[i].RC != nil && set(layers[i].RC) {
 			return fmt.Sprintf("%s in %s", key, layers[i].Path)

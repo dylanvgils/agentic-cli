@@ -1,4 +1,4 @@
-package config
+package rc
 
 const (
 	envPrefix = "AGENTIC_"

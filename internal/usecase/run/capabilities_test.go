@@ -4,24 +4,24 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_requiredFeatures(t *testing.T) {
 	enabled := true
-	proxyFlag := resolve.ProxyInput{ProxyFlag: true}
-	paths := []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-	creds := []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
+	proxyFlag := precedence.ProxyInput{ProxyFlag: true}
+	paths := []rc.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	creds := []rc.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
 
 	for _, tc := range []struct {
 		name  string
 		flags Flags
-		rc    config.AgenticRC
+		rc    rc.AgenticRC
 		want  sandbox.Features
 	}{
 		{
@@ -34,78 +34,78 @@ func Test_requiredFeatures(t *testing.T) {
 		},
 		{
 			name: "a config pids limit asks for limit support",
-			rc:   config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "50"}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{RCLimits: rc.RCLimits{PidsLimit: "50"}}},
 			want: sandbox.Features{PidsLimit: true},
 		},
 		{
 			name:  "flags ask for the proxy and dind",
-			flags: Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}, Dind: resolve.DindInput{DindFlag: true}},
+			flags: Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}, Dind: precedence.DindInput{DindFlag: true}},
 			want:  sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true},
 		},
 		{
 			name: "config asks for the proxy and dind",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Enabled: &enabled}, Dind: rc.RCDind{Enabled: &enabled}}},
 			want: sandbox.Features{Proxy: true, Dind: true},
 		},
 		{
 			name: "off switches drop the need",
 			flags: Flags{
-				Proxy: resolve.ProxyInput{NoProxy: true},
-				Dind:  resolve.DindInput{NoDindFlag: true},
+				Proxy: precedence.ProxyInput{NoProxy: true},
+				Dind:  precedence.DindInput{NoDindFlag: true},
 			},
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Enabled: &enabled}, Dind: rc.RCDind{Enabled: &enabled}}},
 			want: sandbox.Features{},
 		},
 		{
 			name:  "dind limits ask for limit support with dind",
-			flags: Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
+			flags: Flags{Dind: precedence.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
 			want:  sandbox.Features{Dind: true, DindLimits: true},
 		},
 		{
 			name: "dind limits without dind have nothing to limit",
-			rc:   config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "8g"}}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Dind: rc.RCDind{RCLimits: rc.RCLimits{Memory: "8g"}}}},
 			want: sandbox.Features{},
 		},
 		{
 			name: "credentials alone don't ask for the proxy",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Credentials: creds}}},
 			want: sandbox.Features{CredentialInjection: true},
 		},
 		{
 			name: "path rules without the proxy or credentials need nothing",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: paths}}},
 			want: sandbox.Features{},
 		},
 		{
 			name:  "path rules ask for path rule support with the proxy",
 			flags: Flags{Proxy: proxyFlag},
-			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
+			rc:    rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: paths}}},
 			want:  sandbox.Features{Proxy: true, PathRules: true},
 		},
 		{
 			name: "path rules ask for path rule support with credentials",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths, Credentials: creds}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: paths, Credentials: creds}}},
 			want: sandbox.Features{CredentialInjection: true, PathRules: true},
 		},
 		{
 			name: "proxy integrations without the proxy or credentials need nothing",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Integrations: []string{"maven"}}}},
 			want: sandbox.Features{},
 		},
 		{
 			name:  "proxy integrations ask for integration support with the proxy",
 			flags: Flags{Proxy: proxyFlag},
-			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
+			rc:    rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Integrations: []string{"maven"}}}},
 			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true},
 		},
 		{
 			name: "proxy integrations ask for integration support with credentials",
-			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}, Credentials: creds}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Integrations: []string{"maven"}, Credentials: creds}}},
 			want: sandbox.Features{CredentialInjection: true, ProxyIntegrations: true},
 		},
 		{
 			name:  "the integration flag asks for integration support with the proxy",
-			flags: Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
+			flags: Flags{Proxy: precedence.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
 			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true},
 		},
 		{
@@ -120,7 +120,7 @@ func Test_requiredFeatures(t *testing.T) {
 		},
 		{
 			name: "config ports ask for ports with the proxy with credentials",
-			rc:   config.AgenticRC{Run: config.RCRun{Ports: []string{"3000"}, Proxy: config.RCProxy{Credentials: creds}}},
+			rc:   rc.AgenticRC{Run: rc.RCRun{Ports: []string{"3000"}, Proxy: rc.RCProxy{Credentials: creds}}},
 			want: sandbox.Features{CredentialInjection: true, PortsWithProxy: true},
 		},
 	} {
@@ -170,38 +170,38 @@ func Test_checkCapabilities(t *testing.T) {
 	}{
 		{
 			name:    "a missing proxy is an error with the opt-out",
-			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+			req:     msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, nil),
 			offered: noProxy,
 			wantErr: "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker",
 		},
 		{
 			name:    "a missing proxy asked for in config names the layer",
-			req:     msbRequest(Flags{}, func(rc *config.AgenticRC) { enabled := true; rc.Run.Proxy.Enabled = &enabled }),
+			req:     msbRequest(Flags{}, func(agenticRC *rc.AgenticRC) { enabled := true; agenticRC.Run.Proxy.Enabled = &enabled }),
 			offered: noProxy,
 			wantErr: "--runtime microsandbox does not support the egress proxy ([run.proxy] enabled in /example.test/project/.agenticrc.toml); pass --no-proxy to run without the proxy, or use --runtime docker",
 		},
 		{
 			name:    "a missing monitor mode is an error pointing to --proxy",
-			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}}, nil),
+			req:     msbRequest(Flags{Proxy: precedence.ProxyInput{MonitorFlag: true}}, nil),
 			offered: msb,
 			wantErr: "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker",
 		},
 		{
 			name:    "ports with the proxy flag are an error with the opt-out",
-			req:     dockerRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}, Ports: []string{"3000"}}, nil),
+			req:     dockerRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}, Ports: []string{"3000"}}, nil),
 			wantErr: "--port can't be used with the egress proxy (--proxy) on the docker runtime, as its run network has no route to the host; pass --no-proxy or use --runtime microsandbox",
 		},
 		{
 			name: "config ports with credentials name both layers",
-			req: dockerRequest(Flags{}, func(rc *config.AgenticRC) {
-				rc.Run.Ports = []string{"3000"}
-				rc.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
+			req: dockerRequest(Flags{}, func(agenticRC *rc.AgenticRC) {
+				agenticRC.Run.Ports = []string{"3000"}
+				agenticRC.Run.Proxy.Credentials = []rc.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
 			}),
 			wantErr: "[run] ports in /example.test/project/.agenticrc.toml can't be used with the egress proxy ([[run.proxy.credentials]] in /example.test/project/.agenticrc.toml) on the docker runtime, as its run network has no route to the host; use --runtime microsandbox",
 		},
 		{
 			name:    "a missing monitor mode asked for in config names the layer",
-			req:     msbRequest(Flags{}, func(rc *config.AgenticRC) { rc.Run.Proxy.Mode = config.ModeMonitor }),
+			req:     msbRequest(Flags{}, func(agenticRC *rc.AgenticRC) { agenticRC.Run.Proxy.Mode = rc.ModeMonitor }),
 			offered: msb,
 			wantErr: "--runtime microsandbox does not support proxy monitor mode ([run.proxy] mode in /example.test/project/.agenticrc.toml); pass --proxy to enforce the allowlist instead, or use --runtime docker",
 		},
@@ -241,7 +241,7 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	dindLimits := Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
+	dindLimits := Flags{Dind: precedence.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
 	for _, tc := range []struct {
 		name     string
 		req      Request
@@ -250,7 +250,7 @@ func Test_checkCapabilities(t *testing.T) {
 	}{
 		{
 			name: "an enforcing proxy passes silently without monitor mode",
-			req:  msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+			req:  msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, nil),
 		},
 		{
 			name: "a missing pids limit is silent",
@@ -258,21 +258,21 @@ func Test_checkCapabilities(t *testing.T) {
 		},
 		{
 			name: "missing path rules only warn, naming the layer",
-			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
-				rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+			req: msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, func(agenticRC *rc.AgenticRC) {
+				agenticRC.Run.Proxy.AllowedPaths = []rc.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
 			}),
 			wantWarn: "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them",
 		},
 		{
 			name: "missing proxy integrations only warn, naming the layer",
-			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
-				rc.Run.Proxy.Integrations = []string{"maven"}
+			req: msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true}}, func(agenticRC *rc.AgenticRC) {
+				agenticRC.Run.Proxy.Integrations = []string{"maven"}
 			}),
 			wantWarn: "--runtime microsandbox ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; it can't route those tools through the proxy",
 		},
 		{
 			name:     "missing proxy integrations from the flag warn, naming it",
-			req:      msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}}, nil),
+			req:      msbRequest(Flags{Proxy: precedence.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}}, nil),
 			wantWarn: "--runtime microsandbox ignores --proxy-integration; it can't route those tools through the proxy",
 		},
 		{
@@ -314,39 +314,39 @@ func Test_checkCapabilities(t *testing.T) {
 
 func Test_proxySource(t *testing.T) {
 	enabled := true
-	monitorLayer := config.RCLayer{Path: "/example.test/outer/.agenticrc.toml", RC: &config.AgenticRC{}}
-	monitorLayer.RC.Run.Proxy.Mode = config.ModeMonitor
-	enabledLayer := config.RCLayer{Path: "/example.test/inner/.agenticrc.toml", RC: &config.AgenticRC{}}
+	monitorLayer := rc.RCLayer{Path: "/example.test/outer/.agenticrc.toml", RC: &rc.AgenticRC{}}
+	monitorLayer.RC.Run.Proxy.Mode = rc.ModeMonitor
+	enabledLayer := rc.RCLayer{Path: "/example.test/inner/.agenticrc.toml", RC: &rc.AgenticRC{}}
 	enabledLayer.RC.Run.Proxy.Enabled = &enabled
 
 	for _, tc := range []struct {
 		name   string
-		flags  resolve.ProxyInput
-		rc     config.AgenticRC
-		layers []config.RCLayer
+		flags  precedence.ProxyInput
+		rc     rc.AgenticRC
+		layers []rc.RCLayer
 		want   string
 	}{
 		{
 			name:  "names the monitor flag over the proxy flag",
-			flags: resolve.ProxyInput{ProxyFlag: true, MonitorFlag: true},
+			flags: precedence.ProxyInput{ProxyFlag: true, MonitorFlag: true},
 			want:  "--proxy-monitor",
 		},
 		{
 			name:   "names the monitor mode and its layer",
-			rc:     config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor, Enabled: &enabled}}},
-			layers: []config.RCLayer{monitorLayer, enabledLayer},
+			rc:     rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Mode: rc.ModeMonitor, Enabled: &enabled}}},
+			layers: []rc.RCLayer{monitorLayer, enabledLayer},
 			want:   "[run.proxy] mode in /example.test/outer/.agenticrc.toml",
 		},
 		{
 			name:   "names enabled and its layer",
-			rc:     config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}},
-			layers: []config.RCLayer{enabledLayer},
+			rc:     rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Enabled: &enabled}}},
+			layers: []rc.RCLayer{enabledLayer},
 			want:   "[run.proxy] enabled in /example.test/inner/.agenticrc.toml",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			req := Request{Project: config.Project{RC: &tc.rc, Layers: tc.layers}, Flags: Flags{Proxy: tc.flags}}
+			req := Request{Project: rc.Project{RC: &tc.rc, Layers: tc.layers}, Flags: Flags{Proxy: tc.flags}}
 
 			// Act
 			source := proxySource(req)
@@ -360,9 +360,9 @@ func Test_proxySource(t *testing.T) {
 func Test_dindSource(t *testing.T) {
 	// Arrange
 	enabled := true
-	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+	layer := rc.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &rc.AgenticRC{}}
 	layer.RC.Run.Dind.Enabled = &enabled
-	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
+	req := Request{Project: rc.Project{Layers: []rc.RCLayer{layer}}}
 
 	// Act
 	source := dindSource(req)
@@ -373,8 +373,8 @@ func Test_dindSource(t *testing.T) {
 
 func Test_runtimeSource(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
-	req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
+	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Runtime: "microsandbox"}}
+	req := Request{Project: rc.Project{RC: agenticRC, Layers: []rc.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: agenticRC}}}}
 
 	// Act
 	source := runtimeSource(req)
@@ -384,15 +384,15 @@ func Test_runtimeSource(t *testing.T) {
 }
 
 func Test_layerSource(t *testing.T) {
-	hasCustom := func(rc *config.AgenticRC) bool { return rc.Run.Instructions.Custom != "" }
-	outer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+	hasCustom := func(agenticRC *rc.AgenticRC) bool { return agenticRC.Run.Instructions.Custom != "" }
+	outer := rc.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &rc.AgenticRC{}}
 	outer.RC.Run.Instructions.Custom = "outer"
-	inner := config.RCLayer{Path: "/example.test/project/.agenticrc.toml", RC: &config.AgenticRC{}}
+	inner := rc.RCLayer{Path: "/example.test/project/.agenticrc.toml", RC: &rc.AgenticRC{}}
 	inner.RC.Run.Instructions.Custom = "inner"
 
 	t.Run("the innermost layer setting the key wins", func(t *testing.T) {
 		// Act
-		source := layerSource([]config.RCLayer{outer, inner}, "custom", hasCustom)
+		source := layerSource([]rc.RCLayer{outer, inner}, "custom", hasCustom)
 
 		// Assert
 		assert.Equal(t, "custom in /example.test/project/.agenticrc.toml", source)
@@ -400,10 +400,10 @@ func Test_layerSource(t *testing.T) {
 
 	t.Run("skips layers that don't set the key", func(t *testing.T) {
 		// Arrange
-		unset := config.RCLayer{Path: "/example.test/project/sub/.agenticrc.toml", RC: &config.AgenticRC{}}
+		unset := rc.RCLayer{Path: "/example.test/project/sub/.agenticrc.toml", RC: &rc.AgenticRC{}}
 
 		// Act
-		source := layerSource([]config.RCLayer{outer, unset}, "custom", hasCustom)
+		source := layerSource([]rc.RCLayer{outer, unset}, "custom", hasCustom)
 
 		// Assert
 		assert.Equal(t, "custom in /example.test/.agenticrc.toml", source)

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -177,7 +177,7 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("microsandbox with the agentic backend gets the agentic-proxy runner", func(t *testing.T) {
 		// Act
-		r, err := svc.runner(sandbox.RuntimeMicrosandbox, config.BackendAgentic)
+		r, err := svc.runner(sandbox.RuntimeMicrosandbox, rc.BackendAgentic)
 
 		// Assert
 		require.NoError(t, err)

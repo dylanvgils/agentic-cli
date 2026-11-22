@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
@@ -30,27 +30,27 @@ func checkProxyTrust(target Target, info *docker.ImageInfo) error {
 }
 
 // resolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
-func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
-	rc, err := config.Merge(layers)
+func resolveCredentials(layers []rc.RCLayer, toolHome string) ([]credentials.Resolved, error) {
+	agenticRC, err := rc.Merge(layers)
 	if err != nil {
 		return nil, err
 	}
-	if len(rc.Run.Proxy.Credentials) == 0 {
+	if len(agenticRC.Run.Proxy.Credentials) == 0 {
 		return nil, nil
 	}
 
 	// Checked here too, so no caller can read a secret the user hasn't approved
-	state, err := config.LoadState(toolHome)
+	state, err := rc.LoadState(toolHome)
 	if err != nil {
 		return nil, fmt.Errorf("load credential approvals: %w", err)
 	}
 	for _, layer := range layers {
-		if slices.ContainsFunc(state.ChangedSettings(layer), func(s config.GuardedSetting) bool { return s.Key == config.CredentialsSetting }) {
+		if slices.ContainsFunc(state.ChangedSettings(layer), func(s rc.GuardedSetting) bool { return s.Key == rc.CredentialsSetting }) {
 			return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", layer.Path)
 		}
 	}
 
-	return credentials.Resolve(rc.Run.Proxy.Credentials)
+	return credentials.Resolve(agenticRC.Run.Proxy.Credentials)
 }
 
 // credentialSetup checks c's credentials against the run; the runtime sets the placeholders itself. A no-op without

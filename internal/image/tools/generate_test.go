@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +68,7 @@ func Test_composeStages(t *testing.T) {
 
 	t.Run("custom installs stage inserted after extras before tool", func(t *testing.T) {
 		// Arrange
-		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
+		opts := BuildOptions{CustomInstalls: []rc.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
 
 		// Act
 		stages, err := composeStages("claude", []string{"java"}, opts)
@@ -86,7 +86,7 @@ func Test_composeStages(t *testing.T) {
 
 	t.Run("custom installs stage inserted directly after base when no extras", func(t *testing.T) {
 		// Arrange
-		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
+		opts := BuildOptions{CustomInstalls: []rc.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
 
 		// Act
 		stages, err := composeStages("claude", nil, opts)

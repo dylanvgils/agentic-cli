@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -18,7 +18,7 @@ import (
 func Test_resolveCredentials(t *testing.T) {
 	t.Run("no credentials resolves nothing", func(t *testing.T) {
 		// Arrange
-		layers := []config.RCLayer{{Path: "/example/.agenticrc.toml", RC: &config.AgenticRC{}}}
+		layers := []rc.RCLayer{{Path: "/example/.agenticrc.toml", RC: &rc.AgenticRC{}}}
 
 		// Act
 		resolved, err := resolveCredentials(layers, t.TempDir())
@@ -33,7 +33,7 @@ func Test_resolveCredentials(t *testing.T) {
 		layer := credentialLayer(t, "/missing/secret")
 
 		// Act
-		_, err := resolveCredentials([]config.RCLayer{layer}, t.TempDir())
+		_, err := resolveCredentials([]rc.RCLayer{layer}, t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "not approved")
@@ -48,7 +48,7 @@ func Test_resolveCredentials(t *testing.T) {
 		approveSettings(t, layer, toolHome)
 
 		// Act
-		resolved, err := resolveCredentials([]config.RCLayer{layer}, toolHome)
+		resolved, err := resolveCredentials([]rc.RCLayer{layer}, toolHome)
 
 		// Assert
 		require.NoError(t, err)

@@ -1,5 +1,5 @@
-// Package config provides project configuration loaded from .agenticrc.toml files.
-package config
+// Package rc provides project configuration loaded from .agenticrc.toml files.
+package rc
 
 import (
 	"fmt"

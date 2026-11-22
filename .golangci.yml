@@ -22,7 +22,7 @@ linters:
             - "!$test"
           allow:
             - $gostd
-            - github.com/dylanvgils/agentic-cli/internal/config
+            - github.com/dylanvgils/agentic-cli/internal/config/rc
             - github.com/dylanvgils/agentic-cli/internal/infra
             - github.com/dylanvgils/agentic-cli/internal/network/certs
             - golang.org/x/sys/unix
@@ -187,15 +187,14 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
               desc: runtime/microsandbox never imports runtime/docker
-        # usecases get other usecases injected; only resolve (pure precedence funcs) and migrate's own migrations are
-        # imported. The longer allow entries win over the deny prefix.
+        # usecases get other usecases injected; only migrate's own migrations are imported. The longer allow entry wins
+        # over the deny prefix.
         usecase-imports:
           list-mode: lax
           files:
             - "**/internal/usecase/**"
             - "!$test"
           allow:
-            - github.com/dylanvgils/agentic-cli/internal/usecase/resolve
             - github.com/dylanvgils/agentic-cli/internal/usecase/migrate/migrations
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/usecase

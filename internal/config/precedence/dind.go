@@ -1,7 +1,7 @@
-package resolve
+package precedence
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -12,7 +12,7 @@ type DindInput struct {
 }
 
 // DindEnabled resolves whether the Docker sidecar runs: --no-dind, then --dind, then config, default off.
-func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
+func DindEnabled(in DindInput, agenticRC *rc.AgenticRC) bool {
 	if in.NoDindFlag {
 		return false
 	}
@@ -20,10 +20,10 @@ func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
 		return true
 	}
 
-	return rc.Run.Dind.Enabled != nil && *rc.Run.Dind.Enabled
+	return agenticRC.Run.Dind.Enabled != nil && *agenticRC.Run.Dind.Enabled
 }
 
 // DindResourceLimitsFor resolves each sidecar limit: flag, then [run.dind], then the tool's limit.
-func DindResourceLimitsFor(flags sandbox.ResourceLimits, rc *config.AgenticRC, tool sandbox.ResourceLimits) sandbox.ResourceLimits {
-	return flags.Or(sandbox.ResourceLimits(rc.Run.Dind.RCLimits)).Or(tool)
+func DindResourceLimitsFor(flags sandbox.ResourceLimits, agenticRC *rc.AgenticRC, tool sandbox.ResourceLimits) sandbox.ResourceLimits {
+	return flags.Or(sandbox.ResourceLimits(agenticRC.Run.Dind.RCLimits)).Or(tool)
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -19,14 +19,14 @@ func Test_printGlobalConfig(t *testing.T) {
 
 	for _, tc := range []struct {
 		name  string
-		cfg   *config.CliConfig
-		state *config.State
+		cfg   *rc.CliConfig
+		state *rc.State
 		want  string
 	}{
 		{
 			name:  "empty config",
-			cfg:   &config.CliConfig{},
-			state: &config.State{},
+			cfg:   &rc.CliConfig{},
+			state: &rc.State{},
 			want: "Global (" + configFile + ")\n" +
 				"  registry: (not set)\n" +
 				"  docker_context: (not set)\n" +
@@ -34,8 +34,8 @@ func Test_printGlobalConfig(t *testing.T) {
 		},
 		{
 			name:  "every setting set",
-			cfg:   &config.CliConfig{Registry: "myregistry.example.com", DockerContext: "prod"},
-			state: &config.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}},
+			cfg:   &rc.CliConfig{Registry: "myregistry.example.com", DockerContext: "prod"},
+			state: &rc.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}},
 			want: "Global (" + configFile + ")\n" +
 				"  registry: myregistry.example.com\n" +
 				"  docker_context: prod\n" +
@@ -72,7 +72,7 @@ func Test_printProjectConfig(t *testing.T) {
 	t.Run("groups keys under table headers", func(t *testing.T) {
 		// Arrange
 		buf := iostreamstest.StubOut(t)
-		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
+		layers := []rc.RCLayer{{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{}}}
 
 		// Act
 		printProjectConfig(layers)
@@ -120,9 +120,9 @@ func Test_printProjectConfig(t *testing.T) {
 	t.Run("multi layers name the file count", func(t *testing.T) {
 		// Arrange
 		buf := iostreamstest.StubOut(t)
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
+		layers := []rc.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &rc.AgenticRC{}},
+			{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{}},
 		}
 
 		// Act
@@ -136,11 +136,11 @@ func Test_printProjectConfig(t *testing.T) {
 func Test_projectSections(t *testing.T) {
 	t.Run("dind limits inherit tool values unless set", func(t *testing.T) {
 		// Arrange
-		layers := []config.RCLayer{{
+		layers := []rc.RCLayer{{
 			Path: "/project/.agenticrc.toml",
-			RC: &config.AgenticRC{Run: config.RCRun{
-				RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"},
-				Dind:     config.RCDind{RCLimits: config.RCLimits{Memory: "16g"}},
+			RC: &rc.AgenticRC{Run: rc.RCRun{
+				RCLimits: rc.RCLimits{CPUs: "8", PidsLimit: "100"},
+				Dind:     rc.RCDind{RCLimits: rc.RCLimits{Memory: "16g"}},
 			}},
 		}}
 
@@ -160,9 +160,9 @@ func Test_projectSections(t *testing.T) {
 
 	t.Run("bases show the innermost version", func(t *testing.T) {
 		// Arrange
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java", "go"}, Versions: map[string]string{"java": "11"}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}},
+		layers := []rc.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java", "go"}, Versions: map[string]string{"java": "11"}}}},
+			{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{Build: rc.RCBuild{Versions: map[string]string{"java": "17"}}}},
 		}
 
 		// Act
@@ -180,23 +180,23 @@ func Test_projectSections(t *testing.T) {
 func Test_proxyEnabledDefault(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		outer config.RCProxy
-		inner config.RCProxy
+		outer rc.RCProxy
+		inner rc.RCProxy
 		want  bool
 	}{
 		{name: "off without monitor mode or credentials"},
-		{name: "on when the innermost mode is monitor", outer: config.RCProxy{Mode: config.ModeEnforce}, inner: config.RCProxy{Mode: config.ModeMonitor}, want: true},
+		{name: "on when the innermost mode is monitor", outer: rc.RCProxy{Mode: rc.ModeEnforce}, inner: rc.RCProxy{Mode: rc.ModeMonitor}, want: true},
 		{
 			name:  "on when any layer has credentials",
-			outer: config.RCProxy{Credentials: []config.RCCredential{{Preset: "github", Secret: "~/.config/test-secret"}}},
+			outer: rc.RCProxy{Credentials: []rc.RCCredential{{Preset: "github", Secret: "~/.config/test-secret"}}},
 			want:  true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			layers := []config.RCLayer{
-				{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: tc.outer}}},
-				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: tc.inner}}},
+			layers := []rc.RCLayer{
+				{Path: "/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Proxy: tc.outer}}},
+				{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Proxy: tc.inner}}},
 			}
 
 			// Act
@@ -209,7 +209,7 @@ func Test_proxyEnabledDefault(t *testing.T) {
 }
 
 func Test_scalarField(t *testing.T) {
-	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
+	namespace := func(agenticRC *rc.AgenticRC) string { return agenticRC.Namespace }
 
 	for _, tc := range []struct {
 		name  string
@@ -230,9 +230,9 @@ func Test_scalarField(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			layers := []config.RCLayer{
-				{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: tc.outer}},
-				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Namespace: tc.inner}},
+			layers := []rc.RCLayer{
+				{Path: "/home/.agenticrc.toml", RC: &rc.AgenticRC{Namespace: tc.outer}},
+				{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{Namespace: tc.inner}},
 			}
 
 			// Act
@@ -245,25 +245,25 @@ func Test_scalarField(t *testing.T) {
 }
 
 func Test_boolField(t *testing.T) {
-	enabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+	enabled := func(agenticRC *rc.AgenticRC) *bool { return agenticRC.Run.Proxy.Enabled }
 	on, off := true, false
 
 	for _, tc := range []struct {
 		name   string
-		layers []config.RCLayer
+		layers []rc.RCLayer
 		want   field
 	}{
 		{
 			name: "innermost layer that sets it wins",
-			layers: []config.RCLayer{
-				{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &on}}}},
-				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &off}}}},
+			layers: []rc.RCLayer{
+				{Path: "/home/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Enabled: &on}}}},
+				{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Enabled: &off}}}},
 			},
 			want: field{key: "enabled", entries: []entry{{value: "false", source: "/project/.agenticrc.toml"}}},
 		},
 		{
 			name:   "default when no layer sets it",
-			layers: []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}},
+			layers: []rc.RCLayer{{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{}}},
 			want:   field{key: "enabled", entries: []entry{{value: "true"}}},
 		},
 	} {
@@ -279,11 +279,11 @@ func Test_boolField(t *testing.T) {
 
 func Test_listField(t *testing.T) {
 	// Arrange
-	layers := []config.RCLayer{
-		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Mounts: []string{"a:/a"}}}},
-		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Mounts: []string{"b:/b"}}}},
+	layers := []rc.RCLayer{
+		{Path: "/home/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Mounts: []string{"a:/a"}}}},
+		{Path: "/project/.agenticrc.toml", RC: &rc.AgenticRC{Run: rc.RCRun{Mounts: []string{"b:/b"}}}},
 	}
-	mounts := func(rc *config.AgenticRC) []string { return rc.Run.Mounts }
+	mounts := func(agenticRC *rc.AgenticRC) []string { return agenticRC.Run.Mounts }
 
 	// Act
 	f := listField(layers, "mounts", mounts)
@@ -374,11 +374,11 @@ func Test_writeField(t *testing.T) {
 
 func Test_customInstallNames(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{}
-	rc.Build.CustomInstalls = []config.RCCustomInstall{{Name: "golangci-lint"}, {Name: "terraform"}}
+	agenticRC := &rc.AgenticRC{}
+	agenticRC.Build.CustomInstalls = []rc.RCCustomInstall{{Name: "golangci-lint"}, {Name: "terraform"}}
 
 	// Act
-	result := customInstallNames(rc)
+	result := customInstallNames(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
@@ -386,10 +386,10 @@ func Test_customInstallNames(t *testing.T) {
 
 func Test_envKeys(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Run: config.RCRun{Env: []string{"TOKEN=test-secret", "HOME_DIR"}}}
+	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Env: []string{"TOKEN=test-secret", "HOME_DIR"}}}
 
 	// Act
-	result := envKeys(rc)
+	result := envKeys(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{"TOKEN", "HOME_DIR"}, result)
@@ -397,13 +397,13 @@ func Test_envKeys(t *testing.T) {
 
 func Test_toolArgs(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{
+	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Args: map[string][]string{
 		"copilot": {"--disable-client-telemetry", "--example"},
 		"claude":  {"--verbose"},
 	}}}
 
 	// Act
-	result := toolArgs(rc)
+	result := toolArgs(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{"claude: --verbose", "copilot: --disable-client-telemetry --example"}, result)
@@ -411,12 +411,12 @@ func Test_toolArgs(t *testing.T) {
 
 func Test_allowedPaths(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{AllowedPaths: []rc.RCAllowedPath{
 		{Host: "raw.example.test", Paths: []string{"/org/repo/**", "/org/*/README.md"}},
 	}}}}
 
 	// Act
-	result := allowedPaths(rc)
+	result := allowedPaths(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{"raw.example.test /org/repo/**, /org/*/README.md"}, result)
@@ -424,13 +424,13 @@ func Test_allowedPaths(t *testing.T) {
 
 func Test_credentialNames(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: []config.RCCredential{
+	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Credentials: []rc.RCCredential{
 		{Preset: "anthropic", Secret: "~/.secrets/a"},
 		{Hosts: []string{"api.example.test", "upload.example.test"}, Header: "Authorization", Secret: "~/.secrets/b"},
 	}}}}
 
 	// Act
-	result := credentialNames(rc)
+	result := credentialNames(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{"anthropic", "api.example.test, upload.example.test"}, result)
@@ -438,13 +438,13 @@ func Test_credentialNames(t *testing.T) {
 
 func Test_marketplaceNames(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{
+	agenticRC := &rc.AgenticRC{Marketplaces: []rc.RCMarketplace{
 		{Name: "acme", URL: "https://git.example.test/acme.git"},
 		{Name: "team", URL: "https://git.example.test/team.git", Tools: []string{"claude", "copilot"}},
 	}}
 
 	// Act
-	result := marketplaceNames(rc)
+	result := marketplaceNames(agenticRC)
 
 	// Assert
 	assert.Equal(t, []string{
@@ -475,10 +475,10 @@ func Test_customInstructions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: tc.custom}}}
+			agenticRC := &rc.AgenticRC{Run: rc.RCRun{Instructions: rc.RCInstructions{Custom: tc.custom}}}
 
 			// Act
-			result := customInstructions(rc)
+			result := customInstructions(agenticRC)
 
 			// Assert
 			assert.Equal(t, tc.want, result)

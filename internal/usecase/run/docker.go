@@ -3,10 +3,10 @@ package run
 import (
 	"fmt"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // dockerEngineName is the engine component Docker Engine reports; others, like Podman, name themselves.
@@ -34,7 +34,7 @@ func (r dockerRunner) Check(req Request) error {
 		logging.Warnf("%s is ignored: Docker always uses agentic-proxy", proxyBackendSource(req))
 	}
 
-	if resolve.DindEnabled(req.Flags.Dind, req.Project.RC) {
+	if precedence.DindEnabled(req.Flags.Dind, req.Project.RC) {
 		if err := r.requireDockerLayer(req); err != nil {
 			return err
 		}

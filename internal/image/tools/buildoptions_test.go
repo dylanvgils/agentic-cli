@@ -1,25 +1,24 @@
-package resolve
+package tools
 
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_bases(t *testing.T) {
-	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java"}}}
 
 	for _, tc := range []struct {
 		name  string
 		flags []string
-		rc    *config.AgenticRC
+		rc    *rc.AgenticRC
 		want  []string
 	}{
-		{name: "rc bases are included", rc: rc, want: []string{"java"}},
-		{name: "flag appends to rc bases in canonical order", flags: []string{"dotnet"}, rc: rc, want: []string{"dotnet", "java"}},
-		{name: "empty when no sources set", rc: &config.AgenticRC{}, want: []string{}},
+		{name: "rc bases are included", rc: agenticRC, want: []string{"java"}},
+		{name: "flag appends to rc bases in canonical order", flags: []string{"dotnet"}, rc: agenticRC, want: []string{"dotnet", "java"}},
+		{name: "empty when no sources set", rc: &rc.AgenticRC{}, want: []string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
@@ -40,18 +39,18 @@ func Test_basesExact(t *testing.T) {
 }
 
 func Test_versions(t *testing.T) {
-	rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
+	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Versions: map[string]string{"java": "17"}}}
 
 	for _, tc := range []struct {
 		name  string
 		flags map[string]string
-		rc    *config.AgenticRC
+		rc    *rc.AgenticRC
 		want  map[string]string
 	}{
-		{name: "rc versions used as defaults", rc: rc, want: map[string]string{"java": "17"}},
-		{name: "flag overrides rc version", flags: map[string]string{"java": "21"}, rc: rc, want: map[string]string{"java": "21"}},
-		{name: "empty flag value keeps rc version", flags: map[string]string{"java": ""}, rc: rc, want: map[string]string{"java": "17"}},
-		{name: "empty when no sources set", rc: &config.AgenticRC{}, want: map[string]string{}},
+		{name: "rc versions used as defaults", rc: agenticRC, want: map[string]string{"java": "17"}},
+		{name: "flag overrides rc version", flags: map[string]string{"java": "21"}, rc: agenticRC, want: map[string]string{"java": "21"}},
+		{name: "empty flag value keeps rc version", flags: map[string]string{"java": ""}, rc: agenticRC, want: map[string]string{"java": "17"}},
+		{name: "empty when no sources set", rc: &rc.AgenticRC{}, want: map[string]string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
@@ -64,17 +63,17 @@ func Test_versions(t *testing.T) {
 }
 
 func Test_aptPackages(t *testing.T) {
-	rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{AptPackages: []string{"make"}}}
 
 	for _, tc := range []struct {
 		name  string
 		flags []string
-		rc    *config.AgenticRC
+		rc    *rc.AgenticRC
 		want  []string
 	}{
-		{name: "rc packages are included", rc: rc, want: []string{"make"}},
-		{name: "flag appends to config packages", flags: []string{"gcc"}, rc: rc, want: []string{"make", "gcc"}},
-		{name: "empty when no sources set", rc: &config.AgenticRC{}},
+		{name: "rc packages are included", rc: agenticRC, want: []string{"make"}},
+		{name: "flag appends to config packages", flags: []string{"gcc"}, rc: agenticRC, want: []string{"make", "gcc"}},
+		{name: "empty when no sources set", rc: &rc.AgenticRC{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
@@ -94,16 +93,16 @@ func Test_aptPackagesExact(t *testing.T) {
 	assert.Equal(t, []string{"make", "gcc"}, result)
 }
 
-func TestBuildOptions(t *testing.T) {
+func TestBuildOptionsFor(t *testing.T) {
 	t.Run("merges the flags with rc", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{
+		agenticRC := &rc.AgenticRC{Build: rc.RCBuild{
 			Bases:          []string{"java"},
 			AptPackages:    []string{"jq"},
 			Versions:       map[string]string{"java": "17"},
-			CustomInstalls: []config.RCCustomInstall{{Name: "foo"}},
+			CustomInstalls: []rc.RCCustomInstall{{Name: "foo"}},
 		}}
-		in := BuildInput{
+		in := BuildFlags{
 			Bases:               []string{"dotnet"},
 			VersionOverrides:    map[string]string{"node": "24"},
 			AptPackages:         []string{"make"},
@@ -114,10 +113,10 @@ func TestBuildOptions(t *testing.T) {
 		}
 
 		// Act
-		opts := BuildOptions(in, rc)
+		opts := BuildOptionsFor(in, agenticRC)
 
 		// Assert
-		assert.Equal(t, tools.BuildOptions{
+		assert.Equal(t, BuildOptions{
 			BaseOverride:        []string{"dotnet", "java"},
 			Versions:            map[string]string{"java": "17", "node": "24"},
 			AptPackages:         []string{"jq", "make"},
@@ -125,12 +124,12 @@ func TestBuildOptions(t *testing.T) {
 			NoCache:             true,
 			Pull:                true,
 			Registry:            "registry.example.test",
-			CustomInstalls:      rc.Build.CustomInstalls,
+			CustomInstalls:      agenticRC.Build.CustomInstalls,
 			SkipInstallChecksum: true,
 		}, opts)
 	})
 
-	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, AptPackages: []string{"make"}}}
+	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java"}, AptPackages: []string{"make"}}}
 
 	for _, tc := range []struct {
 		name       string
@@ -146,7 +145,7 @@ func TestBuildOptions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			var in BuildInput
+			var in BuildFlags
 			if tc.basesExact != nil {
 				in.BasesExact = &tc.basesExact
 			}
@@ -155,7 +154,7 @@ func TestBuildOptions(t *testing.T) {
 			}
 
 			// Act
-			opts := BuildOptions(in, rc)
+			opts := BuildOptionsFor(in, agenticRC)
 
 			// Assert
 			assert.ElementsMatch(t, tc.wantBases, opts.BaseOverride)
@@ -167,12 +166,12 @@ func TestBuildOptions(t *testing.T) {
 	}
 }
 
-func TestUpdateOptions(t *testing.T) {
-	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
+func TestUpdateOptionsFor(t *testing.T) {
+	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
 
 	t.Run("config bases and apt are dropped without a flag", func(t *testing.T) {
 		// Act
-		opts := UpdateOptions(BuildInput{}, false, false, rc)
+		opts := UpdateOptionsFor(BuildFlags{}, false, false, agenticRC)
 
 		// Assert - the image keeps what it was built with
 		assert.Nil(t, opts.BaseOverride)
@@ -181,10 +180,10 @@ func TestUpdateOptions(t *testing.T) {
 
 	t.Run("config versions are dropped, flag versions kept", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17", "node": "22"}}}
+		agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Versions: map[string]string{"java": "17", "node": "22"}}}
 
 		// Act
-		opts := UpdateOptions(BuildInput{VersionOverrides: map[string]string{"node": "24"}}, false, false, rc)
+		opts := UpdateOptionsFor(BuildFlags{VersionOverrides: map[string]string{"node": "24"}}, false, false, agenticRC)
 
 		// Assert
 		assert.Equal(t, map[string]string{"node": "24"}, opts.Versions)
@@ -192,7 +191,7 @@ func TestUpdateOptions(t *testing.T) {
 
 	t.Run("a set but empty flag keeps the config values", func(t *testing.T) {
 		// Act
-		opts := UpdateOptions(BuildInput{}, true, true, rc)
+		opts := UpdateOptionsFor(BuildFlags{}, true, true, agenticRC)
 
 		// Assert
 		assert.Equal(t, []string{"java"}, opts.BaseOverride)

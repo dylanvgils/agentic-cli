@@ -2,7 +2,7 @@
 package clean
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -233,7 +233,7 @@ func (s *Service) pruneCustomInstalls(before map[string]bool) {
 
 	for hash := range before {
 		if !after[hash] {
-			_ = config.RemoveCustomInstalls(s.home, hash)
+			_ = rc.RemoveCustomInstalls(s.home, hash)
 		}
 	}
 }
