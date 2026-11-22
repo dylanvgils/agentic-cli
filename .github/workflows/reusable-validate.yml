@@ -111,8 +111,19 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
 
+  # Only the smokePackages (test/integration/platform/setup.go) need every image; a new test/integration package goes in features
   integration:
+    name: integration (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: smoke
+            pkgs: images microsandbox
+            build-cache: true
+          - name: features
+            pkgs: container egress lifecycle network proxy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -121,5 +132,18 @@ jobs:
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-msb
 
+      - name: Expose the Actions cache to BuildKit
+        if: matrix.build-cache
+        uses: ./.github/actions/expose-actions-runtime
+
+      # The gha cache needs a container builder; default-load still loads the built images into the daemon. Not in features,
+      # whose DinD runs build FROM a local image a container builder can't see
+      - name: Set up the cache builder
+        if: matrix.build-cache
+        run: docker buildx create --use --driver docker-container --driver-opt default-load=true
+
       - name: Integration tests
-        run: make test-integration MSB=1
+        env:
+          # Only main writes the cache; PRs read it, so their copies can't evict it
+          AGENTIC_ITEST_BUILD_CACHE: ${{ matrix.build-cache && (github.ref == 'refs/heads/main' && 'write' || 'read') || '' }}
+        run: make test-integration MSB=1 PKGS="${{ matrix.pkgs }}"

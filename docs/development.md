@@ -82,6 +82,8 @@ go test ./internal/usecase/run -run Test_Service_buildInstructions -update
 
 Integration tests build the binary and the images their packages need (slow the first time, cached after), then drive `agentic` like a user would. They skip without Docker, without msb for the microsandbox runs unless `MSB=1`, and without direct internet access for the few that reach a public host (`platform.SkipWithoutInternet`). This repo's `.agenticrc.toml` enables DinD, so they also run inside an agentic container.
 
+CI's smoke job sets `AGENTIC_ITEST_BUILD_CACHE` (`read`, or `write` on `main`) so the tool image builds reuse the GitHub Actions build cache, scoped per ISO week, and then `agentic update` the tools.
+
 `make test-integration` runs the packages in parallel, prints the failures at the end and removes what the run left behind, outside CI also the test images. For one package's live log:
 
 ```bash

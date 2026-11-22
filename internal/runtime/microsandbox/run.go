@@ -170,9 +170,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 	if route == nil {
 		args = append(args, buildCredentialArgs(rs)...)
 	} else {
-		for _, entry := range route.Env {
-			args = append(args, arg("env", entry))
-		}
+		args = append(args, sandbox.RepeatArg("env", route.Env)...)
 	}
 	args = append(args, networkArgs...)
 	args = append(args, buildPortArgs(rs)...)

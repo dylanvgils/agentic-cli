@@ -43,6 +43,14 @@ func TestArg(t *testing.T) {
 	}
 }
 
+func TestRepeatArg(t *testing.T) {
+	// Act
+	result := RepeatArg("env", []string{"A=1", "B=2"})
+
+	// Assert
+	assert.Equal(t, []string{"--env=A=1", "--env=B=2"}, result)
+}
+
 func TestPrintDryRun(t *testing.T) {
 	// Arrange
 	logs := iostreamstest.StubErr(t)

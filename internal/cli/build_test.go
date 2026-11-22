@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -21,6 +22,12 @@ func Test_runBuild(t *testing.T) {
 		{flag: "no-cache", value: "true", want: func(o tools.BuildOptions) bool { return o.NoCache }},
 		{flag: "skip-install-checksum", value: "true", want: func(o tools.BuildOptions) bool { return o.SkipInstallChecksum }},
 		{flag: "pull", value: "true", want: func(o tools.BuildOptions) bool { return o.Pull }},
+		{flag: "cache-from", value: "type=local,src=/cache", want: func(o tools.BuildOptions) bool {
+			return slices.Equal(o.CacheFrom, []string{"type=local,src=/cache"})
+		}},
+		{flag: "cache-to", value: "type=local,dest=/cache", want: func(o tools.BuildOptions) bool {
+			return slices.Equal(o.CacheTo, []string{"type=local,dest=/cache"})
+		}},
 		{flag: "node", value: "22", want: func(o tools.BuildOptions) bool { return o.Versions["node"] == "22" }},
 	} {
 		t.Run(tc.flag+" flag sets opt", func(t *testing.T) {

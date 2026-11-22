@@ -108,6 +108,8 @@ func TestBuildOptionsFor(t *testing.T) {
 			AptPackages:         []string{"make"},
 			NoCache:             true,
 			Pull:                true,
+			CacheFrom:           []string{"type=local,src=/cache"},
+			CacheTo:             []string{"type=local,dest=/cache"},
 			Registry:            "registry.example.test",
 			SkipInstallChecksum: true,
 		}
@@ -123,6 +125,8 @@ func TestBuildOptionsFor(t *testing.T) {
 			VerifyApt:           true,
 			NoCache:             true,
 			Pull:                true,
+			CacheFrom:           []string{"type=local,src=/cache"},
+			CacheTo:             []string{"type=local,dest=/cache"},
 			Registry:            "registry.example.test",
 			CustomInstalls:      agenticRC.Build.CustomInstalls,
 			SkipInstallChecksum: true,

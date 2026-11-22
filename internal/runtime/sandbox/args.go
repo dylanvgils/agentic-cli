@@ -56,6 +56,15 @@ func Arg(name string, value ...string) string {
 	return "--" + name + "=" + value[0]
 }
 
+// RepeatArg builds a --name=value CLI flag per value, for a flag the command takes several times.
+func RepeatArg(name string, values []string) []string {
+	flags := make([]string, 0, len(values))
+	for _, value := range values {
+		flags = append(flags, Arg(name, value))
+	}
+	return flags
+}
+
 // PrintDryRun prints a dry-run command to stdout, labelled and set apart by agentic lines on stderr so stdout stays runnable.
 func PrintDryRun(label, name string, args []string) {
 	PrintDryRunText(label, hostShell().command(name, args))
