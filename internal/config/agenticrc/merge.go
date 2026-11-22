@@ -1,12 +1,12 @@
-package rc
+package agenticrc
 
 import "fmt"
 
-// Merge combines layers ordered outermost-to-innermost, as returned by FindLayers, the same way FindAndLoad does.
-func Merge(layers []RCLayer) (*AgenticRC, error) {
-	configs := make([]*AgenticRC, 0, len(layers))
+// merge combines layers ordered outermost-to-innermost, as returned by findLayers.
+func merge(layers []Layer) (*Config, error) {
+	configs := make([]*Config, 0, len(layers))
 	for i := len(layers) - 1; i >= 0; i-- {
-		configs = append(configs, layers[i].RC)
+		configs = append(configs, layers[i].Config)
 	}
 
 	merged := mergeConfigs(configs)
@@ -17,8 +17,8 @@ func Merge(layers []RCLayer) (*AgenticRC, error) {
 	return merged, nil
 }
 
-func mergeConfigs(configs []*AgenticRC) *AgenticRC {
-	result := &AgenticRC{}
+func mergeConfigs(configs []*Config) *Config {
+	result := &Config{}
 	result.Build.Versions = make(map[string]string)
 	result.Run.Args = make(map[string][]string)
 
@@ -34,19 +34,19 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 }
 
 // mergeScalars fills result's unset scalars and versions from rc, so the first layer that sets one wins.
-func mergeScalars(result, rc *AgenticRC) {
+func mergeScalars(result, rc *Config) {
 	resRun := &result.Run
 	run := rc.Run
 
 	fillUnset(&result.Namespace, rc.Namespace)
 	fillUnset(&result.DockerContext, rc.DockerContext)
-	resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
+	resRun.Limits = mergeLimits(resRun.Limits, run.Limits)
 	fillUnset(&resRun.Runtime, run.Runtime)
 	fillUnset(&resRun.Proxy.Enabled, run.Proxy.Enabled)
 	fillUnset(&resRun.Proxy.Mode, run.Proxy.Mode)
 	fillUnset(&resRun.Proxy.Backend, run.Proxy.Backend)
 	fillUnset(&resRun.Dind.Enabled, run.Dind.Enabled)
-	resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
+	resRun.Dind.Limits = mergeLimits(resRun.Dind.Limits, run.Dind.Limits)
 	fillUnset(&resRun.Instructions.Enabled, run.Instructions.Enabled)
 	fillUnset(&resRun.CheckUpdates, run.CheckUpdates)
 
@@ -59,7 +59,7 @@ func mergeScalars(result, rc *AgenticRC) {
 }
 
 // appendLists appends rc's lists and custom instructions to result's.
-func appendLists(result, rc *AgenticRC) {
+func appendLists(result, rc *Config) {
 	resRun := &result.Run
 	resBuild := &result.Build
 	run := rc.Run
@@ -94,7 +94,7 @@ func appendInstructions(existing, next string) string {
 }
 
 // mergeLimits returns limits with each empty value filled from parent.
-func mergeLimits(limits, parent RCLimits) RCLimits {
+func mergeLimits(limits, parent Limits) Limits {
 	fillUnset(&limits.PidsLimit, parent.PidsLimit)
 	fillUnset(&limits.CPUs, parent.CPUs)
 	fillUnset(&limits.Memory, parent.Memory)

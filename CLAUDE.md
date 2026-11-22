@@ -28,10 +28,11 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Within a layer:
   - `runtime/dind` (sidecar files) never imports `runtime/docker`; the sidecar's container lifecycle lives in `runtime/docker/dind.go`.
   - `runtime/docker` and `runtime/microsandbox` never import each other.
+  - Config, lowest first: `config/agenticrc` (`.agenticrc.toml`) < `config/agentichome` (`$AGENTIC_HOME` files) < `config/precedence`.
   - Usecases import no other usecase (only `migrate` its own `migrate/migrations`); they get others injected through `deps.go`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
-  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config/rc`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
+  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
   - All settings, listen address included, come from `AGENTIC_PROXY_*` env vars.
   - `cmd/proxy/main_test.go` keeps the CLI's packages out transitively.
 - `depguard` in `.golangci.yml` enforces all of the above except `network/certs`: `layer-*` rules for the layers, one rule per package rule, strict allowlists for the proxy. A new layer or package rule needs a rule there too.
@@ -41,7 +42,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - The tool container keeps `--read-only`, `--cap-drop=ALL`, `no-new-privileges`, the host uid/gid and an isolated network (`internal/runtime/docker/runargs.go`). Need writes? Add a targeted ephemeral dir or volume.
 - Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
 - With the proxy enabled (`RunSpec.Egress.Mode` not off), the tool's network is `--internal`, so the proxy is its only way out.
-- A new `.agenticrc.toml` key goes in `GuardedSettings` if it reaches past the container, else in the unguarded list of `TestGuardedSettings`. A run reads config only through the `approvedConfig` that `checkSettings` returns.
+- A new `.agenticrc.toml` key goes in `agenticrc.Config.GuardedSettings` if it reaches past the container, else in the unguarded list of `TestConfig_GuardedSettings`. A run reads config only through the `approvedConfig` that `checkSettings` returns.
 - Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`); never add mounts to the `RunSpec` around it. `RunSpec.Mounts` are typed `sandbox.Mount`s, parsed once from the `-v` syntax by `sandbox.ParseMount` (`ParseUserMount` for user mounts); runtimes only render them. `run.Service.Apply` refuses a `RunSpec` that needs a capability the runtime lacks; each runner rechecks the mounts right before a process that mounts them starts, nowhere else.
 
 ## Architecture

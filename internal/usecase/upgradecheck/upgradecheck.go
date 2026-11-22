@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
@@ -45,7 +45,7 @@ func (s *Service) Check(home string, confirm Confirm) (updated bool, err error) 
 
 // fetchUpdateIfDue fetches the latest version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
 func (s *Service) fetchUpdateIfDue(home string) (string, bool) {
-	state, err := rc.LoadState(home)
+	state, err := agentichome.LoadState(home)
 	if err != nil {
 		return "", false
 	}

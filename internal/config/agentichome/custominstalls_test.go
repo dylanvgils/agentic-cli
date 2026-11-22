@@ -1,16 +1,17 @@
-package rc
+package agentichome
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCustomInstallsHash(t *testing.T) {
-	helm := RCCustomInstall{Name: "helm", Run: []string{"echo helm"}}
+	helm := agenticrc.CustomInstall{Name: "helm", Run: []string{"echo helm"}}
 
 	t.Run("no installs has no hash", func(t *testing.T) {
 		// Act
@@ -22,8 +23,8 @@ func TestCustomInstallsHash(t *testing.T) {
 
 	t.Run("same installs hash the same", func(t *testing.T) {
 		// Act
-		first := CustomInstallsHash([]RCCustomInstall{helm})
-		second := CustomInstallsHash([]RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}})
+		first := CustomInstallsHash([]agenticrc.CustomInstall{helm})
+		second := CustomInstallsHash([]agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}})
 
 		// Assert
 		assert.Len(t, first, 64)
@@ -32,8 +33,8 @@ func TestCustomInstallsHash(t *testing.T) {
 
 	t.Run("changed run commands change the hash", func(t *testing.T) {
 		// Act
-		before := CustomInstallsHash([]RCCustomInstall{helm})
-		after := CustomInstallsHash([]RCCustomInstall{{Name: "helm", Run: []string{"echo other"}}})
+		before := CustomInstallsHash([]agenticrc.CustomInstall{helm})
+		after := CustomInstallsHash([]agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo other"}}})
 
 		// Assert
 		assert.NotEqual(t, before, after)
@@ -44,7 +45,7 @@ func TestSaveCustomInstalls(t *testing.T) {
 	t.Run("writes installs under their hash", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		installs := []RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		installs := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
 		// Act
 		err := SaveCustomInstalls(home, installs)
@@ -68,7 +69,7 @@ func TestSaveCustomInstalls(t *testing.T) {
 }
 
 func TestLoadCustomInstalls(t *testing.T) {
-	installs := []RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+	installs := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 	hash := CustomInstallsHash(installs)
 
 	t.Run("round-trips saved installs", func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestLoadCustomInstalls(t *testing.T) {
 }
 
 func TestRemoveCustomInstalls(t *testing.T) {
-	installs := []RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+	installs := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 	hash := CustomInstallsHash(installs)
 
 	t.Run("deletes the stored file", func(t *testing.T) {

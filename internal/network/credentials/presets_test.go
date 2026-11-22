@@ -3,7 +3,7 @@ package credentials
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,9 +11,9 @@ import (
 func Test_presets(t *testing.T) {
 	// Arrange
 	secret := writeSecret(t, "test-secret")
-	var entries []rc.RCCredential
+	var entries []agenticrc.Credential
 	for name := range presets {
-		entries = append(entries, rc.RCCredential{Preset: name, Secret: secret})
+		entries = append(entries, agenticrc.Credential{Preset: name, Secret: secret})
 	}
 
 	// Act

@@ -2,18 +2,19 @@
 package precedence
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 )
 
-// Namespace returns the active image namespace: flagVal > rc.Namespace > rc.DefaultNamespace.
-func Namespace(flagVal string, agenticRC *rc.AgenticRC) string {
+// Namespace returns the active image namespace: flagVal > rc.Namespace > agenticrc.DefaultNamespace.
+func Namespace(flagVal string, rc *agenticrc.Config) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if agenticRC != nil && agenticRC.Namespace != "" {
-		return agenticRC.Namespace
+	if rc != nil && rc.Namespace != "" {
+		return rc.Namespace
 	}
-	return rc.DefaultNamespace
+	return agenticrc.DefaultNamespace
 }
 
 // Registry returns the active registry: flagVal > agentic.json's registry field (loaded from homeDir).
@@ -21,21 +22,21 @@ func Registry(flagVal, homeDir string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if cfg, err := rc.LoadConfig(homeDir); err == nil {
+	if cfg, err := agentichome.LoadConfig(homeDir); err == nil {
 		return cfg.Registry
 	}
 	return ""
 }
 
 // DockerContext returns the active Docker context: flagVal > rc.DockerContext > agentic.json's docker_context; empty if none are set, letting the docker CLI's own resolution apply.
-func DockerContext(flagVal string, agenticRC *rc.AgenticRC, homeDir string) string {
+func DockerContext(flagVal string, rc *agenticrc.Config, homeDir string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if agenticRC != nil && agenticRC.DockerContext != "" {
-		return agenticRC.DockerContext
+	if rc != nil && rc.DockerContext != "" {
+		return rc.DockerContext
 	}
-	if cfg, err := rc.LoadConfig(homeDir); err == nil && cfg.DockerContext != "" {
+	if cfg, err := agentichome.LoadConfig(homeDir); err == nil && cfg.DockerContext != "" {
 		return cfg.DockerContext
 	}
 	return ""

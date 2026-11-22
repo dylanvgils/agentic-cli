@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -158,7 +158,7 @@ func Test_runUpdate(t *testing.T) {
 // Test_updateOptsFromFlags only checks which flags count as given; the rule itself is covered by TestUpdateOptionsFor in internal/image/tools.
 func Test_updateOptsFromFlags(t *testing.T) {
 	withTempToolHome(t)
-	agenticRC := &rc.AgenticRC{Build: rc.RCBuild{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
+	rc := &agenticrc.Config{Build: agenticrc.Build{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
 
 	t.Run("no flags drops the config bases and apt", func(t *testing.T) {
 		// Arrange
@@ -166,7 +166,7 @@ func Test_updateOptsFromFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Act
-		opts := updateOptsFromFlags(cmd, agenticRC)
+		opts := updateOptsFromFlags(cmd, rc)
 
 		// Assert
 		assert.Nil(t, opts.BaseOverride)
@@ -180,7 +180,7 @@ func Test_updateOptsFromFlags(t *testing.T) {
 		require.NoError(t, cmd.Flags().Set("apt-exact", "curl"))
 
 		// Act
-		opts := updateOptsFromFlags(cmd, agenticRC)
+		opts := updateOptsFromFlags(cmd, rc)
 
 		// Assert - --apt-exact sets apt only; bases still come from the image
 		assert.Nil(t, opts.BaseOverride)

@@ -1,4 +1,4 @@
-package rc
+package agenticrc
 
 import (
 	"testing"
@@ -9,10 +9,10 @@ import (
 func Test_validateRC(t *testing.T) {
 	t.Run("valid config passes", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{
-			Build:        RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm", Run: []string{"true"}}}},
-			Run:          RCRun{Runtime: "docker"},
-			Marketplaces: []RCMarketplace{{Name: "acme", URL: "https://example.test/acme.git"}},
+		rc := &Config{
+			Build:        Build{CustomInstalls: []CustomInstall{{Name: "helm", Run: []string{"true"}}}},
+			Run:          Run{Runtime: "docker"},
+			Marketplaces: []Marketplace{{Name: "acme", URL: "https://example.test/acme.git"}},
 		}
 
 		// Act
@@ -24,22 +24,22 @@ func Test_validateRC(t *testing.T) {
 
 	tests := []struct {
 		name string
-		rc   *AgenticRC
+		rc   *Config
 		want string
 	}{
 		{
 			name: "invalid run table",
-			rc:   &AgenticRC{Run: RCRun{RCLimits: RCLimits{PidsLimit: "-1"}}},
+			rc:   &Config{Run: Run{Limits: Limits{PidsLimit: "-1"}}},
 			want: `[run] pids_limit "-1": must be a positive whole number`,
 		},
 		{
 			name: "invalid marketplace",
-			rc:   &AgenticRC{Marketplaces: []RCMarketplace{{Name: "acme"}}},
+			rc:   &Config{Marketplaces: []Marketplace{{Name: "acme"}}},
 			want: `marketplace "acme": url must not be empty`,
 		},
 		{
 			name: "invalid custom install",
-			rc:   &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm"}}}},
+			rc:   &Config{Build: Build{CustomInstalls: []CustomInstall{{Name: "helm"}}}},
 			want: `custom install "helm": run must not be empty`,
 		},
 	}
@@ -57,11 +57,11 @@ func Test_validateRC(t *testing.T) {
 func Test_validateRun(t *testing.T) {
 	t.Run("valid run table passes", func(t *testing.T) {
 		// Arrange
-		run := RCRun{
-			Runtime:  "docker",
-			Ports:    []string{"3000", "8080:80"},
-			RCLimits: RCLimits{PidsLimit: "512"},
-			Dind:     RCDind{RCLimits: RCLimits{CPUs: "2"}},
+		run := Run{
+			Runtime: "docker",
+			Ports:   []string{"3000", "8080:80"},
+			Limits:  Limits{PidsLimit: "512"},
+			Dind:    Dind{Limits: Limits{CPUs: "2"}},
 		}
 
 		// Act
@@ -73,7 +73,7 @@ func Test_validateRun(t *testing.T) {
 
 	t.Run("refuses an unknown runtime", func(t *testing.T) {
 		// Act
-		err := validateRun(RCRun{Runtime: "podman"})
+		err := validateRun(Run{Runtime: "podman"})
 
 		// Assert
 		assert.ErrorContains(t, err, `[run] unknown runtime "podman"`)
@@ -81,27 +81,27 @@ func Test_validateRun(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  RCRun
+		run  Run
 		want string
 	}{
 		{
 			name: "run limit that lifts the limit",
-			run:  RCRun{RCLimits: RCLimits{PidsLimit: "-1"}},
+			run:  Run{Limits: Limits{PidsLimit: "-1"}},
 			want: `[run] pids_limit "-1": must be a positive whole number`,
 		},
 		{
 			name: "dind limit that lifts the limit",
-			run:  RCRun{Dind: RCDind{RCLimits: RCLimits{CPUs: "0"}}},
+			run:  Run{Dind: Dind{Limits: Limits{CPUs: "0"}}},
 			want: `[run.dind] cpus "0": must be a positive number`,
 		},
 		{
 			name: "invalid port",
-			run:  RCRun{Ports: []string{"0.0.0.0:8080:80"}},
+			run:  Run{Ports: []string{"0.0.0.0:8080:80"}},
 			want: `[run] ports: port "0.0.0.0:8080:80": ports bind to 127.0.0.1; drop the address`,
 		},
 		{
 			name: "invalid proxy table",
-			run:  RCRun{Proxy: RCProxy{Mode: "bogus"}},
+			run:  Run{Proxy: Proxy{Mode: "bogus"}},
 			want: `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
 		},
 	}
@@ -145,11 +145,11 @@ func TestCheckProxyBackend(t *testing.T) {
 func Test_validateProxy(t *testing.T) {
 	t.Run("valid proxy table passes", func(t *testing.T) {
 		// Arrange
-		proxy := RCProxy{
+		proxy := Proxy{
 			Mode:         ModeMonitor,
 			Backend:      BackendAgentic,
-			Credentials:  []RCCredential{{Preset: "example", Secret: "/example.test/secret"}},
-			AllowedPaths: []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}},
+			Credentials:  []Credential{{Preset: "example", Secret: "/example.test/secret"}},
+			AllowedPaths: []AllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}},
 			Integrations: []string{"maven"},
 		}
 
@@ -162,7 +162,7 @@ func Test_validateProxy(t *testing.T) {
 
 	t.Run("refuses an unknown integration", func(t *testing.T) {
 		// Act
-		err := validateProxy(RCProxy{Integrations: []string{"bogus"}})
+		err := validateProxy(Proxy{Integrations: []string{"bogus"}})
 
 		// Assert
 		assert.ErrorContains(t, err, `[run.proxy] integrations: unknown integration "bogus"`)
@@ -170,22 +170,22 @@ func Test_validateProxy(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		proxy RCProxy
+		proxy Proxy
 		want  string
 	}{
 		{
 			name:  "invalid mode",
-			proxy: RCProxy{Mode: "bogus"},
+			proxy: Proxy{Mode: "bogus"},
 			want:  `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
 		},
 		{
 			name:  "invalid backend",
-			proxy: RCProxy{Backend: "bogus"},
+			proxy: Proxy{Backend: "bogus"},
 			want:  `[run.proxy] backend: unknown proxy backend "bogus": must be "native" or "agentic"`,
 		},
 		{
 			name: "invalid credential",
-			proxy: RCProxy{Credentials: []RCCredential{
+			proxy: Proxy{Credentials: []Credential{
 				{Preset: "example", Secret: "/example.test/secret"},
 				{Preset: "example"},
 			}},
@@ -193,7 +193,7 @@ func Test_validateProxy(t *testing.T) {
 		},
 		{
 			name:  "invalid allowed path",
-			proxy: RCProxy{AllowedPaths: []RCAllowedPath{{Host: "*.example.test", Paths: []string{"/a"}}}},
+			proxy: Proxy{AllowedPaths: []AllowedPath{{Host: "*.example.test", Paths: []string{"/a"}}}},
 			want:  `[[run.proxy.allowed_paths]] entry 1: host "*.example.test" must be an exact hostname, without wildcards, port or path`,
 		},
 	}
@@ -210,7 +210,7 @@ func Test_validateProxy(t *testing.T) {
 
 func Test_validateCredential(t *testing.T) {
 	t.Run("accepts a preset or hosts with a header", func(t *testing.T) {
-		for _, cred := range []RCCredential{
+		for _, cred := range []Credential{
 			{Preset: "example", Secret: "/example.test/secret"},
 			{Hosts: []string{"api.example.test"}, Header: "Authorization", Env: []string{"EXAMPLE_TOKEN"}, Secret: "/example.test/secret"},
 		} {
@@ -223,7 +223,7 @@ func Test_validateCredential(t *testing.T) {
 	})
 
 	t.Run("refuses a bad shape", func(t *testing.T) {
-		cases := map[string]RCCredential{
+		cases := map[string]Credential{
 			"secret must not be empty":                                 {Preset: "example"},
 			`preset "example" cannot be combined with hosts or header`: {Preset: "example", Hosts: []string{"api.example.test"}, Secret: "/s"},
 			"cannot be combined with hosts or header":                  {Preset: "example", Header: "X-Api-Key", Secret: "/s"},
@@ -239,7 +239,7 @@ func Test_validateCredential(t *testing.T) {
 	})
 
 	t.Run("refuses control characters in any field", func(t *testing.T) {
-		for _, cred := range []RCCredential{
+		for _, cred := range []Credential{
 			{Hosts: []string{"evil.example.test\u001b[2K"}, Header: "X-Token", Secret: "/s"},
 			{Hosts: []string{"api.example.test"}, Header: "X-Token\r", Secret: "/s"},
 			{Preset: "anthropic", Secret: "/s\u001b[2K\rhidden"},
@@ -258,7 +258,7 @@ func Test_validateCredential(t *testing.T) {
 func Test_validateLimits(t *testing.T) {
 	t.Run("positive limits pass", func(t *testing.T) {
 		// Arrange
-		limits := RCLimits{PidsLimit: "2048", CPUs: "1.5", Memory: "8g"}
+		limits := Limits{PidsLimit: "2048", CPUs: "1.5", Memory: "8g"}
 
 		// Act
 		err := validateLimits(limits)
@@ -269,7 +269,7 @@ func Test_validateLimits(t *testing.T) {
 
 	t.Run("unset limits pass", func(t *testing.T) {
 		// Act
-		err := validateLimits(RCLimits{})
+		err := validateLimits(Limits{})
 
 		// Assert
 		assert.NoError(t, err)
@@ -277,16 +277,16 @@ func Test_validateLimits(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		limits RCLimits
+		limits Limits
 		want   string
 	}{
-		{"unlimited pids", RCLimits{PidsLimit: "-1"}, "pids_limit"},
-		{"zero pids", RCLimits{PidsLimit: "0"}, "pids_limit"},
-		{"zero cpus", RCLimits{CPUs: "0"}, "cpus"},
-		{"infinite cpus", RCLimits{CPUs: "Inf"}, "cpus"},
-		{"nan cpus", RCLimits{CPUs: "NaN"}, "cpus"},
-		{"zero memory", RCLimits{Memory: "0g"}, "memory"},
-		{"malformed memory", RCLimits{Memory: "-1"}, "memory"},
+		{"unlimited pids", Limits{PidsLimit: "-1"}, "pids_limit"},
+		{"zero pids", Limits{PidsLimit: "0"}, "pids_limit"},
+		{"zero cpus", Limits{CPUs: "0"}, "cpus"},
+		{"infinite cpus", Limits{CPUs: "Inf"}, "cpus"},
+		{"nan cpus", Limits{CPUs: "NaN"}, "cpus"},
+		{"zero memory", Limits{Memory: "0g"}, "memory"},
+		{"malformed memory", Limits{Memory: "-1"}, "memory"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+" is refused", func(t *testing.T) {
@@ -302,7 +302,7 @@ func Test_validateLimits(t *testing.T) {
 func Test_validateAllowedPath(t *testing.T) {
 	t.Run("accepts an exact host with valid paths", func(t *testing.T) {
 		// Arrange
-		rule := RCAllowedPath{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}
+		rule := AllowedPath{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}
 
 		// Act
 		err := validateAllowedPath(rule)
@@ -312,7 +312,7 @@ func Test_validateAllowedPath(t *testing.T) {
 	})
 
 	t.Run("refuses a bad host, no paths or a bad path", func(t *testing.T) {
-		cases := map[string]RCAllowedPath{
+		cases := map[string]AllowedPath{
 			"host must not be empty":                       {Paths: []string{"/a"}},
 			"must be an exact hostname, without wildcards": {Host: "*.example.test", Paths: []string{"/a"}},
 			"must be an exact hostname, without":           {Host: ".example.test", Paths: []string{"/a"}},
@@ -334,7 +334,7 @@ func Test_validateAllowedPath(t *testing.T) {
 func Test_validateMarketplace(t *testing.T) {
 	t.Run("valid marketplace passes", func(t *testing.T) {
 		// Act
-		err := validateMarketplace(RCMarketplace{Name: "acme", URL: "https://example.test/acme.git"})
+		err := validateMarketplace(Marketplace{Name: "acme", URL: "https://example.test/acme.git"})
 
 		// Assert
 		assert.NoError(t, err)
@@ -342,17 +342,17 @@ func Test_validateMarketplace(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		marketplace RCMarketplace
+		marketplace Marketplace
 		want        string
 	}{
 		{
 			name:        "empty url",
-			marketplace: RCMarketplace{Name: "acme"},
+			marketplace: Marketplace{Name: "acme"},
 			want:        `marketplace "acme": url must not be empty`,
 		},
 		{
 			name:        "local url",
-			marketplace: RCMarketplace{Name: "acme", URL: "/srv/repos/acme"},
+			marketplace: Marketplace{Name: "acme", URL: "/srv/repos/acme"},
 			want:        `marketplace "acme": url "/srv/repos/acme" must be https://, ssh:// or user@host:path`,
 		},
 	}
@@ -406,7 +406,7 @@ func Test_isRemoteGitURL(t *testing.T) {
 func Test_validateCustomInstalls(t *testing.T) {
 	t.Run("unique valid installs pass", func(t *testing.T) {
 		// Arrange
-		installs := []RCCustomInstall{
+		installs := []CustomInstall{
 			{Name: "helm", Run: []string{"true"}},
 			{Name: "golangci-lint", Run: []string{"true"}},
 		}
@@ -420,17 +420,17 @@ func Test_validateCustomInstalls(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		installs []RCCustomInstall
+		installs []CustomInstall
 		want     string
 	}{
 		{
 			name:     "empty run",
-			installs: []RCCustomInstall{{Name: "helm"}},
+			installs: []CustomInstall{{Name: "helm"}},
 			want:     `custom install "helm": run must not be empty`,
 		},
 		{
 			name: "duplicate name",
-			installs: []RCCustomInstall{
+			installs: []CustomInstall{
 				{Name: "helm", Run: []string{"true"}},
 				{Name: "helm", Run: []string{"true"}},
 			},
@@ -477,7 +477,7 @@ func Test_validateEntryName(t *testing.T) {
 func Test_duplicateInstall(t *testing.T) {
 	t.Run("unique names have no duplicate", func(t *testing.T) {
 		// Act
-		_, ok := duplicateInstall([]RCCustomInstall{{Name: "helm"}, {Name: "golangci-lint"}})
+		_, ok := duplicateInstall([]CustomInstall{{Name: "helm"}, {Name: "golangci-lint"}})
 
 		// Assert
 		assert.False(t, ok)
@@ -485,7 +485,7 @@ func Test_duplicateInstall(t *testing.T) {
 
 	t.Run("returns the first repeated name", func(t *testing.T) {
 		// Arrange
-		installs := []RCCustomInstall{
+		installs := []CustomInstall{
 			{Name: "helm"},
 			{Name: "golangci-lint"},
 			{Name: "golangci-lint"},

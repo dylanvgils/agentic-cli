@@ -3,24 +3,24 @@ package precedence
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDindEnabled(t *testing.T) {
 	enabled := true
-	rcEnabled := &rc.AgenticRC{Run: rc.RCRun{Dind: rc.RCDind{Enabled: &enabled}}}
+	rcEnabled := &agenticrc.Config{Run: agenticrc.Run{Dind: agenticrc.Dind{Enabled: &enabled}}}
 
 	for _, tc := range []struct {
 		name string
 		in   DindInput
-		rc   *rc.AgenticRC
+		rc   *agenticrc.Config
 		want bool
 	}{
 		{
 			name: "no flag and no config defaults off",
-			rc:   &rc.AgenticRC{},
+			rc:   &agenticrc.Config{},
 			want: false,
 		},
 		{
@@ -50,7 +50,7 @@ func TestDindResourceLimitsFor(t *testing.T) {
 
 	t.Run("inherits tool limits when nothing set", func(t *testing.T) {
 		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, &rc.AgenticRC{}, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, &agenticrc.Config{}, tool)
 
 		// Assert
 		assert.Equal(t, tool, result)
@@ -58,10 +58,10 @@ func TestDindResourceLimitsFor(t *testing.T) {
 
 	t.Run("flag wins over rc, which wins over the tool's", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Dind: rc.RCDind{RCLimits: rc.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Dind: agenticrc.Dind{Limits: agenticrc.Limits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor(sandbox.ResourceLimits{Memory: "16g"}, agenticRC, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{Memory: "16g"}, rc, tool)
 
 		// Assert
 		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "16g"}, result)

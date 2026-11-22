@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -110,9 +110,9 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "runtime", "microsandbox")
 	inv := invocation{
 		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
-		project: rc.Project{
+		project: agenticrc.Project{
 			WorkDir: "/example.test/project",
-			RC:      &rc.AgenticRC{},
+			Config:  &agenticrc.Config{},
 		},
 	}
 
@@ -147,7 +147,7 @@ func Test_toolUpdates_Offer(t *testing.T) {
 	})
 	stubUpstream(t, "2.0.0", true, true)
 	u := toolUpdates{docker: dockerClient, upstream: upstreamClient}
-	req := run.ToolUpdate{Home: t.TempDir(), RC: &rc.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
+	req := run.ToolUpdate{Home: t.TempDir(), RC: &agenticrc.Config{}, Tool: "claude", Image: "agentic-claude"}
 
 	// Act
 	err := u.Offer(req, func(string, string, string) bool { return true })

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 )
 
@@ -142,7 +142,7 @@ func nodeStage(prevStage, ver string) df.Stage {
 }
 
 // customInstallsStage builds one RUN per declared custom install; applied unconditionally, not gated by a --<name> flag like the extras.
-func customInstallsStage(prevStage string, installs []rc.RCCustomInstall) df.Stage {
+func customInstallsStage(prevStage string, installs []agenticrc.CustomInstall) df.Stage {
 	stage := df.NewStage(df.From{Image: prevStage, As: "custom-installs"}).
 		Add(pipefailShell)
 	for _, install := range installs {

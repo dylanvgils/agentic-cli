@@ -9,7 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 )
 
-// stateKeys is a historical snapshot of the keys moved, not rc.State's fields - it must not track future state changes.
+// stateKeys is a historical snapshot of the keys moved, not agentichome.State's fields - it must not track future state changes.
 var stateKeys = []string{"trusted_dirs", "last_update_check", "last_tool_version_check", "approved_settings"}
 
 // droppedKeys are obsolete keys nothing reads anymore; credential approvals are now asked for again as a guarded setting.

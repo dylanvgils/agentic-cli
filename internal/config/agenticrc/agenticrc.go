@@ -1,12 +1,11 @@
-// Package rc provides project configuration loaded from .agenticrc.toml files.
-package rc
+// Package agenticrc loads, merges and validates .agenticrc.toml layers.
+package agenticrc
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -16,74 +15,74 @@ const rcFilename = ".agenticrc.toml"
 // DefaultNamespace is the image namespace used when neither a flag nor .agenticrc.toml sets one.
 const DefaultNamespace = "agentic"
 
-// ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides unset "" (treated as ModeEnforce).
+// ModeEnforce and ModeMonitor are the only valid Proxy.Mode values, besides unset "" (treated as ModeEnforce).
 const (
 	ModeEnforce = "enforce"
 	ModeMonitor = "monitor"
 )
 
-// BackendNative and BackendAgentic are the only valid RCProxy.Backend values, besides unset "" (the runtime's default).
+// BackendNative and BackendAgentic are the only valid Proxy.Backend values, besides unset "" (the runtime's default).
 const (
 	BackendNative  = "native"
 	BackendAgentic = "agentic"
 )
 
-// RCBuild holds build-time settings from a .agenticrc.toml file.
-type RCBuild struct {
+// Build holds build-time settings from a .agenticrc.toml file.
+type Build struct {
 	Bases          []string          `toml:"bases"`
 	AptPackages    []string          `toml:"apt_packages"`
 	Versions       map[string]string `toml:"versions"`
-	CustomInstalls []RCCustomInstall `toml:"custom_installs"`
+	CustomInstalls []CustomInstall   `toml:"custom_installs"`
 }
 
-// RCRun holds runtime settings from a .agenticrc.toml file.
-type RCRun struct {
+// Run holds runtime settings from a .agenticrc.toml file.
+type Run struct {
 	Mounts []string `toml:"mounts"`
 	Env    []string `toml:"env"`
 	Ports  []string `toml:"ports"`
 	// Args are extra args per tool name, passed before the args given on the command line
 	Args         map[string][]string `toml:"args"`
 	Runtime      string              `toml:"runtime"`
-	Proxy        RCProxy             `toml:"proxy"`
-	Dind         RCDind              `toml:"dind"`
-	Instructions RCInstructions      `toml:"instructions"`
+	Proxy        Proxy               `toml:"proxy"`
+	Dind         Dind                `toml:"dind"`
+	Instructions Instructions        `toml:"instructions"`
 	// Tool limits
-	RCLimits
+	Limits
 	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
 	CheckUpdates *bool `toml:"check_updates"`
 }
 
-// RCInstructions holds environment-instructions settings from a .agenticrc.toml file.
-type RCInstructions struct {
+// Instructions holds environment-instructions settings from a .agenticrc.toml file.
+type Instructions struct {
 	// Enabled is a pointer so an inner config can explicitly disable a block enabled by an outer one.
 	Enabled *bool `toml:"enabled"`
 	// Custom is free text appended after the generated sections; layers concatenate rather than override.
 	Custom string `toml:"custom"`
 }
 
-// RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a pointer so an inner config can explicitly disable a proxy an outer one enabled.
-type RCProxy struct {
+// Proxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a pointer so an inner config can explicitly disable a proxy an outer one enabled.
+type Proxy struct {
 	Enabled      *bool    `toml:"enabled"`
 	AllowedHosts []string `toml:"allowed_hosts"`
 	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
 	Mode string `toml:"mode"`
 	// Backend picks what enforces AllowedHosts on microsandbox: "native" (default) msb rules or "agentic" agentic-proxy.
-	Backend     string         `toml:"backend"`
-	Credentials []RCCredential `toml:"credentials"`
+	Backend     string       `toml:"backend"`
+	Credentials []Credential `toml:"credentials"`
 	// AllowedPaths allows only some paths on hosts not in AllowedHosts; the proxy decrypts them to check each request
-	AllowedPaths []RCAllowedPath `toml:"allowed_paths"`
+	AllowedPaths []AllowedPath `toml:"allowed_paths"`
 	// Integrations route tools like Maven through the proxy
 	Integrations []string `toml:"integrations"`
 }
 
-// RCAllowedPath allows requests to Host whose path matches one of Paths (see MatchPathPattern).
-type RCAllowedPath struct {
+// AllowedPath allows requests to Host whose path matches one of Paths (see pathpattern.Match).
+type AllowedPath struct {
 	Host  string   `toml:"host"`
 	Paths []string `toml:"paths"`
 }
 
-// RCCredential declares a secret swapped in for a placeholder the tool sends in a header; set either Preset or Hosts+Header.
-type RCCredential struct {
+// Credential declares a secret swapped in for a placeholder the tool sends in a header; set either Preset or Hosts+Header.
+type Credential struct {
 	Preset string   `toml:"preset"`
 	Hosts  []string `toml:"hosts"`
 	Header string   `toml:"header"`
@@ -93,62 +92,62 @@ type RCCredential struct {
 	Secret string `toml:"secret"`
 }
 
-// RCDind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file.
-type RCDind struct {
+// Dind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file.
+type Dind struct {
 	// Pointer so an inner config can disable what an outer one enabled
 	Enabled *bool `toml:"enabled"`
 	// Sidecar limits; empty inherits the tool's
-	RCLimits
+	Limits
 }
 
-// RCLimits holds the pids_limit, cpus and memory keys shared by [run] and [run.dind].
-type RCLimits struct {
+// Limits holds the pids_limit, cpus and memory keys shared by [run] and [run.dind].
+type Limits struct {
 	PidsLimit string `toml:"pids_limit"`
 	CPUs      string `toml:"cpus"`
 	Memory    string `toml:"memory"`
 }
 
-// RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
-type RCMarketplace struct {
+// Marketplace declares one git-based plugin marketplace to sync and mount into tool containers.
+type Marketplace struct {
 	Name string `toml:"name" json:"name"`
 	URL  string `toml:"url" json:"url"`
 	// Tools restricts which tools this marketplace is mounted into; empty means every tool.
 	Tools []string `toml:"tools" json:"tools,omitempty"`
 }
 
-// RCCustomInstall declares one non-apt tool to install via arbitrary shell commands, applied unconditionally at build time (no --<name> gate).
-type RCCustomInstall struct {
+// CustomInstall declares one non-apt tool to install via arbitrary shell commands, applied unconditionally at build time (no --<name> gate).
+type CustomInstall struct {
 	Name string   `toml:"name" json:"name"`
 	Run  []string `toml:"run" json:"run"`
 }
 
-// AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
-type AgenticRC struct {
-	Root          bool            `toml:"root"`
-	Namespace     string          `toml:"namespace"`
-	DockerContext string          `toml:"docker_context"`
-	Build         RCBuild         `toml:"build"`
-	Run           RCRun           `toml:"run"`
-	Marketplaces  []RCMarketplace `toml:"marketplaces"`
+// Config holds the parsed contents of a .agenticrc.toml project config file.
+type Config struct {
+	Root          bool          `toml:"root"`
+	Namespace     string        `toml:"namespace"`
+	DockerContext string        `toml:"docker_context"`
+	Build         Build         `toml:"build"`
+	Run           Run           `toml:"run"`
+	Marketplaces  []Marketplace `toml:"marketplaces"`
 }
 
-// RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
-type RCLayer struct {
-	Path string
-	RC   *AgenticRC
+// Layer pairs a parsed .agenticrc.toml with the path it was loaded from.
+type Layer struct {
+	Path   string
+	Config *Config
 }
 
 // Project is a work dir's .agenticrc.toml layers and their merge, loaded once so every step of a command sees the same config.
 type Project struct {
 	WorkDir string
-	Layers  []RCLayer
-	RC      *AgenticRC
+	Layers  []Layer
+	Config  *Config
 }
 
 // MarketplacesFor returns the marketplace entries applicable to tool.
-func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
-	var result []RCMarketplace
-	for _, marketplace := range rc.Marketplaces {
+func (c *Config) MarketplacesFor(tool string) []Marketplace {
+	var result []Marketplace
+	for _, marketplace := range c.Marketplaces {
 		if len(marketplace.Tools) == 0 || slices.Contains(marketplace.Tools, tool) {
 			result = append(result, marketplace)
 		}
@@ -156,20 +155,15 @@ func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	return result
 }
 
-// FindAndLoad walks up from startDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost value, list keys accumulate outermost-first.
-func FindAndLoad(startDir string) (*AgenticRC, error) {
-	project, err := LoadProject(startDir)
-	return project.RC, err
-}
-
-// LoadProject finds workDir's layers and merges them the way FindAndLoad does; on error only WorkDir is set.
-func LoadProject(workDir string) (Project, error) {
-	layers, err := FindLayers(workDir)
+// Load walks up from workDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost
+// value, list keys accumulate outermost-first. On error only WorkDir is set.
+func Load(workDir string) (Project, error) {
+	layers, err := findLayers(workDir)
 	if err != nil {
 		return Project{WorkDir: workDir}, err
 	}
 
-	rc, err := Merge(layers)
+	rc, err := merge(layers)
 	if err != nil {
 		return Project{WorkDir: workDir}, err
 	}
@@ -177,14 +171,14 @@ func LoadProject(workDir string) (Project, error) {
 	return Project{
 		WorkDir: workDir,
 		Layers:  layers,
-		RC:      rc,
+		Config:  rc,
 	}, nil
 }
 
-// FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge, ordered outermost-to-innermost, each paired with its source path.
-func FindLayers(startDir string) ([]RCLayer, error) {
+// findLayers returns the .agenticrc.toml layers that Load merges, ordered outermost-to-innermost, each paired with its source path.
+func findLayers(startDir string) ([]Layer, error) {
 	paths := collectPaths(startDir)
-	var layers []RCLayer
+	var layers []Layer
 
 	for _, path := range paths {
 		rc, err := loadRC(path)
@@ -192,7 +186,7 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 			return nil, err
 		}
 
-		layers = append(layers, RCLayer{Path: path, RC: rc})
+		layers = append(layers, Layer{Path: path, Config: rc})
 		if rc.Root {
 			break
 		}
@@ -200,21 +194,6 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 
 	slices.Reverse(layers)
 	return layers, nil
-}
-
-// SplitEnvValues splits a comma-separated value string and skips empty parts.
-func SplitEnvValues(value string) []string {
-	var result []string
-
-	for pair := range strings.SplitSeq(value, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-		result = append(result, pair)
-	}
-
-	return result
 }
 
 func collectPaths(startDir string) []string {
@@ -237,8 +216,8 @@ func collectPaths(startDir string) []string {
 	return paths
 }
 
-func loadRC(path string) (*AgenticRC, error) {
-	rc := &AgenticRC{}
+func loadRC(path string) (*Config, error) {
+	rc := &Config{}
 	md, err := toml.DecodeFile(path, rc)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)

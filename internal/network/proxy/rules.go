@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/infra/pathpattern"
 )
 
-// Rule allows Host on every path, or only on Paths (see rc.MatchPathPattern); a host with paths is exact.
+// Rule allows Host on every path, or only on Paths (see pathpattern.Match); a host with paths is exact.
 type Rule struct {
 	Host  string   `json:"host"`
 	Paths []string `json:"paths,omitempty"`
@@ -64,7 +64,7 @@ func ValidateRules(rules []Rule) error {
 			return fmt.Errorf("invalid host %q: a host with paths must be an exact hostname or IP, without wildcards", rule.Host)
 		}
 		for _, pattern := range rule.Paths {
-			if err := rc.ValidatePathPattern(pattern); err != nil {
+			if err := pathpattern.Validate(pattern); err != nil {
 				return fmt.Errorf("host %s: %w", rule.Host, err)
 			}
 		}

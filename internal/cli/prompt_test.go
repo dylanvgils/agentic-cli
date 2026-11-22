@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,8 +80,8 @@ func Test_describeDir(t *testing.T) {
 }
 
 func Test_ttyPrompter_ApproveSettings(t *testing.T) {
-	layer := rc.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &rc.AgenticRC{}}
-	changed := []rc.GuardedSetting{{Key: "run.mounts", Value: []string{"~/.example:/x:rw"}}}
+	layer := agenticrc.Layer{Path: "/example.test/.agenticrc.toml", Config: &agenticrc.Config{}}
+	changed := []agenticrc.GuardedSetting{{Key: "run.mounts", Value: []string{"~/.example:/x:rw"}}}
 
 	t.Run("no tty names the changed keys and hints to run interactively", func(t *testing.T) {
 		// Act
@@ -222,19 +222,19 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 func Test_describeCredential(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
-		cred        rc.RCCredential
+		cred        agenticrc.Credential
 		wantTarget  string
 		wantDetails []string
 	}{
 		{
 			name:        "preset",
-			cred:        rc.RCCredential{Preset: "github", Secret: "~/.secrets/gh"},
+			cred:        agenticrc.Credential{Preset: "github", Secret: "~/.secrets/gh"},
 			wantTarget:  `preset "github"`,
 			wantDetails: []string{`secret "~/.secrets/gh"`},
 		},
 		{
 			name: "custom hosts with env",
-			cred: rc.RCCredential{
+			cred: agenticrc.Credential{
 				Hosts:  []string{"api.example.test", "*.example.test"},
 				Header: "X-Token",
 				Env:    []string{"EXAMPLE_TOKEN"},
@@ -245,7 +245,7 @@ func Test_describeCredential(t *testing.T) {
 		},
 		{
 			name: "escape sequences print as text",
-			cred: rc.RCCredential{
+			cred: agenticrc.Credential{
 				Hosts:  []string{"evil.example.test\x1b[2K\r"},
 				Header: "X-Token",
 				Secret: "/example.test/key\u202e",
@@ -271,7 +271,7 @@ func Test_describeSetting(t *testing.T) {
 		disabled := false
 
 		// Act
-		header, values := describeSetting(rc.GuardedSetting{Key: "run.proxy.enabled", Value: &disabled})
+		header, values := describeSetting(agenticrc.GuardedSetting{Key: "run.proxy.enabled", Value: &disabled})
 
 		// Assert
 		assert.Equal(t, "run.proxy.enabled - "+settingEffects["run.proxy.enabled"], header)
@@ -280,7 +280,7 @@ func Test_describeSetting(t *testing.T) {
 
 	t.Run("list value is shown one item per line", func(t *testing.T) {
 		// Act
-		_, values := describeSetting(rc.GuardedSetting{Key: "run.env", Value: []string{"A", "B"}})
+		_, values := describeSetting(agenticrc.GuardedSetting{Key: "run.env", Value: []string{"A", "B"}})
 
 		// Assert
 		assert.Equal(t, []string{`"A"`, `"B"`}, values)
@@ -288,7 +288,7 @@ func Test_describeSetting(t *testing.T) {
 
 	t.Run("cleared value is shown as removed", func(t *testing.T) {
 		// Act
-		header, values := describeSetting(rc.GuardedSetting{Key: "run.mounts", Value: []string(nil)})
+		header, values := describeSetting(agenticrc.GuardedSetting{Key: "run.mounts", Value: []string(nil)})
 
 		// Assert
 		assert.Equal(t, "run.mounts - "+settingEffects["run.mounts"]+" (removed)", header)
@@ -299,7 +299,7 @@ func Test_describeSetting(t *testing.T) {
 func Test_describeValue(t *testing.T) {
 	t.Run("custom install shows its name and one command per line", func(t *testing.T) {
 		// Arrange
-		install := rc.RCCustomInstall{Name: "example", Run: []string{"curl -fsSL https://example.test/install.sh | sh", "example --version"}}
+		install := agenticrc.CustomInstall{Name: "example", Run: []string{"curl -fsSL https://example.test/install.sh | sh", "example --version"}}
 
 		// Act
 		lines := describeValue(install)
@@ -310,7 +310,7 @@ func Test_describeValue(t *testing.T) {
 
 	t.Run("custom install command escape sequences print as text", func(t *testing.T) {
 		// Arrange
-		install := rc.RCCustomInstall{Name: "example", Run: []string{"true\x1b[2K\r"}}
+		install := agenticrc.CustomInstall{Name: "example", Run: []string{"true\x1b[2K\r"}}
 
 		// Act
 		lines := describeValue(install)
@@ -321,7 +321,7 @@ func Test_describeValue(t *testing.T) {
 
 	t.Run("credential shows where it is sent with its details below", func(t *testing.T) {
 		// Arrange
-		cred := rc.RCCredential{Preset: "github", Secret: "~/.secrets/gh"}
+		cred := agenticrc.Credential{Preset: "github", Secret: "~/.secrets/gh"}
 
 		// Act
 		lines := describeValue(cred)
@@ -341,7 +341,7 @@ func Test_describeValue(t *testing.T) {
 
 func Test_settingEffects(t *testing.T) {
 	// Arrange
-	settings := rc.GuardedSettings(&rc.AgenticRC{})
+	settings := (&agenticrc.Config{}).GuardedSettings()
 
 	// Act
 	var missing []string
@@ -357,7 +357,7 @@ func Test_settingEffects(t *testing.T) {
 
 func Test_settingKeys(t *testing.T) {
 	// Arrange
-	settings := []rc.GuardedSetting{{Key: "root"}, {Key: "run.env"}}
+	settings := []agenticrc.GuardedSetting{{Key: "root"}, {Key: "run.env"}}
 
 	// Act
 	keys := settingKeys(settings)

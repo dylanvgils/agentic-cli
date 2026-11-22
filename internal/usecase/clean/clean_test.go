@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -177,14 +178,14 @@ func TestService_Apply(t *testing.T) {
 	t.Run("removes stored custom installs no image uses anymore", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		helm := []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
-		lint := []rc.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}
-		require.NoError(t, rc.SaveCustomInstalls(home, helm))
-		require.NoError(t, rc.SaveCustomInstalls(home, lint))
+		helm := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		lint := []agenticrc.CustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}
+		require.NoError(t, agentichome.SaveCustomInstalls(home, helm))
+		require.NoError(t, agentichome.SaveCustomInstalls(home, lint))
 		images := map[string]*docker.ImageInfo{
-			"agentic-claude":  {Image: "agentic-claude", CustomInstallsHash: rc.CustomInstallsHash(helm)},
-			"agentic-copilot": {Image: "agentic-copilot", CustomInstallsHash: rc.CustomInstallsHash(lint)},
-			"work-claude":     {Image: "work-claude", CustomInstallsHash: rc.CustomInstallsHash(lint)},
+			"agentic-claude":  {Image: "agentic-claude", CustomInstallsHash: agentichome.CustomInstallsHash(helm)},
+			"agentic-copilot": {Image: "agentic-copilot", CustomInstallsHash: agentichome.CustomInstallsHash(lint)},
+			"work-claude":     {Image: "work-claude", CustomInstallsHash: agentichome.CustomInstallsHash(lint)},
 		}
 		d := &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -207,8 +208,8 @@ func TestService_Apply(t *testing.T) {
 		})
 
 		// Assert - lint is still used by work-claude
-		_, helmStored := rc.LoadCustomInstalls(home, rc.CustomInstallsHash(helm))
-		_, lintStored := rc.LoadCustomInstalls(home, rc.CustomInstallsHash(lint))
+		_, helmStored := agentichome.LoadCustomInstalls(home, agentichome.CustomInstallsHash(helm))
+		_, lintStored := agentichome.LoadCustomInstalls(home, agentichome.CustomInstallsHash(lint))
 		assert.False(t, helmStored)
 		assert.True(t, lintStored)
 	})
@@ -216,8 +217,8 @@ func TestService_Apply(t *testing.T) {
 	t.Run("listing failure leaves stored custom installs alone", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		helm := []rc.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
-		require.NoError(t, rc.SaveCustomInstalls(home, helm))
+		helm := []agenticrc.CustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		require.NoError(t, agentichome.SaveCustomInstalls(home, helm))
 		d := &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				return nil, fmt.Errorf("docker error")
@@ -231,7 +232,7 @@ func TestService_Apply(t *testing.T) {
 		})
 
 		// Assert
-		_, stored := rc.LoadCustomInstalls(home, rc.CustomInstallsHash(helm))
+		_, stored := agentichome.LoadCustomInstalls(home, agentichome.CustomInstallsHash(helm))
 		assert.True(t, stored)
 	})
 

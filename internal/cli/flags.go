@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/config/precedence"
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -56,9 +56,9 @@ func addVersionFlags(cmd *cobra.Command) {
 }
 
 // resolveNamespace returns the effective namespace, preferring the --namespace flag over the rc file value.
-func resolveNamespace(cmd *cobra.Command, agenticRC *rc.AgenticRC) string {
+func resolveNamespace(cmd *cobra.Command, rc *agenticrc.Config) string {
 	v, _ := cmd.Flags().GetString("namespace")
-	return precedence.Namespace(v, agenticRC)
+	return precedence.Namespace(v, rc)
 }
 
 // collectRegistry returns the registry prefix from the --registry flag or the tool home config.
@@ -103,7 +103,7 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
 	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
 	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.EgressIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
-	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+rc.BackendNative+" (msb rules, default) or "+rc.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
+	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+agenticrc.BackendNative+" (msb rules, default) or "+agenticrc.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
 	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
 	_ = cmd.RegisterFlagCompletionFunc(proxyBackendFlag, proxyBackendsFunc)
@@ -173,7 +173,7 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 
 	proxy := proxyInput(cmd)
 	if proxy.Backend != "" {
-		if err := rc.CheckProxyBackend(proxy.Backend); err != nil {
+		if err := agenticrc.CheckProxyBackend(proxy.Backend); err != nil {
 			return run.Flags{}, fmt.Errorf("--%s: %w", proxyBackendFlag, err)
 		}
 	}
@@ -191,8 +191,8 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 }
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
-func buildOptsFromFlags(cmd *cobra.Command, agenticRC *rc.AgenticRC) tools.BuildOptions {
-	return tools.BuildOptionsFor(buildInput(cmd), agenticRC)
+func buildOptsFromFlags(cmd *cobra.Command, rc *agenticrc.Config) tools.BuildOptions {
+	return tools.BuildOptionsFor(buildInput(cmd), rc)
 }
 
 // buildInput reads the build flags.

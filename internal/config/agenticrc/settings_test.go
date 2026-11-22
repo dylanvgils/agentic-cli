@@ -1,4 +1,4 @@
-package rc
+package agenticrc
 
 import (
 	"reflect"
@@ -7,20 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGuardedSettings(t *testing.T) {
+func TestConfig_GuardedSettings(t *testing.T) {
 	t.Run("returns each guarded key with its value", func(t *testing.T) {
 		// Arrange
 		disabled := false
-		rc := &AgenticRC{}
+		rc := &Config{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
 		rc.Run.Runtime = "microsandbox"
 		rc.Run.Args = map[string][]string{"copilot": {"--example"}}
 		rc.Run.Proxy.Enabled = &disabled
 		rc.Run.Proxy.Backend = BackendAgentic
-		rc.Run.Proxy.Credentials = []RCCredential{{Preset: "example", Secret: "/example.test/key"}}
+		rc.Run.Proxy.Credentials = []Credential{{Preset: "example", Secret: "/example.test/key"}}
 
 		// Act
-		settings := GuardedSettings(rc)
+		settings := rc.GuardedSettings()
 
 		// Assert
 		assert.Contains(t, settings, GuardedSetting{"run.mounts", []string{"~/.example:/x:rw"}})
@@ -55,7 +55,7 @@ func TestGuardedSettings(t *testing.T) {
 		}
 
 		// Act
-		settings := GuardedSettings(&AgenticRC{})
+		settings := (&Config{}).GuardedSettings()
 
 		// Assert
 		var classified []string
@@ -63,8 +63,8 @@ func TestGuardedSettings(t *testing.T) {
 			classified = append(classified, s.Key)
 		}
 		classified = append(classified, unguarded...)
-		assert.ElementsMatch(t, rcKeys(reflect.TypeFor[AgenticRC](), ""), classified,
-			"a new config key must be added to GuardedSettings if it reaches past the container, else to unguarded here")
+		assert.ElementsMatch(t, rcKeys(reflect.TypeFor[Config](), ""), classified,
+			"a new config key must be added to Config.GuardedSettings if it reaches past the container, else to unguarded here")
 	})
 }
 
@@ -111,5 +111,62 @@ func Test_GuardedSetting_hash(t *testing.T) {
 
 		// Assert
 		assert.NotEqual(t, first, second)
+	})
+}
+
+func TestLayer_ApprovalHashes(t *testing.T) {
+	// Arrange
+	layer := Layer{Path: "/example.test/.agenticrc.toml", Config: &Config{Namespace: "work"}}
+
+	// Act
+	hashes := layer.ApprovalHashes()
+
+	// Assert
+	assert.Equal(t, map[string]string{"namespace": GuardedSetting{"namespace", "work"}.hash()}, hashes)
+}
+
+func TestLayer_ChangedSettings(t *testing.T) {
+	mounts := func(m ...string) Layer {
+		rc := &Config{}
+		rc.Run.Mounts = m
+		return Layer{Path: "/example.test/.agenticrc.toml", Config: rc}
+	}
+
+	t.Run("unset setting never approved is unchanged", func(t *testing.T) {
+		// Act
+		changed := mounts().ChangedSettings(nil)
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("new setting is changed", func(t *testing.T) {
+		// Act
+		changed := mounts("~/.example:/x:rw").ChangedSettings(nil)
+
+		// Assert
+		assert.Equal(t, []GuardedSetting{{"run.mounts", []string{"~/.example:/x:rw"}}}, changed)
+	})
+
+	t.Run("approved setting is unchanged", func(t *testing.T) {
+		// Arrange
+		approved := mounts("~/.example:/x:rw").ApprovalHashes()
+
+		// Act
+		changed := mounts("~/.example:/x:rw").ChangedSettings(approved)
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("cleared approved setting is changed", func(t *testing.T) {
+		// Arrange
+		approved := mounts("~/.example:/x:rw").ApprovalHashes()
+
+		// Act
+		changed := mounts().ChangedSettings(approved)
+
+		// Assert
+		assert.Equal(t, []GuardedSetting{{"run.mounts", []string(nil)}}, changed)
 	})
 }

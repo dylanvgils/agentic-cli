@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 )
 
 func Test_checkPorts(t *testing.T) {
@@ -39,7 +39,7 @@ func Test_checkPorts(t *testing.T) {
 		// Arrange
 		port := busyPort(t)
 		req := runtimeRequest("")
-		req.Project.RC = &rc.AgenticRC{Run: rc.RCRun{Ports: []string{strconv.Itoa(int(port))}}}
+		req.Project.Config = &agenticrc.Config{Run: agenticrc.Run{Ports: []string{strconv.Itoa(int(port))}}}
 
 		// Act
 		err := checkPorts(req)

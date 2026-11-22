@@ -1,17 +1,16 @@
-package rc
+package agenticrc
 
 import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func mustParseRC(t *testing.T, content string) *AgenticRC {
+func mustParseRC(t *testing.T, content string) *Config {
 	t.Helper()
 	path := writeRC(t, content)
 	rc, err := loadRC(path)
@@ -44,15 +43,6 @@ func nestedDirs(t *testing.T, depth int) []string {
 	return dirs
 }
 
-// symlinkOrSkip creates link pointing at target, skipping the test where symlinks need privileges.
-func symlinkOrSkip(t *testing.T, target, link string) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks need privileges on windows")
-	}
-	require.NoError(t, os.Symlink(target, link))
-}
-
 // rcKeys returns the dotted toml key of every setting in config struct t: nested tables recurse, embedded structs share
 // their parent's table and lists of tables count as one key.
 func rcKeys(t reflect.Type, prefix string) []string {
@@ -73,16 +63,16 @@ func rcKeys(t reflect.Type, prefix string) []string {
 }
 
 // scalarsOf returns rc with only the settings where the innermost layer wins.
-func scalarsOf(rc *AgenticRC) AgenticRC {
-	return AgenticRC{
+func scalarsOf(rc *Config) Config {
+	return Config{
 		Namespace:     rc.Namespace,
 		DockerContext: rc.DockerContext,
-		Run: RCRun{
+		Run: Run{
 			Runtime:      rc.Run.Runtime,
-			Proxy:        RCProxy{Enabled: rc.Run.Proxy.Enabled, Mode: rc.Run.Proxy.Mode, Backend: rc.Run.Proxy.Backend},
+			Proxy:        Proxy{Enabled: rc.Run.Proxy.Enabled, Mode: rc.Run.Proxy.Mode, Backend: rc.Run.Proxy.Backend},
 			Dind:         rc.Run.Dind,
-			Instructions: RCInstructions{Enabled: rc.Run.Instructions.Enabled},
-			RCLimits:     rc.Run.RCLimits,
+			Instructions: Instructions{Enabled: rc.Run.Instructions.Enabled},
+			Limits:       rc.Run.Limits,
 			CheckUpdates: rc.Run.CheckUpdates,
 		},
 	}

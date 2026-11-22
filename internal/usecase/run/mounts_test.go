@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,7 +196,7 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 		err := mounts.checkConfigNotMounted()
 
 		// Assert
-		assert.EqualError(t, err, "mount "+toolHome+" would expose "+rc.ConfigFile(toolHome)+" to the tool container; mount a narrower path")
+		assert.EqualError(t, err, "mount "+toolHome+" would expose "+agentichome.ConfigFile(toolHome)+" to the tool container; mount a narrower path")
 	})
 
 	t.Run("mount of state.json itself is refused", func(t *testing.T) {
@@ -207,7 +207,7 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 		err := mounts.checkConfigNotMounted()
 
 		// Assert
-		assert.EqualError(t, err, "mount "+rc.StateFile(toolHome)+" would expose "+rc.StateFile(toolHome)+" to the tool container; mount a narrower path")
+		assert.EqualError(t, err, "mount "+agentichome.StateFile(toolHome)+" would expose "+agentichome.StateFile(toolHome)+" to the tool container; mount a narrower path")
 	})
 }
 

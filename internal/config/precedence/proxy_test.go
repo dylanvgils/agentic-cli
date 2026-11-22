@@ -3,7 +3,7 @@ package precedence
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,39 +12,39 @@ import (
 func TestProxyMode(t *testing.T) {
 	enabled := true
 	disabled := false
-	creds := []rc.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
+	creds := []agenticrc.Credential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
 
 	for _, tc := range []struct {
 		name    string
 		flags   ProxyInput
-		proxy   rc.RCProxy
+		proxy   agenticrc.Proxy
 		injects bool
 		want    sandbox.EgressMode
 		wantErr string
 	}{
 		{name: "no flag and no config defaults off", injects: true, want: sandbox.EgressOff},
-		{name: "config enabled is honored", proxy: rc.RCProxy{Enabled: &enabled}, injects: true, want: sandbox.EgressEnforce},
-		{name: "proxy flag overrides config disabled", flags: ProxyInput{ProxyFlag: true}, proxy: rc.RCProxy{Enabled: &disabled}, injects: true, want: sandbox.EgressEnforce},
-		{name: "no-proxy flag overrides config enabled", flags: ProxyInput{NoProxy: true}, proxy: rc.RCProxy{Enabled: &enabled}, injects: true, want: sandbox.EgressOff},
+		{name: "config enabled is honored", proxy: agenticrc.Proxy{Enabled: &enabled}, injects: true, want: sandbox.EgressEnforce},
+		{name: "proxy flag overrides config disabled", flags: ProxyInput{ProxyFlag: true}, proxy: agenticrc.Proxy{Enabled: &disabled}, injects: true, want: sandbox.EgressEnforce},
+		{name: "no-proxy flag overrides config enabled", flags: ProxyInput{NoProxy: true}, proxy: agenticrc.Proxy{Enabled: &enabled}, injects: true, want: sandbox.EgressOff},
 		{name: "proxy-monitor flag enables monitor mode", flags: ProxyInput{MonitorFlag: true}, injects: true, want: sandbox.EgressMonitor},
 		{name: "no-proxy flag overrides proxy-monitor flag", flags: ProxyInput{MonitorFlag: true, NoProxy: true}, injects: true, want: sandbox.EgressOff},
-		{name: "config mode monitor implies enabled", proxy: rc.RCProxy{Mode: rc.ModeMonitor}, injects: true, want: sandbox.EgressMonitor},
-		{name: "config enabled false wins over config mode monitor", proxy: rc.RCProxy{Enabled: &disabled, Mode: rc.ModeMonitor}, injects: true, want: sandbox.EgressOff},
-		{name: "credentials turn the proxy on", proxy: rc.RCProxy{Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
-		{name: "credentials keep monitor mode", flags: ProxyInput{MonitorFlag: true}, proxy: rc.RCProxy{Credentials: creds}, injects: true, want: sandbox.EgressMonitor},
-		{name: "no-proxy flag with credentials is an error", flags: ProxyInput{NoProxy: true}, proxy: rc.RCProxy{Credentials: creds}, injects: true, wantErr: "--no-proxy cannot be used"},
-		{name: "config enabled false with credentials is an error", proxy: rc.RCProxy{Enabled: &disabled, Credentials: creds}, injects: true, wantErr: "enabled = false cannot be used"},
-		{name: "proxy flag overrides config disabled with credentials", flags: ProxyInput{ProxyFlag: true}, proxy: rc.RCProxy{Enabled: &disabled, Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
-		{name: "credentials leave the proxy off when it doesn't inject them", proxy: rc.RCProxy{Credentials: creds}, want: sandbox.EgressOff},
-		{name: "no-proxy flag with credentials is allowed when the proxy doesn't inject them", flags: ProxyInput{NoProxy: true}, proxy: rc.RCProxy{Credentials: creds}, want: sandbox.EgressOff},
-		{name: "config enabled false with credentials is allowed when the proxy doesn't inject them", proxy: rc.RCProxy{Enabled: &disabled, Credentials: creds}, want: sandbox.EgressOff},
+		{name: "config mode monitor implies enabled", proxy: agenticrc.Proxy{Mode: agenticrc.ModeMonitor}, injects: true, want: sandbox.EgressMonitor},
+		{name: "config enabled false wins over config mode monitor", proxy: agenticrc.Proxy{Enabled: &disabled, Mode: agenticrc.ModeMonitor}, injects: true, want: sandbox.EgressOff},
+		{name: "credentials turn the proxy on", proxy: agenticrc.Proxy{Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
+		{name: "credentials keep monitor mode", flags: ProxyInput{MonitorFlag: true}, proxy: agenticrc.Proxy{Credentials: creds}, injects: true, want: sandbox.EgressMonitor},
+		{name: "no-proxy flag with credentials is an error", flags: ProxyInput{NoProxy: true}, proxy: agenticrc.Proxy{Credentials: creds}, injects: true, wantErr: "--no-proxy cannot be used"},
+		{name: "config enabled false with credentials is an error", proxy: agenticrc.Proxy{Enabled: &disabled, Credentials: creds}, injects: true, wantErr: "enabled = false cannot be used"},
+		{name: "proxy flag overrides config disabled with credentials", flags: ProxyInput{ProxyFlag: true}, proxy: agenticrc.Proxy{Enabled: &disabled, Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
+		{name: "credentials leave the proxy off when it doesn't inject them", proxy: agenticrc.Proxy{Credentials: creds}, want: sandbox.EgressOff},
+		{name: "no-proxy flag with credentials is allowed when the proxy doesn't inject them", flags: ProxyInput{NoProxy: true}, proxy: agenticrc.Proxy{Credentials: creds}, want: sandbox.EgressOff},
+		{name: "config enabled false with credentials is allowed when the proxy doesn't inject them", proxy: agenticrc.Proxy{Enabled: &disabled, Credentials: creds}, want: sandbox.EgressOff},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: tc.proxy}}
+			rc := &agenticrc.Config{Run: agenticrc.Run{Proxy: tc.proxy}}
 
 			// Act
-			result, err := ProxyMode(tc.flags, agenticRC, tc.injects)
+			result, err := ProxyMode(tc.flags, rc, tc.injects)
 
 			// Assert
 			if tc.wantErr != "" {
@@ -59,10 +59,10 @@ func TestProxyMode(t *testing.T) {
 
 func TestRequestedProxyMode(t *testing.T) {
 	// Arrange
-	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Credentials: []rc.RCCredential{{Hosts: []string{"api.example.test"}}}}}}
+	rc := &agenticrc.Config{Run: agenticrc.Run{Proxy: agenticrc.Proxy{Credentials: []agenticrc.Credential{{Hosts: []string{"api.example.test"}}}}}}
 
 	// Act
-	result := RequestedProxyMode(ProxyInput{}, agenticRC)
+	result := RequestedProxyMode(ProxyInput{}, rc)
 
 	// Assert
 	assert.Equal(t, sandbox.EgressOff, result)
@@ -71,11 +71,11 @@ func TestRequestedProxyMode(t *testing.T) {
 func Test_proxyAllowList(t *testing.T) {
 	t.Run("credential hosts come after rc hosts", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{}
-		agenticRC.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
+		rc := &agenticrc.Config{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
 
 		// Act
-		result := proxyAllowList([]string{"api.example.com"}, []string{"api.custom.test"}, false, agenticRC)
+		result := proxyAllowList([]string{"api.example.com"}, []string{"api.custom.test"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com", "api.custom.test"}, result)
@@ -83,11 +83,11 @@ func Test_proxyAllowList(t *testing.T) {
 
 	t.Run("dind adds docker hub between baseline and rc hosts", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{}
-		agenticRC.Run.Proxy.AllowedHosts = []string{"ghcr.io"}
+		rc := &agenticrc.Config{}
+		rc.Run.Proxy.AllowedHosts = []string{"ghcr.io"}
 
 		// Act
-		result := proxyAllowList([]string{"api.example.com"}, nil, true, agenticRC)
+		result := proxyAllowList([]string{"api.example.com"}, nil, true, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "production.cloudfront.docker.com", "ghcr.io"}, result)
@@ -95,11 +95,11 @@ func Test_proxyAllowList(t *testing.T) {
 
 	t.Run("keeps the first of duplicate hosts", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{}
-		agenticRC.Run.Proxy.AllowedHosts = []string{"extra.example.com", "api.example.com"}
+		rc := &agenticrc.Config{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com", "api.example.com"}
 
 		// Act
-		result := proxyAllowList([]string{"api.example.com"}, nil, false, agenticRC)
+		result := proxyAllowList([]string{"api.example.com"}, nil, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
@@ -107,28 +107,28 @@ func Test_proxyAllowList(t *testing.T) {
 }
 
 func TestProxyBackend(t *testing.T) {
-	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Proxy: rc.RCProxy{Backend: rc.BackendAgentic}}}
+	rc := &agenticrc.Config{Run: agenticrc.Run{Proxy: agenticrc.Proxy{Backend: agenticrc.BackendAgentic}}}
 
 	for _, tc := range []struct {
 		name string
 		in   ProxyInput
-		rc   *rc.AgenticRC
+		rc   *agenticrc.Config
 		want string
 	}{
 		{
 			name: "the flag wins over the config",
-			in:   ProxyInput{Backend: rc.BackendNative},
-			rc:   agenticRC,
-			want: rc.BackendNative,
+			in:   ProxyInput{Backend: agenticrc.BackendNative},
+			rc:   rc,
+			want: agenticrc.BackendNative,
 		},
 		{
 			name: "the config applies without the flag",
-			rc:   agenticRC,
-			want: rc.BackendAgentic,
+			rc:   rc,
+			want: agenticrc.BackendAgentic,
 		},
 		{
 			name: "neither set is empty",
-			rc:   &rc.AgenticRC{},
+			rc:   &agenticrc.Config{},
 			want: "",
 		},
 	} {
@@ -144,12 +144,12 @@ func TestProxyBackend(t *testing.T) {
 
 func TestProxyIntegrations(t *testing.T) {
 	// Arrange
-	agenticRC := &rc.AgenticRC{}
-	agenticRC.Run.Proxy.Integrations = []string{"maven", "gradle"}
+	rc := &agenticrc.Config{}
+	rc.Run.Proxy.Integrations = []string{"maven", "gradle"}
 	in := ProxyInput{Integrations: []string{"maven"}}
 
 	// Act
-	result := ProxyIntegrations(in, agenticRC)
+	result := ProxyIntegrations(in, rc)
 
 	// Assert
 	assert.Equal(t, []string{"gradle", "maven"}, result)
@@ -158,12 +158,12 @@ func TestProxyIntegrations(t *testing.T) {
 func TestProxyRules(t *testing.T) {
 	t.Run("allows merged hosts whole, then the path rules", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{}
-		agenticRC.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
-		agenticRC.Run.Proxy.AllowedPaths = []rc.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a/**"}}}
+		rc := &agenticrc.Config{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+		rc.Run.Proxy.AllowedPaths = []agenticrc.AllowedPath{{Host: "raw.example.test", Paths: []string{"/a/**"}}}
 
 		// Act
-		rules := ProxyRules([]string{"api.example.test"}, nil, false, agenticRC)
+		rules := ProxyRules([]string{"api.example.test"}, nil, false, rc)
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{
@@ -175,16 +175,16 @@ func TestProxyRules(t *testing.T) {
 
 	t.Run("path rules replace a host otherwise allowed whole", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{}
-		agenticRC.Run.Proxy.AllowedHosts = []string{"Exact.Example.Test", ".wild.example.test"}
-		agenticRC.Run.Proxy.AllowedPaths = []rc.RCAllowedPath{
+		rc := &agenticrc.Config{}
+		rc.Run.Proxy.AllowedHosts = []string{"Exact.Example.Test", ".wild.example.test"}
+		rc.Run.Proxy.AllowedPaths = []agenticrc.AllowedPath{
 			{Host: "exact.example.test", Paths: []string{"/a"}},
 			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
 			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
 		}
 
 		// Act
-		rules := ProxyRules(nil, []string{"api.example.test", "upload.example.test"}, false, agenticRC)
+		rules := ProxyRules(nil, []string{"api.example.test", "upload.example.test"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{
@@ -199,7 +199,7 @@ func TestProxyRules(t *testing.T) {
 
 func Test_mergePathRules(t *testing.T) {
 	// Arrange
-	rules := []rc.RCAllowedPath{
+	rules := []agenticrc.AllowedPath{
 		{Host: "raw.example.test", Paths: []string{"/a/**"}},
 		{Host: "other.example.test", Paths: []string{"/b"}},
 		{Host: "Raw.Example.Test.", Paths: []string{"/a/**", "/c"}},

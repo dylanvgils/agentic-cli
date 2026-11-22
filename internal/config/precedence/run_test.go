@@ -3,7 +3,7 @@ package precedence
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,10 +12,10 @@ import (
 func TestPorts(t *testing.T) {
 	t.Run("parses flags, then config", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Ports: []string{"8080:80"}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Ports: []string{"8080:80"}}}
 
 		// Act
-		result, err := Ports([]string{"3000"}, agenticRC)
+		result, err := Ports([]string{"3000"}, rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -27,10 +27,10 @@ func TestPorts(t *testing.T) {
 
 	t.Run("a flag replaces the config port with the same host port", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Ports: []string{"3000:80"}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Ports: []string{"3000:80"}}}
 
 		// Act
-		result, err := Ports([]string{"3000"}, agenticRC)
+		result, err := Ports([]string{"3000"}, rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -39,13 +39,13 @@ func TestPorts(t *testing.T) {
 
 	t.Run("refuses a host port twice in the config", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Ports: []string{
+		rc := &agenticrc.Config{Run: agenticrc.Run{Ports: []string{
 			"3000",
 			"3000:80",
 		}}}
 
 		// Act
-		_, err := Ports(nil, agenticRC)
+		_, err := Ports(nil, rc)
 
 		// Assert
 		assert.EqualError(t, err, `port "3000:80": host port 3000 is forwarded twice`)
@@ -55,10 +55,10 @@ func TestPorts(t *testing.T) {
 func TestMounts(t *testing.T) {
 	t.Run("lists tool, flag then rc mounts, user bind mounts read-only by default", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Mounts: []string{"/host/rc:/mnt/rc"}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Mounts: []string{"/host/rc:/mnt/rc"}}}
 
 		// Act
-		result, err := Mounts([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, []string{"/host/flag:/mnt/flag"}, agenticRC, "/tool", "/root")
+		result, err := Mounts([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, []string{"/host/flag:/mnt/flag"}, rc, "/tool", "/root")
 
 		// Assert
 		require.NoError(t, err)
@@ -71,10 +71,10 @@ func TestMounts(t *testing.T) {
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Mounts: []string{"/host/only"}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Mounts: []string{"/host/only"}}}
 
 		// Act
-		_, err := Mounts(nil, nil, agenticRC, "/tool", "/root")
+		_, err := Mounts(nil, nil, rc, "/tool", "/root")
 
 		// Assert
 		assert.EqualError(t, err, `invalid volume "/host/only": expected host:container[:options]`)
@@ -82,14 +82,14 @@ func TestMounts(t *testing.T) {
 }
 
 func TestToolArgs(t *testing.T) {
-	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Args: map[string][]string{
+	rc := &agenticrc.Config{Run: agenticrc.Run{Args: map[string][]string{
 		"copilot": {"--from-rc"},
 		"claude":  {"--other"},
 	}}}
 
 	t.Run("puts the tool's rc args before the command line's", func(t *testing.T) {
 		// Act
-		result := ToolArgs("copilot", []string{"--from-cli"}, false, agenticRC)
+		result := ToolArgs("copilot", []string{"--from-cli"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"--from-rc", "--from-cli"}, result)
@@ -97,7 +97,7 @@ func TestToolArgs(t *testing.T) {
 
 	t.Run("skipping the entrypoint drops the rc args", func(t *testing.T) {
 		// Act
-		result := ToolArgs("copilot", []string{"bash"}, true, agenticRC)
+		result := ToolArgs("copilot", []string{"bash"}, true, rc)
 
 		// Assert
 		assert.Equal(t, []string{"bash"}, result)
@@ -105,20 +105,20 @@ func TestToolArgs(t *testing.T) {
 
 	t.Run("does not mutate the rc args", func(t *testing.T) {
 		// Act
-		_ = ToolArgs("copilot", []string{"--from-cli"}, false, agenticRC)
+		_ = ToolArgs("copilot", []string{"--from-cli"}, false, rc)
 
 		// Assert
-		assert.Equal(t, []string{"--from-rc"}, agenticRC.Run.Args["copilot"])
+		assert.Equal(t, []string{"--from-rc"}, rc.Run.Args["copilot"])
 	})
 }
 
 func TestEnv(t *testing.T) {
 	t.Run("ordering, flag wins over rc on duplicate key", func(t *testing.T) {
 		// Arrange
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Env: []string{"FOO=fromrc"}}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Env: []string{"FOO=fromrc"}}}
 
 		// Act
-		result := Env([]string{"FOO=fromflag"}, agenticRC)
+		result := Env([]string{"FOO=fromflag"}, rc)
 
 		// Assert
 		assert.Equal(t, []string{"FOO=fromrc", "FOO=fromflag"}, result)
@@ -127,10 +127,10 @@ func TestEnv(t *testing.T) {
 	t.Run("does not mutate rc env slice", func(t *testing.T) {
 		// Arrange
 		rcEnv := []string{"FOO=bar"}
-		agenticRC := &rc.AgenticRC{Run: rc.RCRun{Env: rcEnv}}
+		rc := &agenticrc.Config{Run: agenticrc.Run{Env: rcEnv}}
 
 		// Act
-		result := Env([]string{"BAZ=qux"}, agenticRC)
+		result := Env([]string{"BAZ=qux"}, rc)
 
 		// Assert
 		assert.Len(t, rcEnv, 1, "original rc env slice should not be modified")
@@ -139,23 +139,23 @@ func TestEnv(t *testing.T) {
 }
 
 func TestResourceLimitsFor(t *testing.T) {
-	agenticRC := &rc.AgenticRC{Run: rc.RCRun{RCLimits: rc.RCLimits{PidsLimit: "512", CPUs: "2"}}}
+	rc := &agenticrc.Config{Run: agenticrc.Run{Limits: agenticrc.Limits{PidsLimit: "512", CPUs: "2"}}}
 
 	for _, tc := range []struct {
 		name  string
 		flags sandbox.ResourceLimits
-		rc    *rc.AgenticRC
+		rc    *agenticrc.Config
 		want  sandbox.ResourceLimits
 	}{
 		{
 			name:  "flag wins over rc, which wins over the default",
 			flags: sandbox.ResourceLimits{PidsLimit: "1024"},
-			rc:    agenticRC,
+			rc:    rc,
 			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "2", Memory: sandbox.DefaultMemory},
 		},
 		{
 			name: "falls back to hardcoded default when nothing else set",
-			rc:   &rc.AgenticRC{},
+			rc:   &agenticrc.Config{},
 			want: sandbox.ResourceLimits{PidsLimit: sandbox.DefaultPidsLimit, CPUs: sandbox.DefaultCPUs, Memory: sandbox.DefaultMemory},
 		},
 	} {
@@ -170,28 +170,28 @@ func TestResourceLimitsFor(t *testing.T) {
 }
 
 func TestRuntime(t *testing.T) {
-	agenticRC := &rc.AgenticRC{Run: rc.RCRun{Runtime: "microsandbox"}}
+	rc := &agenticrc.Config{Run: agenticrc.Run{Runtime: "microsandbox"}}
 
 	for _, tc := range []struct {
 		name string
 		flag sandbox.Runtime
-		rc   *rc.AgenticRC
+		rc   *agenticrc.Config
 		want sandbox.Runtime
 	}{
 		{
 			name: "flag takes precedence over rc",
 			flag: sandbox.RuntimeDocker,
-			rc:   agenticRC,
+			rc:   rc,
 			want: sandbox.RuntimeDocker,
 		},
 		{
 			name: "rc fills an unset flag",
-			rc:   agenticRC,
+			rc:   rc,
 			want: sandbox.RuntimeMicrosandbox,
 		},
 		{
 			name: "defaults to docker",
-			rc:   &rc.AgenticRC{},
+			rc:   &agenticrc.Config{},
 			want: sandbox.RuntimeDocker,
 		},
 	} {

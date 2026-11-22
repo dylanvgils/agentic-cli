@@ -1,4 +1,4 @@
-package rc
+package pathpattern
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidatePathPattern(t *testing.T) {
+func TestValidate(t *testing.T) {
 	t.Run("accepts literal, * and final ** segments", func(t *testing.T) {
 		patterns := []string{
 			"/",
@@ -19,7 +19,7 @@ func TestValidatePathPattern(t *testing.T) {
 		}
 		for _, pattern := range patterns {
 			// Act
-			err := ValidatePathPattern(pattern)
+			err := Validate(pattern)
 
 			// Assert
 			assert.NoError(t, err, pattern)
@@ -44,7 +44,7 @@ func TestValidatePathPattern(t *testing.T) {
 		}
 		for pattern, want := range cases {
 			// Act
-			err := ValidatePathPattern(pattern)
+			err := Validate(pattern)
 
 			// Assert
 			assert.ErrorContains(t, err, want, pattern)
@@ -52,7 +52,7 @@ func TestValidatePathPattern(t *testing.T) {
 	})
 }
 
-func TestMatchPathPattern(t *testing.T) {
+func TestMatch(t *testing.T) {
 	cases := []struct {
 		pattern string
 		path    string
@@ -78,7 +78,7 @@ func TestMatchPathPattern(t *testing.T) {
 	}
 	for _, c := range cases {
 		// Act
-		got := MatchPathPattern(c.pattern, c.path)
+		got := Match(c.pattern, c.path)
 
 		// Assert
 		assert.Equal(t, c.want, got, "%s against %s", c.path, c.pattern)

@@ -23,7 +23,7 @@ func Test_currentProject(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "loaded", project.RC.Namespace)
+		assert.Equal(t, "loaded", project.Config.Namespace)
 	})
 
 	t.Run("loads the project when none was loaded", func(t *testing.T) {
@@ -37,7 +37,7 @@ func Test_currentProject(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "example", project.RC.Namespace)
+		assert.Equal(t, "example", project.Config.Namespace)
 		assert.Len(t, project.Layers, 1)
 	})
 
@@ -57,7 +57,7 @@ func Test_currentProject(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "second", project.RC.Namespace)
+		assert.Equal(t, "second", project.Config.Namespace)
 	})
 
 	t.Run("returns the load error with the work dir", func(t *testing.T) {

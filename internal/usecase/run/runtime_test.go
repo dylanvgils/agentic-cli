@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -177,7 +177,7 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("microsandbox with the agentic backend gets the agentic-proxy runner", func(t *testing.T) {
 		// Act
-		r, err := svc.runner(sandbox.RuntimeMicrosandbox, rc.BackendAgentic)
+		r, err := svc.runner(sandbox.RuntimeMicrosandbox, agenticrc.BackendAgentic)
 
 		// Assert
 		require.NoError(t, err)
@@ -216,7 +216,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		}}
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.Config))
 
 		// Assert
 		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
@@ -229,7 +229,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		req.Flags.Runtime = "podman"
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
+		_, err := newTestService(&fakeDocker{}, nil).checkRuntime(req, chooseRuntime(req.Flags, req.Project.Config))
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -242,7 +242,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.RC))
+		_, err := newTestService(&fakeDocker{}, m).checkRuntime(req, chooseRuntime(req.Flags, req.Project.Config))
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")

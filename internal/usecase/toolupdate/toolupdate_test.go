@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config/rc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +73,7 @@ func Test_fetchIfDue(t *testing.T) {
 			// Arrange
 			home := t.TempDir()
 			if tc.checkedAgo != 0 {
-				state := &rc.State{LastToolVersionCheck: map[string]time.Time{"claude": time.Now().Add(-tc.checkedAgo)}}
+				state := &agentichome.State{LastToolVersionCheck: map[string]time.Time{"claude": time.Now().Add(-tc.checkedAgo)}}
 				require.NoError(t, state.Save(home))
 			}
 			fetched := false
@@ -92,7 +92,7 @@ func Test_fetchIfDue(t *testing.T) {
 			// Assert
 			assert.False(t, ok)
 			assert.Equal(t, tc.wantFetched, fetched)
-			state, err := rc.LoadState(home)
+			state, err := agentichome.LoadState(home)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantSaved, state.LastToolVersionCheck["claude"].After(before))
 		})
@@ -111,7 +111,7 @@ func Test_fetchIfDue(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "1.2.3", installed)
 		assert.Equal(t, "1.3.0", latest)
-		state, err := rc.LoadState(home)
+		state, err := agentichome.LoadState(home)
 		require.NoError(t, err)
 		assert.True(t, state.LastToolVersionCheck["claude"].After(before))
 	})
