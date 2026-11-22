@@ -10,6 +10,8 @@ agentic build claude --no-cache       # fully fresh build
 agentic build claude --pull           # refresh base images, keep the rest of the cache
 ```
 
+`--cache-from` and `--cache-to` pass an external build cache to `docker build`, for example `type=registry,ref=registry.example.com/agentic-cache` to share layers between machines or CI runs. Both are repeatable and take [Docker's cache backend syntax](https://docs.docker.com/build/cache/backends/).
+
 `agentic inspect <tool>` shows an image's layers, apt packages, custom installs, tool version, build time, last base-image pull, the agentic version that built it and whether it trusts the [egress proxy](egress-proxy.md) CA.
 
 ## Runtime layers

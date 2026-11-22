@@ -201,6 +201,8 @@ func buildInput(cmd *cobra.Command) tools.BuildFlags {
 	flagApt, _ := cmd.Flags().GetStringSlice("apt")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	pull, _ := cmd.Flags().GetBool("pull")
+	cacheFrom, _ := cmd.Flags().GetStringArray("cache-from")
+	cacheTo, _ := cmd.Flags().GetStringArray("cache-to")
 	skipInstallChecksum, _ := cmd.Flags().GetBool("skip-install-checksum")
 
 	return tools.BuildFlags{
@@ -211,6 +213,8 @@ func buildInput(cmd *cobra.Command) tools.BuildFlags {
 		AptPackagesExact:    exactFlagValue(cmd, aptExactFlagName),
 		NoCache:             noCache,
 		Pull:                pull,
+		CacheFrom:           cacheFrom,
+		CacheTo:             cacheTo,
 		Registry:            collectRegistry(cmd),
 		SkipInstallChecksum: skipInstallChecksum,
 	}

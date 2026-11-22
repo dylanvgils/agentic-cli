@@ -20,7 +20,8 @@ var buildCmd = &cobra.Command{
   agentic build claude --base node --node 22
   agentic build claude --base java --java 17
   agentic build claude --base-exact node
-  agentic build claude --apt-exact make,gcc`,
+  agentic build claude --apt-exact make,gcc
+  agentic build claude --cache-from type=registry,ref=registry.example.com/cache`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs, requireArgOrAll("tool"), argOrAllExclusive),
 	ValidArgs: tools.Names(),
 	RunE:      runBuild,
@@ -31,6 +32,8 @@ func init() {
 
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 	buildCmd.Flags().Bool("pull", false, "pull the latest base images from the registry before building")
+	buildCmd.Flags().StringArray("cache-from", nil, "external build cache to import, passed to docker build --cache-from (e.g. type=registry,ref=registry.example.com/cache); repeatable")
+	buildCmd.Flags().StringArray("cache-to", nil, "external build cache to export, passed to docker build --cache-to (e.g. type=registry,ref=registry.example.com/cache,mode=max); repeatable")
 
 	addBuildFlags(buildCmd)
 	addDryRunFlag(buildCmd, "print the generated Dockerfile instead of building")

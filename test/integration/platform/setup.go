@@ -30,6 +30,9 @@ const (
 	// microsandboxEnv makes a missing msb fail instead of skipping its runs, as make test-integration MSB=1 does.
 	microsandboxEnv = "AGENTIC_ITEST_MICROSANDBOX"
 
+	// buildCacheEnv makes the tool image builds import the GitHub Actions build cache ("read"), and also export it ("write").
+	buildCacheEnv = "AGENTIC_ITEST_BUILD_CACHE"
+
 	// progressInterval is how often runningSteps.report prints the steps still running.
 	progressInterval = 30 * time.Second
 )
@@ -283,25 +286,32 @@ func imageSteps(set ImageSet) []step {
 		return nil
 	}
 
-	builds := []step{
-		proxyImageStep(),
-		toolImageStep(Tool),
-	}
+	images := [][2]string{{Namespace, Tool}}
 	if set == AllImages {
-		builds = append(builds, step{LayersNamespace + "-" + Tool, func() error {
-			return runAgentic("build", "--namespace", LayersNamespace, "--base", strings.Join(tools.KnownExtras(), ","), Tool)
-		}})
+		images = append(images, [2]string{LayersNamespace, Tool})
 		for _, name := range tools.Names() {
 			if name != Tool {
-				builds = append(builds, toolImageStep(name))
+				images = append(images, [2]string{Namespace, name})
 			}
 		}
 	}
 
-	return []step{
+	builds := []step{proxyImageStep()}
+	updates := make([]step, 0, len(images))
+	for _, image := range images {
+		builds = append(builds, toolImageStep(image[0], image[1]))
+		updates = append(updates, toolUpdateStep(image[0], image[1]))
+	}
+
+	steps := []step{
 		{"migrating agentic home", migrateHome},
 		{"building images", func() error { return runParallel(builds) }},
 	}
+	if os.Getenv(buildCacheEnv) != "" {
+		// The cache holds the tool installs of its first build that week, so update them when upstream has a newer one
+		steps = append(steps, step{"updating cached tools", func() error { return runParallel(updates) }})
+	}
+	return steps
 }
 
 // microsandboxLoadStep loads the test tool's plain and layers images into msb with a first run each, so the tests running
@@ -339,9 +349,39 @@ func proxyImageStep() step {
 	return step{"agentic-proxy", func() error { return runAgentic("proxy", "build") }}
 }
 
-// toolImageStep builds name's test image, cached after the first run.
-func toolImageStep(name string) step {
-	return step{Namespace + "-" + name, func() error { return runAgentic("build", name) }}
+// toolImageStep builds tool's test image in namespace, the layers namespace with every extra layer, cached after the first run.
+func toolImageStep(namespace, tool string) step {
+	image := namespace + "-" + tool
+	args := []string{"build", "--namespace", namespace}
+	if namespace == LayersNamespace {
+		args = append(args, "--base", strings.Join(tools.KnownExtras(), ","))
+	}
+	args = append(args, buildCacheArgs(image)...)
+	return step{image, func() error { return runAgentic(append(args, tool)...) }}
+}
+
+// toolUpdateStep updates tool's test image in namespace to the latest upstream tool version, without pulling base images.
+func toolUpdateStep(namespace, tool string) step {
+	return step{namespace + "-" + tool, func() error {
+		return runAgentic("update", "--pull=false", "--namespace", namespace, tool)
+	}}
+}
+
+// buildCacheArgs returns image's --cache-from and, under "write", --cache-to flags for the buildCacheEnv cache, scoped per
+// ISO week so the cached layers pick up upstream patches weekly.
+func buildCacheArgs(image string) []string {
+	mode := os.Getenv(buildCacheEnv)
+	if mode == "" {
+		return nil
+	}
+
+	year, week := time.Now().ISOWeek()
+	cache := fmt.Sprintf("type=gha,scope=%s-%dw%02d", image, year, week)
+	args := []string{"--cache-from", cache}
+	if mode == "write" {
+		args = append(args, "--cache-to", cache+",mode=max,ignore-error=true")
+	}
+	return args
 }
 
 // migrateHome migrates the fresh AGENTIC_HOME once, or parallel builds would race through it.

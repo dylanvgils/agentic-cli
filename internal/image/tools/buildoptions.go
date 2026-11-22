@@ -15,6 +15,8 @@ type BuildFlags struct {
 	AptPackagesExact    *[]string // non-nil (even &[]string{}) triggers exact mode, overriding rc.Build.AptPackages entirely
 	NoCache             bool
 	Pull                bool
+	CacheFrom           []string
+	CacheTo             []string
 	Registry            string
 	SkipInstallChecksum bool
 }
@@ -32,6 +34,8 @@ func BuildOptionsFor(in BuildFlags, agenticRC *rc.AgenticRC) BuildOptions {
 
 	opts.NoCache = in.NoCache
 	opts.Pull = in.Pull
+	opts.CacheFrom = in.CacheFrom
+	opts.CacheTo = in.CacheTo
 	opts.Versions = versions(in.VersionOverrides, agenticRC)
 
 	if in.AptPackagesExact != nil {

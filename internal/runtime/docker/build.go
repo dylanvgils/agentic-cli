@@ -213,6 +213,13 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 		args = append(args, buildArg("SKIP_INSTALL_CHECKSUM", "true"))
 	}
 
+	for _, from := range opts.CacheFrom {
+		args = append(args, arg("cache-from", from))
+	}
+	for _, to := range opts.CacheTo {
+		args = append(args, arg("cache-to", to))
+	}
+
 	host := platform.HostUser()
 	args = append(
 		args,

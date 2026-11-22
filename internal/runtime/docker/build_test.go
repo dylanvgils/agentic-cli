@@ -113,6 +113,18 @@ func TestBuildImage(t *testing.T) {
 			absent: []string{"--no-cache"},
 		},
 		{
+			name: "external caches add a flag each",
+			opts: tools.BuildOptions{
+				CacheFrom: []string{"type=local,src=/a", "type=local,src=/b"},
+				CacheTo:   []string{"type=local,dest=/a,mode=max"},
+			},
+			want: []string{
+				"--cache-from=type=local,src=/a",
+				"--cache-from=type=local,src=/b",
+				"--cache-to=type=local,dest=/a,mode=max",
+			},
+		},
+		{
 			name: "skip install checksum adds its build arg",
 			opts: tools.BuildOptions{SkipInstallChecksum: true},
 			want: []string{"--build-arg=SKIP_INSTALL_CHECKSUM=true"},

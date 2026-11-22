@@ -1,0 +1,6 @@
+name: Expose Actions runtime
+description: Exports the Actions cache URL and token, which only JavaScript actions see, to later steps for BuildKit's gha cache
+
+runs:
+  using: node24
+  main: index.js
