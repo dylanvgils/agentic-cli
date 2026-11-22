@@ -88,7 +88,7 @@ func TestService_Apply(t *testing.T) {
 		m := &fakeMicrosandbox{}
 		ran := stubRunImage(m)
 		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, m, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
+		svc := New(&fakeDocker{inspectImage: inspectImageID()}, m, &fakeToolUpdates{}, &fakeSidecarImages{}, w, &fakeCommandLog{})
 		c := newTestRunConfig(t)
 		c.Runtime.Name = sandbox.RuntimeMicrosandbox
 		c.Egress.Mode = sandbox.EgressMonitor

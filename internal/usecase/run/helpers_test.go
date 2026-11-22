@@ -242,11 +242,6 @@ func newProxyRunSpec(t *testing.T, mode sandbox.EgressMode) sandbox.RunSpec {
 	return sandbox.RunSpec{ToolHome: t.TempDir(), Egress: sandbox.EgressPolicy{Mode: mode}}
 }
 
-// runtimeRequest returns a Request that runs on runtime.
-func runtimeRequest(runtime sandbox.Runtime) Request {
-	return Request{Project: agenticrc.Project{Config: &agenticrc.Config{}}, Flags: Flags{Runtime: runtime}}
-}
-
 // msbRequest returns a microsandbox Request with flags whose config, when set edits it, comes from one project layer.
 func msbRequest(flags Flags, set func(*agenticrc.Config)) Request {
 	return layeredRequest(sandbox.RuntimeMicrosandbox, flags, set)
@@ -269,10 +264,10 @@ func layeredRequest(runtime sandbox.Runtime, flags Flags, set func(*agenticrc.Co
 	return req
 }
 
-// inspectImageID returns an InspectImage func reporting every image with id.
-func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
+// inspectImageID returns an InspectImage func reporting every image with ID abc123.
+func inspectImageID() func(string) (*docker.ImageInfo, error) {
 	return func(name string) (*docker.ImageInfo, error) {
-		return &docker.ImageInfo{Image: name, ID: id}, nil
+		return &docker.ImageInfo{Image: name, ID: "abc123"}, nil
 	}
 }
 

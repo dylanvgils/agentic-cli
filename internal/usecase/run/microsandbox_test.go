@@ -85,7 +85,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		var gotOwner sandbox.Runtime
 		ensured := false
 		d := &fakeDocker{
-			inspectImage: inspectImageID("abc123"),
+			inspectImage: inspectImageID(),
 			startPublishedProxy: func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error) {
 				calls = append(calls, "start")
 				gotOwner = owner
@@ -124,7 +124,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 	t.Run("a failed proxy start runs no msb", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
-			inspectImage: inspectImageID("abc123"),
+			inspectImage: inspectImageID(),
 			startPublishedProxy: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 				return docker.PublishedProxy{}, errors.New("stub: start failed")
 			},
@@ -153,7 +153,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			// Arrange
 			ran, proxied := false, false
 			d := &fakeDocker{
-				inspectImage: inspectImageID("abc123"),
+				inspectImage: inspectImageID(),
 				startPublishedProxy: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 					t.Fatal("started a proxy")
 					return docker.PublishedProxy{}, nil
@@ -307,7 +307,7 @@ func Test_microsandboxRunner_DryRun(t *testing.T) {
 		// Arrange
 		var route microsandbox.ProxyRoute
 		d := &fakeDocker{
-			inspectImage: inspectImageID("abc123"),
+			inspectImage: inspectImageID(),
 			dryRunPublished: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 				return docker.PublishedProxy{Port: "<published port>"}, nil
 			},
@@ -417,7 +417,7 @@ func Test_dockerImages_ImageID(t *testing.T) {
 	}{
 		{
 			name:      "returns the image's Docker ID",
-			inspect:   inspectImageID("abc123"),
+			inspect:   inspectImageID(),
 			wantID:    "abc123",
 			wantFound: true,
 		},

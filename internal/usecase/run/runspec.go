@@ -139,15 +139,11 @@ func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
 
 // buildWithInstructions wraps build with run id's instructions snapshot mounted in; endRun saves it back.
 func (s *Service) buildWithInstructions(id sandbox.RunID, c runConfig) (sandbox.RunSpec, error) {
-	content, err := s.buildInstructions(c)
-	if err != nil {
-		return sandbox.RunSpec{}, fmt.Errorf("build instructions for %s: %w", c.Target.ToolName, err)
-	}
-
-	c.Mounts.Instructions, err = s.prepareInstructions(c, id, content)
+	instructions, err := s.prepareInstructions(c, id, s.buildInstructions(c))
 	if err != nil {
 		return sandbox.RunSpec{}, fmt.Errorf("prepare instructions for %s: %w", c.Target.ToolName, err)
 	}
+	c.Mounts.Instructions = instructions
 
 	rs, err := s.build(c)
 	if err != nil {

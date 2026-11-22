@@ -93,7 +93,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("verifies a signed release", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		cosign := stubCosign(t, 0)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, buf := newTestUpdater(t, cosign)
@@ -109,7 +109,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("returns cosign's output on an invalid signature", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		cosign := stubCosign(t, 1)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, _ := newTestUpdater(t, cosign)
@@ -124,7 +124,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("returns the exec error when cosign prints nothing", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		cosign := stubCosignScript(t, "exit 3")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, _ := newTestUpdater(t, cosign)
@@ -139,7 +139,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("stops cosign after the timeout", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		cosign := stubCosignScript(t, "exec sleep 10")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, _ := newTestUpdater(t, cosign)
@@ -155,7 +155,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("returns after the timeout when a child process holds the output", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		cosign := stubCosignScript(t, "sleep 30 &\nwait")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, _ := newTestUpdater(t, cosign)

@@ -13,7 +13,7 @@ import (
 func Test_checkPorts(t *testing.T) {
 	t.Run("passes free ports", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest("")
+		req := dockerRequest(Flags{}, nil)
 		req.Flags.Ports = []string{strconv.Itoa(int(freePort(t)))}
 
 		// Act
@@ -25,7 +25,7 @@ func Test_checkPorts(t *testing.T) {
 
 	t.Run("refuses an invalid port", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest("")
+		req := dockerRequest(Flags{}, nil)
 		req.Flags.Ports = []string{"http"}
 
 		// Act
@@ -38,7 +38,7 @@ func Test_checkPorts(t *testing.T) {
 	t.Run("refuses a port in use", func(t *testing.T) {
 		// Arrange
 		port := busyPort(t)
-		req := runtimeRequest("")
+		req := dockerRequest(Flags{}, nil)
 		req.Project.Config = &agenticrc.Config{Run: agenticrc.Run{Ports: []string{strconv.Itoa(int(port))}}}
 
 		// Act
@@ -50,7 +50,7 @@ func Test_checkPorts(t *testing.T) {
 
 	t.Run("a dry run skips the port in use check", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest("")
+		req := dockerRequest(Flags{}, nil)
 		req.Flags.DryRun = true
 		req.Flags.Ports = []string{strconv.Itoa(int(busyPort(t)))}
 

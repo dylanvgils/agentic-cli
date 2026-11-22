@@ -24,10 +24,9 @@ func Test_Service_buildInstructions(t *testing.T) {
 		c.RC = &agenticrc.Config{Run: agenticrc.Run{Instructions: agenticrc.Instructions{Enabled: &disabled}}}
 
 		// Act
-		content, err := newTestService(&fakeDocker{}, nil).buildInstructions(c)
+		content := newTestService(&fakeDocker{}, nil).buildInstructions(c)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Empty(t, content)
 	})
 
@@ -189,10 +188,9 @@ func Test_Service_buildInstructions(t *testing.T) {
 			}
 
 			// Act
-			content, err := svc.buildInstructions(c)
+			content := svc.buildInstructions(c)
 
 			// Assert
-			require.NoError(t, err)
 			assertGolden(t, filepath.Join("instructions", tc.golden+".md"), content)
 		})
 	}

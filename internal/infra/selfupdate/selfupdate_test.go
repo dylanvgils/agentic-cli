@@ -139,7 +139,7 @@ func Test_updater_update(t *testing.T) {
 
 	t.Run("verifies the signature when cosign is set", func(t *testing.T) {
 		// Arrange
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubSignedReleaseServer(t, archiveBytes)
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 		u, _ := newTestUpdater(t, stubCosign(t, 0))
 
@@ -159,7 +159,7 @@ func Test_updater_update(t *testing.T) {
 	}{
 		{
 			name:    "an invalid signature",
-			server:  func(t *testing.T) *httptest.Server { return stubSignedReleaseServer(t, "v1.5.0", archiveBytes) },
+			server:  func(t *testing.T) *httptest.Server { return stubSignedReleaseServer(t, archiveBytes) },
 			cosign:  1,
 			wantErr: errSignatureVerification,
 		},

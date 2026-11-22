@@ -23,7 +23,7 @@ import (
 func TestStartProxy(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, client, 0)
+	stubProxySettleTime(t, client)
 
 	t.Run("creates, then boots the proxy and keeps its CA", func(t *testing.T) {
 		// Arrange
@@ -307,7 +307,7 @@ func Test_proxyEnvArgs(t *testing.T) {
 func Test_proxyHandle_boot(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, client, 0)
+	stubProxySettleTime(t, client)
 	rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: testCredentials}}
 
 	t.Run("copies a scoped CA and the credentials in before start, then connects to the egress network", func(t *testing.T) {
@@ -427,7 +427,7 @@ func Test_proxyHandle_boot(t *testing.T) {
 func Test_proxyHandle_checkStarted(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, client, 0)
+	stubProxySettleTime(t, client)
 	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
 
 	t.Run("running proxy passes", func(t *testing.T) {

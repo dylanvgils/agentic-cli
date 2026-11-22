@@ -102,7 +102,7 @@ func Test_composeStages(t *testing.T) {
 func TestBuildExtraStages(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
-		stages, prev, err := buildExtraStages([]string{}, "base", nil)
+		stages, prev, err := buildExtraStages([]string{}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestBuildExtraStages(t *testing.T) {
 
 	t.Run("multiple", func(t *testing.T) {
 		// Act
-		stages, prev, err := buildExtraStages([]string{"java", "dotnet"}, "base", nil)
+		stages, prev, err := buildExtraStages([]string{"java", "dotnet"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestBuildExtraStages(t *testing.T) {
 
 	t.Run("unknown extra returns error", func(t *testing.T) {
 		// Act
-		stages, _, err := buildExtraStages([]string{"unknown"}, "base", nil)
+		stages, _, err := buildExtraStages([]string{"unknown"}, nil)
 
 		// Assert
 		require.Error(t, err)

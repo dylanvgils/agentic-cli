@@ -16,7 +16,7 @@ import (
 
 func TestClient_StartPublishedProxy(t *testing.T) {
 	client := newTestClient()
-	stubProxySettleTime(t, client, 0)
+	stubProxySettleTime(t, client)
 	newSpec := func(t *testing.T) sandbox.RunSpec {
 		return sandbox.RunSpec{
 			RunID:    testRunID,

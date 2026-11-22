@@ -48,10 +48,10 @@ func readFile(t *testing.T, path string) string {
 	return string(got)
 }
 
-// writeTemp writes content to a new file in a temp dir and returns its path.
-func writeTemp(t *testing.T, name, content string) string {
+// writeTemp writes content to snapshot.md in a temp dir and returns its path.
+func writeTemp(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), name)
+	path := filepath.Join(t.TempDir(), "snapshot.md")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o640))
 	return path
 }
