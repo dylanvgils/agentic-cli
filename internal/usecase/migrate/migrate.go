@@ -117,26 +117,12 @@ func loadState(toolHome string) (state, error) {
 	return s, nil
 }
 
-// saveState atomically writes s to TOOL_HOME/.migrations.json via a temp file + rename.
+// saveState atomically writes s to TOOL_HOME/.migrations.json.
 func saveState(toolHome string, s state) error {
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	tmp, err := os.CreateTemp(toolHome, stateFileName+".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmp.Name(), filepath.Join(toolHome, stateFileName))
+	return hostfs.Data.ReplaceFile(filepath.Join(toolHome, stateFileName), data)
 }
