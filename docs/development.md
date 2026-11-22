@@ -102,7 +102,7 @@ curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/b
 
 ## Adding a tool or runtime layer
 
-See [Architecture](https://github.com/dylanvgils/agentic-cli/blob/main/CLAUDE.md#architecture) in CLAUDE.md.
+See [tools.md](https://github.com/dylanvgils/agentic-cli/blob/main/.claude/rules/tools.md) in `.claude/rules`.
 
 Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/runtime/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
