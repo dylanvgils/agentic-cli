@@ -129,16 +129,10 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 	}
 	args = append(args, ownerLabels(rs.container, rs.RunID)...)
 
-	for _, capability := range dindCapabilities {
-		args = append(args, arg("cap-add", capability))
-	}
+	args = append(args, repeatArg("cap-add", dindCapabilities)...)
 	args = append(args, arg("security-opt", "seccomp="+filepath.Join(h.runDir, dind.SeccompFileName)))
-	for _, opt := range dindSecurityOpts {
-		args = append(args, arg("security-opt", opt))
-	}
-	for _, device := range dindDevices {
-		args = append(args, arg("device", device))
-	}
+	args = append(args, repeatArg("security-opt", dindSecurityOpts)...)
+	args = append(args, repeatArg("device", dindDevices)...)
 
 	args = append(args,
 		// dockerd's runtime dir and scratch space
