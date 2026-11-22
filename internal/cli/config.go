@@ -144,7 +144,9 @@ func projectSections(layers []agenticrc.Layer) []section {
 		{header: "run", fields: append(runLimits,
 			listField(layers, "mounts", func(rc *agenticrc.Config) []string { return rc.Run.Mounts }),
 			listField(layers, "env", envKeys),
+			listField(layers, "ports", func(rc *agenticrc.Config) []string { return rc.Run.Ports }),
 			listField(layers, "args", toolArgs),
+			scalarField(layers, "runtime", func(rc *agenticrc.Config) string { return rc.Run.Runtime }, string(sandbox.RuntimeDocker)),
 			boolField(layers, "check_updates", func(rc *agenticrc.Config) *bool { return rc.Run.CheckUpdates }, true),
 		)},
 		{header: "run.instructions", fields: []field{
@@ -154,9 +156,11 @@ func projectSections(layers []agenticrc.Layer) []section {
 		{header: "run.proxy", fields: []field{
 			boolField(layers, "enabled", func(rc *agenticrc.Config) *bool { return rc.Run.Proxy.Enabled }, proxyEnabledDefault(layers)),
 			scalarField(layers, "mode", func(rc *agenticrc.Config) string { return rc.Run.Proxy.Mode }, agenticrc.ModeEnforce),
+			scalarField(layers, "backend", func(rc *agenticrc.Config) string { return rc.Run.Proxy.Backend }, agenticrc.BackendNative),
 			listField(layers, "allowed_hosts", func(rc *agenticrc.Config) []string { return rc.Run.Proxy.AllowedHosts }),
 			listField(layers, "allowed_paths", allowedPaths),
 			listField(layers, "credentials", credentialNames),
+			listField(layers, "integrations", func(rc *agenticrc.Config) []string { return rc.Run.Proxy.Integrations }),
 		}},
 		{header: "run.dind", fields: append([]field{
 			boolField(layers, "enabled", func(rc *agenticrc.Config) *bool { return rc.Run.Dind.Enabled }, false),

@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config/agentichome"
 	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc"
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc/agenticrctest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -95,7 +98,9 @@ func Test_printProjectConfig(t *testing.T) {
     memory: 4g  (default)
     mounts: (none)
     env: (none)
+    ports: (none)
     args: (none)
+    runtime: docker  (default)
     check_updates: true  (default)
 
   [run.instructions]
@@ -105,9 +110,11 @@ func Test_printProjectConfig(t *testing.T) {
   [run.proxy]
     enabled: false  (default)
     mode: enforce  (default)
+    backend: native  (default)
     allowed_hosts: (none)
     allowed_paths: (none)
     credentials: (none)
+    integrations: (none)
 
   [run.dind]
     enabled: false  (default)
@@ -176,6 +183,33 @@ func Test_projectSections(t *testing.T) {
 			{value: "go", source: "/home/.agenticrc.toml"},
 		}, bases.entries)
 	})
+}
+
+func Test_projectSections_everyKey(t *testing.T) {
+	// Arrange
+	notShown := []string{
+		// Only stops the layer search
+		"root",
+		// Shown inline on bases as name@version
+		"build.versions",
+	}
+	cfg := agenticrctest.Filled[agenticrc.Config]("x")
+	layers := []agenticrc.Layer{{Path: "/example.test/.agenticrc.toml", Config: &cfg}}
+	want := slices.DeleteFunc(agenticrctest.Keys[agenticrc.Config](), func(key string) bool {
+		return slices.Contains(notShown, key)
+	})
+
+	// Act
+	sections := projectSections(layers)
+
+	// Assert
+	var shown []string
+	for _, s := range sections {
+		for _, f := range s.fields {
+			shown = append(shown, strings.TrimPrefix(s.header+"."+f.key, "."))
+		}
+	}
+	assert.ElementsMatch(t, want, shown, "every .agenticrc.toml key needs a field in projectSections, or a reason in notShown")
 }
 
 func Test_proxyEnabledDefault(t *testing.T) {
@@ -504,4 +538,50 @@ func Test_showConfig(t *testing.T) {
 	assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
 	assert.Contains(t, out, "work")
 	assert.Less(t, strings.Index(out, "Global ("), strings.Index(out, "Project ("))
+}
+
+func TestConfigDocs_everyKey(t *testing.T) {
+	// Arrange
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "config.md"))
+	require.NoError(t, err)
+	want := append(agenticrctest.AllKeys[agenticrc.Config](), agenticrctest.Tables[agenticrc.Config]()...)
+
+	// Act
+	keys := documentedKeys(string(data))
+
+	// Assert
+	assert.ElementsMatch(t, want, keys, "every .agenticrc.toml key and table needs a row or heading in docs/config.md")
+}
+
+// documentedKeys returns what the .agenticrc.toml section of docs/config.md documents: the table of each "### `[x]`"
+// heading, and x.<key> for each row of a table whose first column is Key ("### Top-level keys" rows have no table).
+func documentedKeys(doc string) []string {
+	_, section, _ := strings.Cut(doc, "\n## `.agenticrc.toml`\n")
+	section, _, _ = strings.Cut(section, "\n## ")
+
+	var keys []string
+	table := ""
+	inKeyTable := false
+	for line := range strings.SplitSeq(section, "\n") {
+		switch {
+		case strings.HasPrefix(line, "### `"):
+			table = strings.Trim(strings.TrimPrefix(line, "### "), "`[]")
+			keys = append(keys, table)
+			inKeyTable = false
+		case strings.HasPrefix(line, "### "):
+			table = ""
+			inKeyTable = false
+		case strings.HasPrefix(line, "| Key "):
+			inKeyTable = true
+		case inKeyTable && strings.HasPrefix(line, "| `"):
+			key := strings.Trim(strings.TrimSpace(strings.Split(line, "|")[1]), "`")
+			keys = append(keys, strings.TrimPrefix(table+"."+key, "."))
+		case !strings.HasPrefix(line, "|"):
+			inKeyTable = false
+		}
+	}
+
+	// A list of tables is both a row of its parent and its own heading
+	slices.Sort(keys)
+	return slices.Compact(keys)
 }
