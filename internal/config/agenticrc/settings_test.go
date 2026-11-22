@@ -1,9 +1,9 @@
 package agenticrc
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc/agenticrctest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,7 +63,7 @@ func TestConfig_GuardedSettings(t *testing.T) {
 			classified = append(classified, s.Key)
 		}
 		classified = append(classified, unguarded...)
-		assert.ElementsMatch(t, rcKeys(reflect.TypeFor[Config](), ""), classified,
+		assert.ElementsMatch(t, agenticrctest.Keys[Config](), classified,
 			"a new config key must be added to Config.GuardedSettings if it reaches past the container, else to unguarded here")
 	})
 }

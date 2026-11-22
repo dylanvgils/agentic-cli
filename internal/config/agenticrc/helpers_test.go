@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,25 +43,6 @@ func nestedDirs(t *testing.T, depth int) []string {
 	return dirs
 }
 
-// rcKeys returns the dotted toml key of every setting in config struct t: nested tables recurse, embedded structs share
-// their parent's table and lists of tables count as one key.
-func rcKeys(t reflect.Type, prefix string) []string {
-	var keys []string
-	for i := range t.NumField() {
-		field := t.Field(i)
-		name, _, _ := strings.Cut(field.Tag.Get("toml"), ",")
-		switch {
-		case field.Anonymous:
-			keys = append(keys, rcKeys(field.Type, prefix)...)
-		case field.Type.Kind() == reflect.Struct:
-			keys = append(keys, rcKeys(field.Type, prefix+name+".")...)
-		default:
-			keys = append(keys, prefix+name)
-		}
-	}
-	return keys
-}
-
 // scalarsOf returns rc with only the settings where the innermost layer wins.
 func scalarsOf(rc *Config) Config {
 	return Config{
@@ -75,5 +56,27 @@ func scalarsOf(rc *Config) Config {
 			Limits:       rc.Run.Limits,
 			CheckUpdates: rc.Run.CheckUpdates,
 		},
+	}
+}
+
+// assertMerged checks that v, merged from an "outer" and an "inner" filled layer, holds both layers' list entries and
+// the inner scalars; map values are checked per entry.
+func assertMerged(t *testing.T, key string, v reflect.Value) {
+	t.Helper()
+	switch v.Kind() {
+	case reflect.Slice:
+		assert.Equal(t, 2, v.Len(), "%s should hold the entries of both layers", key)
+	case reflect.Map:
+		for entry := v.MapRange(); entry.Next(); {
+			assertMerged(t, key+"."+entry.Key().String(), entry.Value())
+		}
+	case reflect.Pointer:
+		if assert.False(t, v.IsNil(), "%s was set in both layers but lost in the merge", key) {
+			assertMerged(t, key, v.Elem())
+		}
+	case reflect.String:
+		assert.Equal(t, "inner", v.String(), "%s should take the inner layer's value", key)
+	default:
+		assert.False(t, v.IsZero(), "%s was set in both layers but lost in the merge", key)
 	}
 }

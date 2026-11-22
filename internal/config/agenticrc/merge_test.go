@@ -3,6 +3,7 @@ package agenticrc
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config/agenticrc/agenticrctest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -197,6 +198,46 @@ func TestMergeConfigs(t *testing.T) {
 			assert.Equal(t, tc.want, result.Run.Instructions.Custom)
 		})
 	}
+}
+
+func Test_mergeConfigs_everyKey(t *testing.T) {
+	// root only stops the layer search, so no layer passes it on
+	const notMerged = "root"
+
+	t.Run("keeps every key set only in an outer layer", func(t *testing.T) {
+		// Arrange
+		outer := agenticrctest.Filled[Config]("outer")
+
+		// Act
+		result := mergeConfigs([]*Config{{}, &outer})
+
+		// Assert
+		for key, v := range agenticrctest.Leaves(result) {
+			if key != notMerged {
+				assert.True(t, GuardedSetting{Value: v.Interface()}.IsSet(), "%s was set in an outer layer but lost in the merge", key)
+			}
+		}
+	})
+
+	t.Run("adds up lists and takes inner scalars", func(t *testing.T) {
+		// Arrange
+		outer := agenticrctest.Filled[Config]("outer")
+		inner := agenticrctest.Filled[Config]("inner")
+
+		// Act
+		result := mergeConfigs([]*Config{&inner, &outer})
+
+		// Assert
+		for key, v := range agenticrctest.Leaves(result) {
+			switch key {
+			case notMerged:
+			case "run.instructions.custom":
+				assert.Equal(t, "outer\n\ninner", v.String(), "%s joins both layers' text", key)
+			default:
+				assertMerged(t, key, v)
+			}
+		}
+	})
 }
 
 func Test_mergeLimits(t *testing.T) {

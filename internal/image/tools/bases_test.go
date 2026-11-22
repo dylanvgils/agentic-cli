@@ -1,6 +1,11 @@
 package tools
 
 import (
+	"encoding/json"
+	"maps"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -233,6 +238,37 @@ func TestKnownExtras(t *testing.T) {
 	// Assert - the extras without the base layer, as a copy callers can't use to edit the list
 	assert.Equal(t, "docker", knownExtras[0])
 	assert.NotContains(t, KnownExtras(), BaseLayer)
+}
+
+func Test_knownExtras_matchSchema(t *testing.T) {
+	// Arrange
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "agenticrc.schema.json"))
+	require.NoError(t, err)
+	var schema struct {
+		Properties struct {
+			Build struct {
+				Properties struct {
+					Bases struct {
+						Items struct {
+							Enum []string `json:"enum"`
+						} `json:"items"`
+					} `json:"bases"`
+					Versions struct {
+						Properties map[string]any `json:"properties"`
+					} `json:"versions"`
+				} `json:"properties"`
+			} `json:"build"`
+		} `json:"properties"`
+	}
+
+	// Act
+	err = json.Unmarshal(data, &schema)
+
+	// Assert
+	require.NoError(t, err)
+	build := schema.Properties.Build.Properties
+	assert.ElementsMatch(t, knownExtras, build.Bases.Items.Enum, "build.bases enum in agenticrc.schema.json")
+	assert.ElementsMatch(t, knownExtras, slices.Collect(maps.Keys(build.Versions.Properties)), "build.versions properties in agenticrc.schema.json")
 }
 
 func Test_layerFlagDescCoversAllLayers(t *testing.T) {

@@ -43,6 +43,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
 - With the proxy enabled (`RunSpec.Egress.Mode` not off), the tool's network is `--internal`, so the proxy is its only way out.
 - A new `.agenticrc.toml` key goes in `agenticrc.Config.GuardedSettings` if it reaches past the container, else in the unguarded list of `TestConfig_GuardedSettings`. A run reads config only through the `approvedConfig` that `checkSettings` returns.
+- A new `.agenticrc.toml` key also needs merge, schema, `agentic config` and `docs/config.md`; `TestSchema_matchesConfig`, `Test_mergeConfigs_everyKey`, `Test_projectSections_everyKey` and `TestConfigDocs_everyKey` catch a miss.
 - Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`); never add mounts to the `RunSpec` around it. `RunSpec.Mounts` are typed `sandbox.Mount`s, parsed once from the `-v` syntax by `sandbox.ParseMount` (`ParseUserMount` for user mounts); runtimes only render them. `run.Service.Apply` refuses a `RunSpec` that needs a capability the runtime lacks; each runner rechecks the mounts right before a process that mounts them starts, nowhere else.
 
 ## Architecture
