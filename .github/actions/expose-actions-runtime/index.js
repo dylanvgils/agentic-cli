@@ -10,5 +10,7 @@ for (const name of names) {
   }
 }
 
-console.log(`::add-mask::${process.env.ACTIONS_RUNTIME_TOKEN}`);
+if (process.env.ACTIONS_RUNTIME_TOKEN) {
+  console.log(`::add-mask::${process.env.ACTIONS_RUNTIME_TOKEN}`);
+}
 fs.appendFileSync(process.env.GITHUB_ENV, lines.join("\n") + "\n");
