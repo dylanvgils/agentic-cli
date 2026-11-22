@@ -185,7 +185,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
 
 		// Assert
-		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
+		require.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
 		assert.False(t, started)
 	})
 
@@ -210,7 +210,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		err := newTestDockerRunner(d).Run(rs, "", t.TempDir())
 
 		// Assert
-		assert.ErrorContains(t, err, "goes through workspace symlink "+late)
+		require.ErrorContains(t, err, "goes through workspace symlink "+late)
 		assert.False(t, ran)
 		assert.True(t, stopped)
 	})
@@ -233,7 +233,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
-		assert.EqualError(t, err, "proxy error")
+		require.EqualError(t, err, "proxy error")
 		assert.False(t, ran)
 		assert.False(t, stopped)
 	})
@@ -253,7 +253,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		err := newTestDockerRunner(d).Run(sandbox.RunSpec{Image: "agentic-claude"}, "", t.TempDir())
 
 		// Assert
-		assert.EqualError(t, err, "volume error")
+		require.EqualError(t, err, "volume error")
 		assert.False(t, ran)
 	})
 

@@ -53,10 +53,10 @@ func TestNewScopedCA(t *testing.T) {
 			// Arrange
 			ca, err := NewScopedCA("test CA", tc.scope)
 			require.NoError(t, err)
-			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, tc.name)
+			leaf := issueTestLeaf(t, ca, tc.name)
 
 			// Act
-			err = verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, tc.name)
+			err = verifyLeaf(ca, leaf, tc.name)
 
 			// Assert
 			if tc.permitted {
@@ -146,7 +146,7 @@ func TestIssueLeaf(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.NoError(t, verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, "example.test"))
+		assert.NoError(t, verifyLeaf(ca, leaf, "example.test"))
 		assert.False(t, leaf.cert.IsCA)
 	})
 
@@ -156,13 +156,13 @@ func TestIssueLeaf(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Error(t, verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, ""))
+		assert.Error(t, verifyLeaf(ca, leaf, ""))
 	})
 }
 
 func TestKeyPairPEM(t *testing.T) {
 	// Arrange
-	leaf := issueTestLeaf(t, newTestCA(t), x509.ExtKeyUsageServerAuth, "example.test")
+	leaf := issueTestLeaf(t, newTestCA(t), "example.test")
 
 	// Act
 	keyPEM, err := leaf.KeyPEM()
@@ -176,7 +176,7 @@ func TestKeyPairPEM(t *testing.T) {
 
 func TestKeyPairTLSCertificate(t *testing.T) {
 	// Arrange
-	leaf := issueTestLeaf(t, newTestCA(t), x509.ExtKeyUsageServerAuth, "example.test")
+	leaf := issueTestLeaf(t, newTestCA(t), "example.test")
 
 	// Act
 	cert := leaf.TLSCertificate()
@@ -199,13 +199,13 @@ func TestLoadCA(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, ca.cert.Raw, loaded.cert.Raw)
-		leaf := issueTestLeaf(t, loaded, x509.ExtKeyUsageServerAuth, "example.test")
-		assert.NoError(t, verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, "example.test"))
+		leaf := issueTestLeaf(t, loaded, "example.test")
+		assert.NoError(t, verifyLeaf(ca, leaf, "example.test"))
 	})
 
 	t.Run("rejects a non-ca cert", func(t *testing.T) {
 		// Arrange
-		leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, "example.test")
+		leaf := issueTestLeaf(t, ca, "example.test")
 		leafKeyPEM, err := leaf.KeyPEM()
 		require.NoError(t, err)
 

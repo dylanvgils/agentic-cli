@@ -168,7 +168,7 @@ func Test_Service_offerUpdate(t *testing.T) {
 		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return true })
 
 		// Assert
-		assert.EqualError(t, err, "update failed: network error - run: agentic upgrade")
+		require.EqualError(t, err, "update failed: network error - run: agentic upgrade")
 		assert.False(t, updated)
 		assert.NotContains(t, errOut.String(), "update failed")
 	})

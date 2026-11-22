@@ -176,7 +176,7 @@ func TestRunVersionScript(t *testing.T) {
 		result := client.runVersionScript("agentic-claude", "agentic-version-claude")
 
 		// Assert
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 }

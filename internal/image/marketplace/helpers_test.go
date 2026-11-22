@@ -15,10 +15,10 @@ func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 
-// makeClone creates url's clone dir under baseDir and returns its name.
-func makeClone(t *testing.T, baseDir, url string) string {
+// makeClone creates a clone dir under baseDir and returns its name.
+func makeClone(t *testing.T, baseDir string) string {
 	t.Helper()
-	dirName := CloneDirName(url)
+	dirName := CloneDirName("git@example.com:acme.git")
 	require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
 	return dirName
 }

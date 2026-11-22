@@ -15,19 +15,19 @@ func newTestCA(t *testing.T) CA {
 	return ca
 }
 
-// issueTestLeaf returns a leaf signed by ca, failing the test on error.
-func issueTestLeaf(t *testing.T, ca CA, usage x509.ExtKeyUsage, names ...string) KeyPair {
+// issueTestLeaf returns a server leaf signed by ca, failing the test on error.
+func issueTestLeaf(t *testing.T, ca CA, names ...string) KeyPair {
 	t.Helper()
-	leaf, err := ca.IssueLeaf("test leaf", usage, names)
+	leaf, err := ca.IssueLeaf("test leaf", x509.ExtKeyUsageServerAuth, names)
 	require.NoError(t, err)
 	return leaf
 }
 
-// verifyLeaf checks leaf against a pool trusting only ca, for usage and (if set) dnsName.
-func verifyLeaf(ca CA, leaf KeyPair, usage x509.ExtKeyUsage, dnsName string) error {
+// verifyLeaf checks leaf against a pool trusting only ca, for server auth and (if set) dnsName.
+func verifyLeaf(ca CA, leaf KeyPair, dnsName string) error {
 	roots := x509.NewCertPool()
 	roots.AddCert(ca.cert)
 
-	_, err := leaf.cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: dnsName, KeyUsages: []x509.ExtKeyUsage{usage}})
+	_, err := leaf.cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: dnsName, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
 	return err
 }

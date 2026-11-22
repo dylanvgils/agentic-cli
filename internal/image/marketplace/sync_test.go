@@ -84,7 +84,7 @@ func TestSyncer_Sync(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.True(t, results[0].Stale)
-		assert.Error(t, results[0].Warning)
+		require.Error(t, results[0].Warning)
 		assert.Equal(t, dir, results[0].Dir)
 	})
 
@@ -107,7 +107,7 @@ func TestSyncer_Sync(t *testing.T) {
 		results, err := NewSyncer(g).Sync(entries, dirForBase(base))
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, results)
 		assert.Equal(t, 1, cloneCalls, "second entry must not be attempted after the first hard-fails")
 	})
@@ -123,7 +123,7 @@ func TestSyncer_Sync(t *testing.T) {
 		results, err := NewSyncer(&fakeGit{}).Sync(entries, dirForBase(t.TempDir()))
 
 		// Assert
-		assert.ErrorContains(t, err, "duplicate marketplace name")
+		require.ErrorContains(t, err, "duplicate marketplace name")
 		assert.Nil(t, results)
 	})
 

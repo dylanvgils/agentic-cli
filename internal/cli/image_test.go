@@ -170,7 +170,7 @@ func Test_truncate(t *testing.T) {
 
 		// Assert
 		assert.Len(t, result, baseMaxLength+3)
-		assert.True(t, len(result) <= baseMaxLength+3)
+		assert.LessOrEqual(t, len(result), baseMaxLength+3)
 		assert.Contains(t, result, "...")
 	})
 }

@@ -27,10 +27,10 @@ func stubReleaseServer(t *testing.T, version string, archiveBytes []byte) *httpt
 	return stubReleaseServerWith(t, validChecksums(version, archiveBytes), archiveBytes, nil)
 }
 
-// stubSignedReleaseServer is stubReleaseServer that also serves a signature bundle.
-func stubSignedReleaseServer(t *testing.T, version string, archiveBytes []byte) *httptest.Server {
+// stubSignedReleaseServer is stubReleaseServer for v1.5.0 that also serves a signature bundle.
+func stubSignedReleaseServer(t *testing.T, archiveBytes []byte) *httptest.Server {
 	t.Helper()
-	return stubReleaseServerWith(t, validChecksums(version, archiveBytes), archiveBytes, []byte(`{"bundle":"test"}`))
+	return stubReleaseServerWith(t, validChecksums("v1.5.0", archiveBytes), archiveBytes, []byte(`{"bundle":"test"}`))
 }
 
 // stubReleaseServerWithBadChecksum starts a server that returns a wrong checksum for the archive.

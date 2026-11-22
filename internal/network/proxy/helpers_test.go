@@ -134,7 +134,7 @@ func clientHello(t *testing.T, serverName string) []byte {
 		_ = server.Close()
 	})
 	go func() {
-		_ = tls.Client(client, &tls.Config{ServerName: serverName, InsecureSkipVerify: true}).Handshake() //nolint:gosec // only the hello is used
+		_ = tls.Client(client, &tls.Config{ServerName: serverName, InsecureSkipVerify: true}).Handshake() // only the hello is used
 	}()
 
 	header := make([]byte, 5)

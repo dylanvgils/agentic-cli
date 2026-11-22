@@ -72,7 +72,7 @@ func Test_currentProject(t *testing.T) {
 		project, err := currentProject(cmd)
 
 		// Assert
-		assert.ErrorContains(t, err, ".agenticrc.toml")
+		require.ErrorContains(t, err, ".agenticrc.toml")
 		assert.NotEmpty(t, project.WorkDir)
 	})
 }

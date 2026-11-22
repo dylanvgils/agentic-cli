@@ -58,7 +58,7 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 	pkgs := collectPackages(extras, opts.AptPackages)
 	base := baseStage(opts.Versions[BaseLayer], opts.Registry, pkgs)
 
-	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
+	extraList, prev, err := buildExtraStages(extras, opts.Versions)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +81,10 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 	return stages, nil
 }
 
-// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous, returning the stages and the final stage name.
-func buildExtraStages(extras []string, prevStage string, versions map[string]string) ([]dockerfile.Stage, string, error) {
+// buildExtraStages chains extra stages (e.g. java, dotnet, go) on base, each building FROM the previous, returning the stages and the final stage name.
+func buildExtraStages(extras []string, versions map[string]string) ([]dockerfile.Stage, string, error) {
 	var stages []dockerfile.Stage
-	prev := prevStage
+	prev := "base"
 
 	for _, extra := range extras {
 		ver := versions[extra]

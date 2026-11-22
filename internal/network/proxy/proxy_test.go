@@ -221,7 +221,7 @@ func TestServerConnect(t *testing.T) {
 		_, err := echoed(t, conn, hello)
 
 		// Assert
-		assert.ErrorIs(t, err, io.EOF)
+		require.ErrorIs(t, err, io.EOF)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"tls server name \"other.example.test\""`)
 		assert.NotContains(t, logBuf.String(), `"decision":"allow"`)
 	})
@@ -270,7 +270,7 @@ func TestServerConnect(t *testing.T) {
 		_, err := echoed(t, conn, []byte("GET / HTTP/1.1\r\nHost: other.example.test\r\n\r\n"))
 
 		// Assert
-		assert.ErrorIs(t, err, io.EOF)
+		require.ErrorIs(t, err, io.EOF)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"read tls client hello: `)
 	})
 

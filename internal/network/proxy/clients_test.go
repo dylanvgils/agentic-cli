@@ -102,7 +102,7 @@ func Test_clientHandler(t *testing.T) {
 		_, err := clientHandler(next, nil, "", true)
 
 		// Assert
-		assert.ErrorContains(t, err, EnvClientNets)
+		require.ErrorContains(t, err, EnvClientNets)
 		assert.ErrorContains(t, err, EnvAuthToken)
 	})
 

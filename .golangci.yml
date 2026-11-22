@@ -7,8 +7,13 @@ run:
 linters:
   enable:
     - depguard
+    - errorlint
     - forbidigo
+    - funcorder
     - gosec
+    - nolintlint
+    - testifylint
+    - unparam
   settings:
     depguard:
       rules:
@@ -203,18 +208,35 @@ linters:
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/config/precedence
               desc: agentichome sits below precedence
-        # usecases get other usecases injected; only migrate's own migrations are imported. The longer allow entry wins
-        # over the deny prefix.
+        # usecases get other usecases injected; migrate has its own rule below
         usecase-imports:
-          list-mode: lax
           files:
             - "**/internal/usecase/**"
+            - "!**/internal/usecase/migrate/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: usecases get other usecases injected through deps.go
+        # only migrate imports its own migrations. The longer allow entry wins over the deny prefix.
+        usecase-migrate-imports:
+          list-mode: lax
+          files:
+            - "**/internal/usecase/migrate/**"
             - "!$test"
           allow:
             - github.com/dylanvgils/agentic-cli/internal/usecase/migrate/migrations
           deny:
             - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
               desc: usecases get other usecases injected through deps.go
+    funcorder:
+      # CLAUDE.md file order: constructor right after its type, exported methods before unexported ones
+      constructor: true
+      struct-method: true
+      alphabetical: false
+    nolintlint:
+      # no bare //nolint, no stale ones; tests may skip the reason on //nolint:errcheck
+      require-specific: true
+      allow-unused: false
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:

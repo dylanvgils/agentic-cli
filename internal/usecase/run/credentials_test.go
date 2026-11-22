@@ -119,7 +119,7 @@ func Test_credentialSetup(t *testing.T) {
 		overrideErr := credentialSetup(c, mounts, []string{"EXAMPLE_API_KEY=value"})
 
 		// Assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.ErrorContains(t, overrideErr, "set by a proxy credential")
 	})
 }
@@ -214,7 +214,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		withDind := checkCredentialEnv(dindIn, nil)
 
 		// Assert
-		assert.NoError(t, withoutDind)
+		require.NoError(t, withoutDind)
 		assert.ErrorContains(t, withDind, "managed by agentic")
 	})
 
@@ -229,7 +229,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		with := checkCredentialEnv(mavenIn, nil)
 
 		// Assert
-		assert.NoError(t, without)
+		require.NoError(t, without)
 		assert.ErrorContains(t, with, "managed by agentic")
 	})
 }

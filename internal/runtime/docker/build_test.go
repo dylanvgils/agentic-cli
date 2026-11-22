@@ -192,7 +192,7 @@ func TestBuildProxyImage(t *testing.T) {
 		require.NoError(t, err)
 		args, dockerfile := get()
 		assert.Contains(t, args, "--tag=default-proxy")
-		assert.NotEqual(t, "", args[len(args)-1], "context should be set")
+		assert.NotEmpty(t, args[len(args)-1], "context should be set")
 		assert.Contains(t, dockerfile, "go install github.com/dylanvgils/agentic-cli/cmd/proxy@${AGENTIC_VERSION}")
 	})
 

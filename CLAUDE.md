@@ -29,7 +29,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - `runtime/dind` (sidecar files) never imports `runtime/docker`; the sidecar's container lifecycle lives in `runtime/docker/dind.go`.
   - `runtime/docker` and `runtime/microsandbox` never import each other.
   - Config, lowest first: `config/agenticrc` (`.agenticrc.toml`) < `config/agentichome` (`$AGENTIC_HOME` files) < `config/precedence`.
-  - Usecases import no other usecase (only `migrate` its own `migrate/migrations`); they get others injected through `deps.go`.
+  - Usecases import no other usecase; they get others injected through `deps.go`. Only `migrate` imports `migrate/migrations`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
   - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `infra` (never `logging` or `selfupdate`) and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
@@ -91,7 +91,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - File order, with blank lines between logical blocks:
   1. Imports (stdlib, then others).
   2. Consts, vars, types (by dependency).
-  3. Constructor + methods per type (exported first).
+  3. Constructor + methods per type, exported first; `funcorder` enforces the type part (it sees `New<Type>`, not a bare `New`).
   4. Standalone funcs (exported first, strictly by export status).
 - Put a function in the file that owns its subject, not next to its caller, even if it has side effects. Move it (and its tests) only when its subject changes.
 - Comments are short, one line unless more is genuinely needed. `main` packages get a `// Command x ...` comment; ST1000 enforces `// Package x ...` elsewhere.
@@ -105,7 +105,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Loop over a collection once: two loops over the same input that each skip what the other handles become one loop with a branch.
 - When a format changes (e.g. a comma list becomes JSON), drop the checks and comments that only guarded the old one.
 - Host files and dirs come from an `infra/hostfs` class (`Data`, `Private`, `Shared`), never `os.Mkdir*`/`os.WriteFile`; `OpenFile` and `os.Root` modes use its `Dir()`/`File()`. `forbidigo` and `gosec` enforce it.
-- Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere.
+- Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere (`nolintlint` enforces specific, used directives).
 - Run `make lint` and `shellcheck` (fix, or disable inline with a reason) before committing.
 - Use `-`, never em or en dashes, in all files.
 - Mount strings: `$TOOL_HOME`, `~`, `$HOME`, `$PWD` on the host (left) side, `$CONTAINER_HOME` on the container (right) side. Single-quote them or escape `$` in the shell.
@@ -141,6 +141,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - Assign the result in Act; don't call inside the assertion.
 - Name `TestFunc` / `Test_func` (`TestType_Method` / `Test_type_method` for methods). Several cases go in `t.Run` subtests with lowercase sentence names; a single case stays flat.
 - Subtests that differ only in inputs and expected values go in a table (`for _, tc := range []struct{...}`) with `t.Run(tc.name, ...)` per case and AAA in the loop body. Prefer exact `Equal`/`EqualError` over several `Contains`.
+- Assertions use `require` for errors and `expected, actual` order (`testifylint` enforces it).
 - Shared helpers live in `helpers_test.go`, register cleanup with `t.Cleanup`, and are named `stub...` when they stub.
 - Docker tests use a hand-written `fakeDocker` (a func field per method a test stubs; a nil field or a method without one succeeds). In `internal/cli` use `stubDocker(t, &fakeDocker{...})`.
 - IO tests stub the default streams only through `iostreamstest` (`StubIn`, `StubOut`, `StubErr`, `StubCombined`, `CaptureOut`, `CaptureErr`), never with a local copy. A `*logging.Logger` param gets `logging.New(iostreams.New(...))` over buffers.

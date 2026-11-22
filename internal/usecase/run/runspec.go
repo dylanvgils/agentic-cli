@@ -103,6 +103,11 @@ func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog, 
 	}
 }
 
+// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
+func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *agenticrc.Config, tool string) bool {
+	return needsMarketplaceSync(toolConfig, rc, tool)
+}
+
 // build assembles the sandbox.RunSpec for c, syncing marketplaces; the runtime readies its own host resources in Run.
 func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
 	marketplaceMounts, marketplaceNames, err := s.syncToolMarketplaces(c.Homes.Tool, c.Target.ToolName, c.Tool, c.RC)
@@ -132,22 +137,13 @@ func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
 	return rs, nil
 }
 
-// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
-func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *agenticrc.Config, tool string) bool {
-	return needsMarketplaceSync(toolConfig, rc, tool)
-}
-
 // buildWithInstructions wraps build with run id's instructions snapshot mounted in; endRun saves it back.
 func (s *Service) buildWithInstructions(id sandbox.RunID, c runConfig) (sandbox.RunSpec, error) {
-	content, err := s.buildInstructions(c)
-	if err != nil {
-		return sandbox.RunSpec{}, fmt.Errorf("build instructions for %s: %w", c.Target.ToolName, err)
-	}
-
-	c.Mounts.Instructions, err = s.prepareInstructions(c, id, content)
+	instructions, err := s.prepareInstructions(c, id, s.buildInstructions(c))
 	if err != nil {
 		return sandbox.RunSpec{}, fmt.Errorf("prepare instructions for %s: %w", c.Target.ToolName, err)
 	}
+	c.Mounts.Instructions = instructions
 
 	rs, err := s.build(c)
 	if err != nil {

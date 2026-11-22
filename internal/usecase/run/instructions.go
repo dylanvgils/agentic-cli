@@ -50,17 +50,12 @@ func (s *Service) prepareInstructions(c runConfig, id sandbox.RunID, content str
 }
 
 // buildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
-func (s *Service) buildInstructions(c runConfig) (string, error) {
+func (s *Service) buildInstructions(c runConfig) string {
 	if !instructionsEnabled(c.RC) {
-		return "", nil
+		return ""
 	}
 
-	facts, err := s.instructionsFacts(c)
-	if err != nil {
-		return "", err
-	}
-
-	return renderInstructions(facts), nil
+	return renderInstructions(s.instructionsFacts(c))
 }
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
@@ -75,10 +70,7 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 		return "", err
 	}
 
-	content, err := s.buildInstructions(c)
-	if err != nil {
-		return "", err
-	}
+	content := s.buildInstructions(c)
 	if content == "" {
 		return "", nil
 	}
@@ -89,7 +81,7 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 }
 
 // instructionsFacts inspects the image and resolves the run's settings into what the block describes.
-func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
+func (s *Service) instructionsFacts(c runConfig) instructionsFacts {
 	return instructionsFacts{
 		caps:          c.Runtime.Caps,
 		image:         c.Image,
@@ -104,7 +96,7 @@ func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
 		rules:         proxyRules(c),
 		webSearchTool: c.Tool.Runtime.WebSearchTool,
 		custom:        c.RC.Run.Instructions.Custom,
-	}, nil
+	}
 }
 
 func instructionsEnabled(rc *agenticrc.Config) bool {

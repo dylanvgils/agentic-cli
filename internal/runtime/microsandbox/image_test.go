@@ -135,7 +135,7 @@ func Test_Client_ensureLoaded(t *testing.T) {
 		err := store.client().ensureLoaded(&fakeImageSource{}, "agentic-claude", "agentic-claude:abc123")
 
 		// Assert
-		assert.ErrorContains(t, err, "load failed")
+		require.ErrorContains(t, err, "load failed")
 		assert.Equal(t, []string{"inspect agentic-claude:abc123", "load agentic-claude:abc123"}, store.calls)
 	})
 

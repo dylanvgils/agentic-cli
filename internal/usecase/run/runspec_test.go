@@ -341,7 +341,7 @@ func Test_Service_syncToolMarketplaces(t *testing.T) {
 		_, _, err := svc.syncToolMarketplaces(t.TempDir(), "claude", tools.Configs["claude"], acme)
 
 		// Assert
-		assert.ErrorContains(t, err, "claude")
+		require.ErrorContains(t, err, "claude")
 		assert.ErrorContains(t, err, "clone failed")
 	})
 

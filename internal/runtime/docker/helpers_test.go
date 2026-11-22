@@ -80,19 +80,19 @@ func (f *fakeRunner) RunProgress(args ...string) error {
 	return f.interactive(args)
 }
 
+func (f *fakeRunner) Stream(w io.Writer, args ...string) error {
+	if f.stream == nil {
+		return fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.stream(w, args...)
+}
+
 // interactive runs the runInteractive stub that RunInteractive and RunProgress share.
 func (f *fakeRunner) interactive(args []string) error {
 	if f.runInteractive == nil {
 		return fmt.Errorf("fake: unexpected docker %v", args)
 	}
 	return f.runInteractive(args...)
-}
-
-func (f *fakeRunner) Stream(w io.Writer, args ...string) error {
-	if f.stream == nil {
-		return fmt.Errorf("fake: unexpected docker %v", args)
-	}
-	return f.stream(w, args...)
 }
 
 // stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.
@@ -273,11 +273,9 @@ func stubDindReadyTimeoutLong(t *testing.T, client *Client) {
 }
 
 // stubDindProbe stubs client.run so the readiness probe always fails and `inspect` reports running as the given state.
-func stubDindProbe(t *testing.T, client *Client, running string) func() []dockerCall {
+func stubDindProbe(t *testing.T, client *Client, running string) {
 	t.Helper()
-	var calls []dockerCall
 	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
 		switch args[0] {
 		case "exec":
 			return "", fmt.Errorf("stub: dockerd not ready")
@@ -288,7 +286,6 @@ func stubDindProbe(t *testing.T, client *Client, running string) func() []docker
 		}
 		return "", nil
 	})
-	return func() []dockerCall { return calls }
 }
 
 // findCall returns the args of the first recorded call whose leading args equal prefix, or nil.
@@ -507,11 +504,11 @@ func stubProxyDocker(t *testing.T, client *Client, running string, failSubcmds .
 	return func() []dockerCall { return calls }
 }
 
-// stubProxySettleTime sets client's proxy settle time to d for the duration of the test.
-func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
+// stubProxySettleTime sets client's proxy settle time to zero for the duration of the test.
+func stubProxySettleTime(t *testing.T, client *Client) {
 	t.Helper()
 	orig := client.timing
-	client.timing.proxySettleTime = d
+	client.timing.proxySettleTime = 0
 	t.Cleanup(func() { client.timing = orig })
 }
 

@@ -22,7 +22,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		err := client.EnsureNamedVolumes(sandbox.RunSpec{Mounts: maven}, "busybox")
 
 		// Assert
-		assert.ErrorIs(t, err, errNoHostUser)
+		require.ErrorIs(t, err, errNoHostUser)
 		assert.Empty(t, get())
 	})
 

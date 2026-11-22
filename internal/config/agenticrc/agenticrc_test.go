@@ -187,7 +187,7 @@ url = "git@example.com:shared.git"
 		_, err := loadRC(path)
 
 		// Assert
-		assert.ErrorContains(t, err, "unknown keys")
+		require.ErrorContains(t, err, "unknown keys")
 		assert.ErrorContains(t, err, path)
 	})
 
@@ -268,7 +268,7 @@ func Test_findLayers(t *testing.T) {
 		layers, err := findLayers(dir)
 
 		// Assert
-		assert.ErrorContains(t, err, rcPath)
+		require.ErrorContains(t, err, rcPath)
 		assert.Empty(t, layers)
 	})
 }
@@ -300,7 +300,7 @@ func TestLoad(t *testing.T) {
 		project, err := Load(dir)
 
 		// Assert
-		assert.ErrorContains(t, err, rcPath)
+		require.ErrorContains(t, err, rcPath)
 		assert.Equal(t, Project{WorkDir: dir}, project)
 	})
 }

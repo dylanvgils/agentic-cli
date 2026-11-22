@@ -44,8 +44,8 @@ func TestRun(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "schema version 1")
-		assert.ErrorContains(t, err, "v3")
+		require.ErrorContains(t, err, "schema version 1")
+		require.ErrorContains(t, err, "v3")
 		assert.False(t, called)
 		assert.Empty(t, applied)
 	})
@@ -172,7 +172,7 @@ func TestApplyPending(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "boom")
+		require.ErrorContains(t, err, "boom")
 		assert.False(t, thirdCalled)
 		assert.Len(t, applied, 1)
 		s, loadErr := loadState(toolHome)

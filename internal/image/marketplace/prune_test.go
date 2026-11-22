@@ -51,7 +51,7 @@ func TestPrune(t *testing.T) {
 		baseDir := t.TempDir()
 		proj := t.TempDir()
 		writeMarketplaceRC(t, proj, "acme", "git@example.com:acme.git")
-		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
+		dirName := makeClone(t, baseDir)
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{proj}}},
 		}}
@@ -72,7 +72,7 @@ func TestPrune(t *testing.T) {
 		// Arrange
 		baseDir := t.TempDir()
 		proj := t.TempDir() // exists but no longer declares this marketplace
-		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
+		dirName := makeClone(t, baseDir)
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{proj}}},
 		}}
@@ -111,7 +111,7 @@ func TestPrune(t *testing.T) {
 		projFoo := t.TempDir()
 		projBar := t.TempDir() // no longer declares this marketplace
 		writeMarketplaceRC(t, projFoo, "foo", "git@example.com:acme.git")
-		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
+		dirName := makeClone(t, baseDir)
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {
 				{Name: "bar", URL: "git@example.com:acme.git", Projects: []string{projBar}},
@@ -136,7 +136,7 @@ func TestPrune(t *testing.T) {
 		baseDir := t.TempDir()
 		projFoo := t.TempDir() // no longer declares this marketplace
 		projBar := t.TempDir() // no longer declares this marketplace
-		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
+		dirName := makeClone(t, baseDir)
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {
 				{Name: "bar", URL: "git@example.com:acme.git", Projects: []string{projBar}},

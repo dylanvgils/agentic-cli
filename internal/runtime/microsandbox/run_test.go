@@ -398,7 +398,7 @@ func Test_netRuleTargets(t *testing.T) {
 		targets, err := netRuleTargets([]string{"api.example.test", "public"})
 
 		// Assert
-		assert.ErrorContains(t, err, `msb can't allow "public"`)
+		require.ErrorContains(t, err, `msb can't allow "public"`)
 		assert.Nil(t, targets)
 	})
 }

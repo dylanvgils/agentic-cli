@@ -103,6 +103,11 @@ func (r microsandboxRunner) DryRun(rs sandbox.RunSpec, logDir string) error {
 	return r.microsandbox.DryRunThroughProxy(rs, proxyRoute(published))
 }
 
+// Teardown stops run id's VM and removes its published proxy.
+func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
+	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
+}
+
 // runThroughProxy runs rs behind a published agentic-proxy, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry, logDir string) error {
 	proxyLog := proxyLogFile(rs, logDir)
@@ -124,11 +129,6 @@ func (r microsandboxRunner) runThroughProxy(rs sandbox.RunSpec, registry, logDir
 		return err
 	}
 	return r.microsandbox.RunThroughProxy(rs, proxyRoute(published))
-}
-
-// Teardown stops run id's VM and removes its published proxy.
-func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
-	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
 }
 
 // ensureDockerdImage builds image's dockerd image when it's missing or stale.
