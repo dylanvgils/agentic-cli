@@ -21,8 +21,7 @@ const integrationsScript = `echo "maven=$MAVEN_ARGS"; echo "gradle=$GRADLE_OPTS"
 	`echo "maven-proxy=$AGENTIC_MAVEN_PROXY_HOST:$AGENTIC_MAVEN_PROXY_PORT"; ` +
 	`nc -z -w 3 "$AGENTIC_MAVEN_PROXY_HOST" "$AGENTIC_MAVEN_PROXY_PORT" && echo proxy=reachable || echo proxy=unreachable`
 
-// TestEgressIntegrations checks the maven and gradle integrations point the tools at the run's Docker proxy, and only
-// with --proxy.
+// TestEgressIntegrations checks the integrations use the Docker proxy, only with --proxy.
 func TestEgressIntegrations(t *testing.T) {
 	t.Run("flag sets the env pointing at the proxy", func(t *testing.T) {
 		// Act
@@ -64,8 +63,7 @@ func TestEgressIntegrations(t *testing.T) {
 	})
 }
 
-// TestEgressIntegrationsMicrosandbox checks the integrations point the tools at a microsandbox run's published proxy,
-// with its token.
+// TestEgressIntegrationsMicrosandbox checks the integrations use the msb proxy and token.
 func TestEgressIntegrationsMicrosandbox(t *testing.T) {
 	// Arrange
 	rt := microsandbox(t)

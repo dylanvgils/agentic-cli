@@ -107,8 +107,7 @@ func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 	return c.runner.RunInteractive(processEnv, args...)
 }
 
-// hiddenEnv returns the guest's proxy env with the integrations', kept out of args as it holds the token; nil without a
-// route.
+// hiddenEnv returns the guest's proxy and integration env, kept out of args for the token.
 func (r *ProxyRoute) hiddenEnv(integrations []string) []string {
 	if r == nil {
 		return nil

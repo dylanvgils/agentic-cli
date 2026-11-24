@@ -7,7 +7,7 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 )
 
-// mavenPortPlaceholder stands in for the proxy port in the settings template, as Maven only reads a number there.
+// mavenPortPlaceholder is the port in the settings template, as Maven can't read it from env.
 const mavenPortPlaceholder = "@AGENTIC_MAVEN_PROXY_PORT@"
 
 // mavenSettings is the part of Maven's settings.xml agentic sets.
@@ -28,9 +28,7 @@ type mavenProxy struct {
 	NonProxyHosts string `xml:"nonProxyHosts"`
 }
 
-// mavenSettingsFile writes the Maven settings template for the maven proxy integration, one proxy per scheme. Maven
-// reads the endpoint from the env mavenProxyEnv sets, so the token never lands in a file; mavenSettingsBlock fills in
-// the port.
+// mavenSettingsFile writes the Maven proxy settings template; the token comes from env, never a file.
 func mavenSettingsFile() df.Heredoc {
 	var settings mavenSettings
 	for _, protocol := range []string{"http", "https"} {
@@ -55,17 +53,23 @@ func mavenSettingsFile() df.Heredoc {
 	}
 }
 
-// mavenSettingsBlock is the entrypoint block that renders the Maven settings template with the proxy port, in java
-// images with the maven integration on.
+// mavenSettingsBlock renders the Maven settings template with the proxy port.
 func mavenSettingsBlock() df.Block {
-	return df.Block{Comment: "Fill in the egress proxy's port for the maven integration", Lines: []string{
-		`if [[ -n "${` + MavenProxyPortEnv + `:-}" && -f ` + mavenSettingsTemplatePath + ` ]]; then`,
-		`  sed "s/` + mavenPortPlaceholder + `/${` + MavenProxyPortEnv + `}/" ` + mavenSettingsTemplatePath + ` > ` + mavenSettingsPath,
-		"fi",
-	}}
+	port := "${" + MavenProxyPortEnv + "}"
+	portOrEmpty := "${" + MavenProxyPortEnv + ":-}"
+	sed := `sed "s/` + mavenPortPlaceholder + `/` + port + `/"`
+
+	return df.Block{
+		Comment: "Fill in the egress proxy's port for the maven integration",
+		Lines: []string{
+			`if [[ -n "` + portOrEmpty + `" && -f ` + mavenSettingsTemplatePath + ` ]]; then`,
+			`  ` + sed + ` ` + mavenSettingsTemplatePath + ` > ` + mavenSettingsPath,
+			"fi",
+		},
+	}
 }
 
-// mavenEnvRef returns Maven's settings reference to env var name.
+// mavenEnvRef returns Maven's reference to env var name.
 func mavenEnvRef(name string) string {
 	return "${env." + name + "}"
 }

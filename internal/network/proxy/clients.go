@@ -38,9 +38,7 @@ func requireToken(next http.Handler, token string) http.Handler {
 	})
 }
 
-// proxyAuthHeader names the header r carries the proxy credentials in. A CONNECT without Proxy-Authorization may carry
-// them in Authorization, as Maven's resolver sends its cached proxy scheme there on new tunnels; a CONNECT has no origin
-// that header could be meant for.
+// proxyAuthHeader names r's proxy credentials header; Maven sends them in Authorization on a CONNECT.
 func proxyAuthHeader(r *http.Request) string {
 	if r.Method == http.MethodConnect && r.Header.Get("Proxy-Authorization") == "" && r.Header.Get("Authorization") != "" {
 		return "Authorization"

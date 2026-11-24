@@ -44,7 +44,7 @@ const (
 	dryRunTokenFilePlaceholder = "<auth token file>"
 )
 
-// sidecarEndpoint is the proxy sidecar on the tool's network, which takes no auth.
+// sidecarEndpoint is the proxy sidecar, which takes no auth.
 var sidecarEndpoint = tools.ProxyEndpoint{
 	Host: tools.ProxyHostAlias,
 	Port: tools.ProxyPort,

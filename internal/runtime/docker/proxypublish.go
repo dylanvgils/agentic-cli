@@ -32,7 +32,7 @@ type PublishedProxy struct {
 	Token string
 	// CAPEM is the CA cert the tool must trust, nil when the proxy doesn't decrypt.
 	CAPEM []byte
-	// Env is the tool's KEY=VALUE credential placeholders; the runtime sets the integrations' env for its own endpoint.
+	// Env is the tool's KEY=VALUE credential placeholders.
 	Env []string
 
 	// guard tears the run down; nil when only printed
@@ -123,7 +123,7 @@ func (h proxyHandle) printedProxy() PublishedProxy {
 	return published
 }
 
-// publishedProxy returns h as a PublishedProxy on port, without the integration env, which names the sidecar alias.
+// publishedProxy returns h as a PublishedProxy on port, without the sidecar's integration env.
 func (h proxyHandle) publishedProxy(port string) PublishedProxy {
 	return PublishedProxy{
 		Port:  port,

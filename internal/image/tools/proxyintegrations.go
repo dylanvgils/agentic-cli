@@ -5,15 +5,14 @@ import (
 )
 
 const (
-	// MavenProxyHostEnv, MavenProxyUserEnv and MavenProxyPasswordEnv carry the proxy endpoint into the Maven settings,
-	// which read them as ${env.NAME}; the entrypoint writes MavenProxyPortEnv in, as Maven can't read a port that way.
+	// Maven proxy endpoint env, read by the Maven settings.
 	MavenProxyHostEnv     = "AGENTIC_MAVEN_PROXY_HOST"
 	MavenProxyPortEnv     = "AGENTIC_MAVEN_PROXY_PORT"
 	MavenProxyUserEnv     = "AGENTIC_MAVEN_PROXY_USER"
 	MavenProxyPasswordEnv = "AGENTIC_MAVEN_PROXY_PASSWORD"
 )
 
-// ProxyEndpoint is the proxy as a tool reaches it; User and Password are empty when it takes no auth.
+// ProxyEndpoint is the proxy as a tool reaches it; no User means no auth.
 type ProxyEndpoint struct {
 	Host     string
 	Port     string
@@ -21,7 +20,7 @@ type ProxyEndpoint struct {
 	Password string
 }
 
-// proxyIntegrationEnv maps each egress integration to the tool env routing it through the proxy at an endpoint.
+// proxyIntegrationEnv maps each integration to its tool env.
 var proxyIntegrationEnv = map[string]func(ProxyEndpoint) []string{
 	"gradle": gradleProxyEnv,
 	"maven":  mavenProxyEnv,
@@ -48,8 +47,7 @@ func ProxyIntegrationEnvNames(names []string) []string {
 	return keys
 }
 
-// gradleProxyEnv sets GRADLE_OPTS, which Gradle passes on to its daemon. With auth, it also re-enables Basic auth for
-// HTTPS tunnels, which the JDK turns off by default and the Gradle wrapper's download needs.
+// gradleProxyEnv sets GRADLE_OPTS; with auth it re-enables Basic for tunnels, which the JDK turns off.
 func gradleProxyEnv(ep ProxyEndpoint) []string {
 	var opts []string
 	for _, scheme := range []string{"http", "https"} {
@@ -70,7 +68,7 @@ func gradleProxyEnv(ep ProxyEndpoint) []string {
 	return []string{"GRADLE_OPTS=" + strings.Join(opts, " ")}
 }
 
-// mavenProxyEnv points Maven at the settings the entrypoint renders and gives them the endpoint.
+// mavenProxyEnv points Maven at the rendered settings and the endpoint.
 func mavenProxyEnv(ep ProxyEndpoint) []string {
 	return []string{
 		"MAVEN_ARGS=--global-settings " + mavenSettingsPath,
