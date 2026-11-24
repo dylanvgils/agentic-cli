@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/xml"
+	"fmt"
 	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
@@ -55,15 +56,16 @@ func mavenSettingsFile() df.Heredoc {
 
 // mavenSettingsBlock renders the Maven settings template with the proxy port.
 func mavenSettingsBlock() df.Block {
-	port := "${" + MavenProxyPortEnv + "}"
-	portOrEmpty := "${" + MavenProxyPortEnv + ":-}"
-	sed := `sed "s/` + mavenPortPlaceholder + `/` + port + `/"`
-
 	return df.Block{
 		Comment: "Fill in the egress proxy's port for the maven integration",
 		Lines: []string{
-			`if [[ -n "` + portOrEmpty + `" && -f ` + mavenSettingsTemplatePath + ` ]]; then`,
-			`  ` + sed + ` ` + mavenSettingsTemplatePath + ` > ` + mavenSettingsPath,
+			fmt.Sprintf(`if [[ -n "${%s:-}" && -f %s ]]; then`, MavenProxyPortEnv, mavenSettingsTemplatePath),
+			fmt.Sprintf(`  sed "s/%s/${%s}/" %s > %s`,
+				mavenPortPlaceholder,
+				MavenProxyPortEnv,
+				mavenSettingsTemplatePath,
+				mavenSettingsPath,
+			),
 			"fi",
 		},
 	}

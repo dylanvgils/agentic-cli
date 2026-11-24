@@ -44,12 +44,6 @@ const (
 	dryRunTokenFilePlaceholder = "<auth token file>"
 )
 
-// sidecarEndpoint is the proxy sidecar, which takes no auth.
-var sidecarEndpoint = tools.ProxyEndpoint{
-	Host: tools.ProxyHostAlias,
-	Port: tools.ProxyPort,
-}
-
 // proxyHandle identifies the per-run proxy sidecar container, host-side access log, injected credentials, the run
 // network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
@@ -91,6 +85,12 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
+	// The sidecar takes no auth.
+	sidecar := tools.ProxyEndpoint{
+		Host: tools.ProxyHostAlias,
+		Port: tools.ProxyPort,
+	}
+
 	return proxyHandle{
 		client:         c,
 		id:             rs.RunID,
@@ -101,7 +101,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		credentials:    creds,
 		rules:          rules,
 		placeholderEnv: placeholderEnv,
-		integrationEnv: tools.ProxyIntegrationEnv(rs.Egress.Integrations, sidecarEndpoint),
+		integrationEnv: tools.ProxyIntegrationEnv(rs.Egress.Integrations, sidecar),
 		user:           *rs.User,
 	}, nil
 }
