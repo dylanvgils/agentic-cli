@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -12,9 +13,6 @@ const (
 	EgressEnforce
 	EgressMonitor
 )
-
-// egressIntegrations are the tools a run can route through egress control though they ignore the proxy env vars, sorted.
-var egressIntegrations = []string{"gradle", "maven"}
 
 // EgressMode selects whether egress is filtered and whether a disallowed host is blocked or only logged.
 type EgressMode int
@@ -67,14 +65,14 @@ func AllowWhole(rules []AllowRule) []AllowRule {
 
 // EgressIntegrations returns the known egress integration names, sorted.
 func EgressIntegrations() []string {
-	return slices.Clone(egressIntegrations)
+	return slices.Sorted(maps.Keys(integrationEnv))
 }
 
 // CheckEgressIntegrations refuses the first name that isn't a known egress integration.
 func CheckEgressIntegrations(names []string) error {
 	for _, name := range names {
-		if !slices.Contains(egressIntegrations, name) {
-			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(egressIntegrations, ", "))
+		if _, ok := integrationEnv[name]; !ok {
+			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(EgressIntegrations(), ", "))
 		}
 	}
 	return nil

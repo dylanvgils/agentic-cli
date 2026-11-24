@@ -131,9 +131,9 @@ agentic run --proxy --proxy-integration maven,gradle claude
 
 Add the other hosts your build downloads from, such as the Gradle wrapper and plugin portal. A first run with `--proxy-monitor` lists them in the access log.
 
-- **Maven** needs the `java` base and Maven 3.9 or later, directly or through `mvnw`. Your own `~/.m2/settings.xml` still applies. Put Maven args in `.mvn/maven.config`, as `MAVEN_ARGS` and `AGENTIC_MAVEN_PROXY_*` are set by agentic.
+- **Maven** needs the `java` base and Maven 3.9 or later, directly or through `mvnw`. Your own `~/.m2/settings.xml` and `MAVEN_ARGS` still apply; `AGENTIC_MAVEN_PROXY_*` are set by agentic.
 - **Gradle** works through `gradlew` and the Gradle daemon. Set daemon memory with `org.gradle.jvmargs` in `gradle.properties`, as `GRADLE_OPTS` is set by agentic.
-- The image entrypoint writes Maven's proxy settings, so `agentic run <tool> -- <cmd>`, which skips it, gets no Maven proxy.
+- The image entrypoint sets up Maven's proxy, so `agentic run <tool> -- <cmd>`, which skips it, runs Maven without it.
 - Images built by an older agentic need `agentic build` or `agentic update`.
 
 Don't point a tool at an external corporate proxy, because that traffic would skip the allowlist.
@@ -173,7 +173,7 @@ backend = "agentic"
 ```
 
 - The Docker context must be on this machine, else the run is refused.
-- Each run gets its own token in the proxy URL. It's never in process args, but anyone who can read the run's environment can use the proxy while it runs.
+- Each run gets its own token in the proxy URL. It's never in host process args, but anyone who can read the run's environment can use the proxy while it runs.
 - DNS is blocked, so a tool that ignores the proxy env vars reaches nothing.
 - [Integrations](#tools-that-ignore-proxy-env-vars) work as with Docker; they get the token too.
 - With `--dind`, image pulls, containers and builds in the VM go through the proxy. `agentic run <tool> -- <cmd>` skips the entrypoint that sets this up, so its inner containers get no proxy.

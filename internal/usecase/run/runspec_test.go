@@ -409,8 +409,8 @@ func Test_validateEnv(t *testing.T) {
 		{name: "rejects proxy var when proxy enabled", env: "HTTP_PROXY=http://evil", proxy: true, wantErr: "HTTP_PROXY"},
 		{name: "accepts docker var when dind disabled", env: "DOCKER_HOST=tcp://build-host:2376"},
 		{name: "rejects docker var when dind enabled", env: "DOCKER_CERT_PATH=/tmp", dind: true, wantErr: "DOCKER_CERT_PATH"},
-		{name: "rejects a var a proxy integration sets", env: "MAVEN_ARGS=--quiet", proxy: true, integrations: []string{"maven"}, wantErr: `"MAVEN_ARGS" is managed by agentic`},
-		{name: "accepts a var no proxy integration sets", env: "MAVEN_ARGS=--quiet", proxy: true},
+		{name: "rejects a var a proxy integration sets", env: "GRADLE_OPTS=-Dexample", proxy: true, integrations: []string{"gradle"}, wantErr: `"GRADLE_OPTS" is managed by agentic`},
+		{name: "accepts a var no proxy integration sets", env: "GRADLE_OPTS=-Dexample", proxy: true},
 		{name: "rejects bare reserved name regardless of proxy", env: "TOOL_HOME", wantErr: "TOOL_HOME"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

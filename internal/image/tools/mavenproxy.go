@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // mavenPortPlaceholder is the port in the settings template, as Maven can't read it from env.
@@ -37,10 +38,10 @@ func mavenSettingsFile() df.Heredoc {
 			ID:            "agentic-proxy-" + protocol,
 			Active:        true,
 			Protocol:      protocol,
-			Host:          mavenEnvRef(MavenProxyHostEnv),
+			Host:          mavenEnvRef(sandbox.MavenProxyHostEnv),
 			Port:          mavenPortPlaceholder,
-			Username:      mavenEnvRef(MavenProxyUserEnv),
-			Password:      mavenEnvRef(MavenProxyPasswordEnv),
+			Username:      mavenEnvRef(sandbox.MavenProxyUserEnv),
+			Password:      mavenEnvRef(sandbox.MavenProxyPasswordEnv),
 			NonProxyHosts: "localhost|127.0.0.1",
 		})
 	}
@@ -54,18 +55,19 @@ func mavenSettingsFile() df.Heredoc {
 	}
 }
 
-// mavenSettingsBlock renders the Maven settings template with the proxy port.
+// mavenSettingsBlock renders the Maven settings with the proxy port and points Maven at them.
 func mavenSettingsBlock() df.Block {
 	return df.Block{
-		Comment: "Fill in the egress proxy's port for the maven integration",
+		Comment: "Render the Maven proxy settings for the maven integration",
 		Lines: []string{
-			fmt.Sprintf(`if [[ -n "${%s:-}" && -f %s ]]; then`, MavenProxyPortEnv, mavenSettingsTemplatePath),
+			fmt.Sprintf(`if [[ -n "${%s:-}" && -f %s ]]; then`, sandbox.MavenProxyPortEnv, mavenSettingsTemplatePath),
 			fmt.Sprintf(`  sed "s/%s/${%s}/" %s > %s`,
 				mavenPortPlaceholder,
-				MavenProxyPortEnv,
+				sandbox.MavenProxyPortEnv,
 				mavenSettingsTemplatePath,
 				mavenSettingsPath,
 			),
+			fmt.Sprintf(`  export MAVEN_ARGS="--global-settings %s${MAVEN_ARGS:+ $MAVEN_ARGS}"`, mavenSettingsPath),
 			"fi",
 		},
 	}

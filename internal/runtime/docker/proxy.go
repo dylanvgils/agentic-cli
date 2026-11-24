@@ -86,7 +86,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 	}
 
 	// The sidecar takes no auth.
-	sidecar := tools.ProxyEndpoint{
+	sidecar := sandbox.ProxyEndpoint{
 		Host: tools.ProxyHostAlias,
 		Port: tools.ProxyPort,
 	}
@@ -101,7 +101,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		credentials:    creds,
 		rules:          rules,
 		placeholderEnv: placeholderEnv,
-		integrationEnv: tools.ProxyIntegrationEnv(rs.Egress.Integrations, sidecar),
+		integrationEnv: sandbox.IntegrationEnv(rs.Egress.Integrations, sidecar),
 		user:           *rs.User,
 	}, nil
 }

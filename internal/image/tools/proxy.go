@@ -13,8 +13,7 @@ const (
 	// depends on CLI version and registry, since allowlist/log config is passed via env vars at run time.
 	ProxyImage = "agentic-" + ProxyImageSuffix
 
-	// ProxyHostAlias and ProxyPort are the proxy sidecar's address on the tool's network, the same on every run, as
-	// images bake it into tool config (see mavenSettingsFile).
+	// ProxyHostAlias and ProxyPort are the proxy sidecar's address on the tool's network.
 	ProxyHostAlias = "agentic-proxy"
 	ProxyPort      = "3128"
 

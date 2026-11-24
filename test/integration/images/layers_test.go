@@ -30,3 +30,19 @@ func TestLayerSmoke(t *testing.T) {
 		})
 	}
 }
+
+// TestMavenProxySettings checks the java image's entrypoint renders the Maven proxy settings and points Maven at them.
+func TestMavenProxySettings(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	out := platform.NewToolRun(t).
+		InNamespace(platform.LayersNamespace).
+		WithProxy().
+		WithIntegrationFlag("maven").
+		ViaEntrypoint().
+		Run(`echo "maven=$MAVEN_ARGS"; grep -c '<port>3128</port>' "${MAVEN_ARGS#--global-settings }"`)
+
+	// Assert
+	assert.Contains(t, out, "maven=--global-settings /tmp/agentic-maven-settings.xml\n2\n")
+}

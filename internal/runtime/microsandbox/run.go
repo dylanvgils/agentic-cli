@@ -118,13 +118,13 @@ func (r *ProxyRoute) hiddenEnv(integrations []string) []string {
 	if len(r.CAPEM) > 0 {
 		env = append(env, tools.ProxyCAEnvName+"="+string(r.CAPEM))
 	}
-	endpoint := tools.ProxyEndpoint{
+	endpoint := sandbox.ProxyEndpoint{
 		Host:     tools.MicrosandboxHostAlias,
 		Port:     r.Port,
 		User:     proxy.AuthUser,
 		Password: r.Token,
 	}
-	return append(env, tools.ProxyIntegrationEnv(integrations, endpoint)...)
+	return append(env, sandbox.IntegrationEnv(integrations, endpoint)...)
 }
 
 // dryRun prints rs's `msb run` command, through route when set, with a placeholder for the env file.

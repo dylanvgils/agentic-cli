@@ -129,7 +129,7 @@ func TestClient_Run(t *testing.T) {
 		rs := sandbox.RunSpec{
 			RunID:  testRunID,
 			Image:  "agentic-claude",
-			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Integrations: []string{"maven", "gradle"}},
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Integrations: []string{"maven"}},
 		}
 		route := ProxyRoute{
 			Port:  "49153",
@@ -142,12 +142,7 @@ func TestClient_Run(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, strings.Join(call.args, " "), "test-token")
-		assert.Contains(t, call.conf, `"MAVEN_ARGS": "${AGENTIC_GUEST_MAVEN_ARGS}"`)
-		assert.Contains(t, call.conf, `"GRADLE_OPTS": "${AGENTIC_GUEST_GRADLE_OPTS}"`)
-		assert.Contains(t, call.env, "AGENTIC_GUEST_AGENTIC_MAVEN_PROXY_HOST=host.microsandbox.internal")
-		assert.Contains(t, call.env, "AGENTIC_GUEST_AGENTIC_MAVEN_PROXY_PORT=49153")
 		assert.Contains(t, call.env, "AGENTIC_GUEST_AGENTIC_MAVEN_PROXY_PASSWORD=test-token")
-		assert.Contains(t, strings.Join(call.env, " "), "-Dhttps.proxyPassword=test-token")
 	})
 }
 

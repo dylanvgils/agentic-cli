@@ -220,13 +220,13 @@ func Test_checkCredentialEnv(t *testing.T) {
 
 	t.Run("refuses integration names only with the integration", func(t *testing.T) {
 		// Arrange
-		in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}}}
-		mavenIn := in
-		mavenIn.Egress.Integrations = []string{"maven"}
+		in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"GRADLE_OPTS"}}}}}
+		gradleIn := in
+		gradleIn.Egress.Integrations = []string{"gradle"}
 
 		// Act
 		without := checkCredentialEnv(in, nil)
-		with := checkCredentialEnv(mavenIn, nil)
+		with := checkCredentialEnv(gradleIn, nil)
 
 		// Assert
 		require.NoError(t, without)
