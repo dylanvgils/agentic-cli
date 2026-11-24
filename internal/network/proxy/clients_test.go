@@ -123,36 +123,57 @@ func Test_requireToken(t *testing.T) {
 	})
 	handler := requireToken(next, "test-secret")
 
-	t.Run("matching token is served without the header", func(t *testing.T) {
-		// Arrange
-		seen = nil
-		req := httptest.NewRequest(http.MethodGet, "http://example.test", nil)
-		req.Header.Set("Proxy-Authorization", basicAuth(AuthUser, "test-secret"))
-		rec := httptest.NewRecorder()
+	for _, tc := range []struct {
+		name   string
+		method string
+		header string
+	}{
+		{name: "matching token is served without the header", method: http.MethodGet, header: "Proxy-Authorization"},
+		{name: "matching token in a CONNECT's Authorization is served without it", method: http.MethodConnect, header: "Authorization"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			seen = nil
+			req := httptest.NewRequest(tc.method, "http://example.test:443", nil)
+			req.Header.Set(tc.header, basicAuth(AuthUser, "test-secret"))
+			rec := httptest.NewRecorder()
 
-		// Act
-		handler.ServeHTTP(rec, req)
+			// Act
+			handler.ServeHTTP(rec, req)
 
-		// Assert
-		assert.Equal(t, http.StatusTeapot, rec.Code)
-		require.NotNil(t, seen)
-		assert.Empty(t, seen.Header.Get("Proxy-Authorization"))
-	})
+			// Assert
+			assert.Equal(t, http.StatusTeapot, rec.Code)
+			require.NotNil(t, seen)
+			assert.Empty(t, seen.Header.Get(tc.header))
+		})
+	}
 
 	for _, tc := range []struct {
-		name string
-		auth string
+		name          string
+		method        string
+		proxyAuth     string
+		authorization string
 	}{
-		{name: "missing header"},
-		{name: "wrong token", auth: basicAuth(AuthUser, "other-secret")},
-		{name: "wrong user", auth: basicAuth("someone", "test-secret")},
+		{name: "missing header", method: http.MethodConnect},
+		{name: "wrong token", method: http.MethodConnect, proxyAuth: basicAuth(AuthUser, "other-secret")},
+		{name: "wrong user", method: http.MethodConnect, proxyAuth: basicAuth("someone", "test-secret")},
+		{name: "token in a plain request's Authorization", method: http.MethodGet, authorization: basicAuth(AuthUser, "test-secret")},
+		{
+			name:          "wrong Proxy-Authorization beside a matching Authorization",
+			method:        http.MethodConnect,
+			proxyAuth:     basicAuth(AuthUser, "other-secret"),
+			authorization: basicAuth(AuthUser, "test-secret"),
+		},
 	} {
 		t.Run(tc.name+" is refused with a challenge", func(t *testing.T) {
 			// Arrange
 			seen = nil
-			req := httptest.NewRequest(http.MethodConnect, "http://api.example.test:443", nil)
-			if tc.auth != "" {
-				req.Header.Set("Proxy-Authorization", tc.auth)
+			req := httptest.NewRequest(tc.method, "http://api.example.test:443", nil)
+			if tc.proxyAuth != "" {
+				req.Header.Set("Proxy-Authorization", tc.proxyAuth)
+			}
+			if tc.authorization != "" {
+				req.Header.Set("Authorization", tc.authorization)
 			}
 			rec := httptest.NewRecorder()
 

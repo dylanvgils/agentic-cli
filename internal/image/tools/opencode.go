@@ -49,6 +49,7 @@ func opencodeStage(prevStage string) df.Stage {
 			Blocks: []df.Block{
 				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
 				proxyTrustBlock(),
+				mavenSettingsBlock(),
 				{Lines: []string{`exec opencode "$@"`}},
 			},
 		}).

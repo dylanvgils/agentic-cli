@@ -189,7 +189,7 @@ func javaStage(prevStage, ver string) df.Stage {
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "COPY --chmod also sets the mode of parents it creates, so create them first",
-				Lines:   []string{"mkdir -p " + path.Dir(MavenSettingsPath)},
+				Lines:   []string{"mkdir -p " + path.Dir(mavenSettingsTemplatePath)},
 			},
 		}}).
 		Add(mavenSettingsFile()).

@@ -13,13 +13,15 @@ const (
 	// depends on CLI version and registry, since allowlist/log config is passed via env vars at run time.
 	ProxyImage = "agentic-" + ProxyImageSuffix
 
-	// ProxyHostAlias and ProxyPort are the proxy sidecar's address on the tool's network, the same on every run, as
-	// images bake it into tool config (see mavenSettingsFile).
+	// ProxyHostAlias and ProxyPort are the proxy sidecar's address on the tool's network.
 	ProxyHostAlias = "agentic-proxy"
 	ProxyPort      = "3128"
 
-	// MavenSettingsPath is the Maven proxy settings file in java images.
-	MavenSettingsPath = "/etc/agentic/maven/settings.xml"
+	// mavenSettingsTemplatePath is the Maven proxy settings template in java images.
+	mavenSettingsTemplatePath = "/etc/agentic/maven/settings.xml"
+
+	// mavenSettingsPath is where the entrypoint renders the template.
+	mavenSettingsPath = "/tmp/agentic-maven-settings.xml"
 
 	// ProxyModulePath is the module containing the proxy entrypoint (cmd/proxy); must match go.mod's
 	// module line exactly, since buildinfo.DevSourceDir also uses it to locate the dev build context.

@@ -85,6 +85,12 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
+	// The run-network sidecar takes no auth; a published proxy drops this env.
+	sidecar := sandbox.ProxyEndpoint{
+		Host: tools.ProxyHostAlias,
+		Port: tools.ProxyPort,
+	}
+
 	return proxyHandle{
 		client:         c,
 		id:             rs.RunID,
@@ -95,7 +101,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		credentials:    creds,
 		rules:          rules,
 		placeholderEnv: placeholderEnv,
-		integrationEnv: proxyIntegrationToolEnv(rs.Egress.Integrations),
+		integrationEnv: sandbox.IntegrationEnv(rs.Egress.Integrations, sidecar),
 		user:           *rs.User,
 	}, nil
 }

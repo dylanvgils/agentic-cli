@@ -121,6 +121,29 @@ func TestClient_Run(t *testing.T) {
 		assert.NotContains(t, call.env, "HTTPS_PROXY=http://agentic:test-token@host.microsandbox.internal:49153", "msb's own calls skip the guest proxy")
 		assert.NotContains(t, strings.Join(call.env, " "), "test-secret")
 	})
+
+	t.Run("passes integrations the proxy endpoint only in msb's env", func(t *testing.T) {
+		// Arrange
+		stubRunTempDir(t)
+		client, call := stubRunInteractive()
+		rs := sandbox.RunSpec{
+			RunID:  testRunID,
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Integrations: []string{"maven"}},
+		}
+		route := ProxyRoute{
+			Port:  "49153",
+			Token: "test-token",
+		}
+
+		// Act
+		err := client.RunThroughProxy(rs, route)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, strings.Join(call.args, " "), "test-token")
+		assert.Contains(t, call.env, "AGENTIC_GUEST_AGENTIC_MAVEN_PROXY_PASSWORD=test-token")
+	})
 }
 
 func TestClient_DryRun(t *testing.T) {

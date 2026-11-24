@@ -81,7 +81,7 @@ func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 		return err
 	}
 
-	hidden := route.hiddenEnv()
+	hidden := route.hiddenEnv(rs.Egress.Integrations)
 	envArgs, refs := buildEnvArgs(rs, hidden)
 	if len(refs) > 0 {
 		path, err := writeEnvConf(rs.RunID, refs)
@@ -107,8 +107,8 @@ func (c *Client) run(rs sandbox.RunSpec, route *ProxyRoute) error {
 	return c.runner.RunInteractive(processEnv, args...)
 }
 
-// hiddenEnv returns the guest's proxy env, kept out of args as it holds the token; nil without a route.
-func (r *ProxyRoute) hiddenEnv() []string {
+// hiddenEnv returns the guest's proxy and integration env, kept out of args for the token.
+func (r *ProxyRoute) hiddenEnv(integrations []string) []string {
 	if r == nil {
 		return nil
 	}
@@ -118,7 +118,13 @@ func (r *ProxyRoute) hiddenEnv() []string {
 	if len(r.CAPEM) > 0 {
 		env = append(env, tools.ProxyCAEnvName+"="+string(r.CAPEM))
 	}
-	return env
+	endpoint := sandbox.ProxyEndpoint{
+		Host:     tools.MicrosandboxHostAlias,
+		Port:     r.Port,
+		User:     proxy.AuthUser,
+		Password: r.Token,
+	}
+	return append(env, sandbox.IntegrationEnv(integrations, endpoint)...)
 }
 
 // dryRun prints rs's `msb run` command, through route when set, with a placeholder for the env file.
@@ -127,7 +133,7 @@ func dryRun(rs sandbox.RunSpec, route *ProxyRoute) error {
 		return err
 	}
 
-	envArgs, refs := buildEnvArgs(rs, route.hiddenEnv())
+	envArgs, refs := buildEnvArgs(rs, route.hiddenEnv(rs.Egress.Integrations))
 	if len(refs) > 0 {
 		envArgs = append(envArgs, arg("runtime-conf", dryRunEnvConfPlaceholder))
 	}

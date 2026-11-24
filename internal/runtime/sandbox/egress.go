@@ -1,9 +1,7 @@
 package sandbox
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 )
 
 // Egress modes; EgressOff is the zero value, so a RunSpec without one leaves egress unfiltered.
@@ -12,9 +10,6 @@ const (
 	EgressEnforce
 	EgressMonitor
 )
-
-// egressIntegrations are the tools a run can route through egress control though they ignore the proxy env vars, sorted.
-var egressIntegrations = []string{"gradle", "maven"}
 
 // EgressMode selects whether egress is filtered and whether a disallowed host is blocked or only logged.
 type EgressMode int
@@ -63,19 +58,4 @@ func AllowWhole(rules []AllowRule) []AllowRule {
 		whole[i] = AllowRule{Host: rule.Host}
 	}
 	return whole
-}
-
-// EgressIntegrations returns the known egress integration names, sorted.
-func EgressIntegrations() []string {
-	return slices.Clone(egressIntegrations)
-}
-
-// CheckEgressIntegrations refuses the first name that isn't a known egress integration.
-func CheckEgressIntegrations(names []string) error {
-	for _, name := range names {
-		if !slices.Contains(egressIntegrations, name) {
-			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(egressIntegrations, ", "))
-		}
-	}
-	return nil
 }

@@ -88,6 +88,7 @@ func copilotStage(prevStage string) df.Stage {
 					},
 				},
 				proxyTrustBlock(),
+				mavenSettingsBlock(),
 				{Lines: []string{`exec copilot "$@"`}},
 			},
 		}).
