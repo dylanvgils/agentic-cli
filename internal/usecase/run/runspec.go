@@ -298,5 +298,5 @@ func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations 
 // of the integrations sets, so an env entry can't override it.
 func isReservedEnvName(key string, proxyEnabled, dindEnabled bool, integrations []string) bool {
 	return sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) ||
-		slices.Contains(docker.ProxyIntegrationEnvNames(integrations), key)
+		slices.Contains(tools.ProxyIntegrationEnvNames(integrations), key)
 }

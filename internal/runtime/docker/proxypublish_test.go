@@ -175,7 +175,13 @@ func Test_proxyHandle_printedProxy(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Rules: tc.rules}}}
+			rs := toolRun{RunSpec: sandbox.RunSpec{
+				User: &testUser,
+				Egress: sandbox.EgressPolicy{
+					Rules:        tc.rules,
+					Integrations: []string{"maven"},
+				},
+			}}
 			h := newTestProxyHandle(t, client, rs)
 
 			// Act
@@ -186,8 +192,7 @@ func Test_proxyHandle_printedProxy(t *testing.T) {
 				Port:  dryRunPortPlaceholder,
 				Token: dryRunTokenPlaceholder,
 				CAPEM: tc.wantCA,
-				Env:   published.Env,
-			}, published)
+			}, published, "no integration env, as it names the sidecar alias")
 		})
 	}
 }

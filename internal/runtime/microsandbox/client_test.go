@@ -42,7 +42,7 @@ func TestClient_Capabilities(t *testing.T) {
 			},
 		},
 		{
-			name:         "agentic-proxy adds monitor, path rules and proxy egress and injection",
+			name:         "agentic-proxy adds monitor, path rules, integrations and proxy egress and injection",
 			agenticProxy: true,
 			want: sandbox.Capabilities{
 				Features: sandbox.Features{
@@ -52,6 +52,7 @@ func TestClient_Capabilities(t *testing.T) {
 					CredentialInjection: true,
 					PortsWithProxy:      true,
 					PathRules:           true,
+					ProxyIntegrations:   true,
 				},
 				Isolation: sandbox.Isolation{
 					Boundary:            sandbox.BoundaryVM,

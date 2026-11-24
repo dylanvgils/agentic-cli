@@ -27,15 +27,25 @@ func restrictClients(next http.Handler, nets []*net.IPNet) http.Handler {
 func requireToken(next http.Handler, token string) http.Handler {
 	want := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte(AuthUser+":"+token)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := []byte(r.Header.Get("Proxy-Authorization"))
-		if subtle.ConstantTimeCompare(got, want) != 1 {
+		header := proxyAuthHeader(r)
+		if subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), want) != 1 {
 			w.Header().Set("Proxy-Authenticate", `Basic realm="agentic"`)
 			http.Error(w, "agentic proxy needs authentication", http.StatusProxyAuthRequired)
 			return
 		}
-		r.Header.Del("Proxy-Authorization")
+		r.Header.Del(header)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// proxyAuthHeader names the header r carries the proxy credentials in. A CONNECT without Proxy-Authorization may carry
+// them in Authorization, as Maven's resolver sends its cached proxy scheme there on new tunnels; a CONNECT has no origin
+// that header could be meant for.
+func proxyAuthHeader(r *http.Request) string {
+	if r.Method == http.MethodConnect && r.Header.Get("Proxy-Authorization") == "" && r.Header.Get("Authorization") != "" {
+		return "Authorization"
+	}
+	return "Proxy-Authorization"
 }
 
 // clientHandler wraps next with the client checks that are set; required refuses none, so credentials never leak across runs.

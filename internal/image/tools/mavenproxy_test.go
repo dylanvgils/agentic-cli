@@ -23,17 +23,33 @@ func Test_mavenSettingsFile(t *testing.T) {
 			ID:            "agentic-proxy-http",
 			Active:        true,
 			Protocol:      "http",
-			Host:          "agentic-proxy",
-			Port:          "3128",
+			Host:          "${env.AGENTIC_MAVEN_PROXY_HOST}",
+			Port:          "@AGENTIC_MAVEN_PROXY_PORT@",
+			Username:      "${env.AGENTIC_MAVEN_PROXY_USER}",
+			Password:      "${env.AGENTIC_MAVEN_PROXY_PASSWORD}",
 			NonProxyHosts: "localhost|127.0.0.1",
 		},
 		{
 			ID:            "agentic-proxy-https",
 			Active:        true,
 			Protocol:      "https",
-			Host:          "agentic-proxy",
-			Port:          "3128",
+			Host:          "${env.AGENTIC_MAVEN_PROXY_HOST}",
+			Port:          "@AGENTIC_MAVEN_PROXY_PORT@",
+			Username:      "${env.AGENTIC_MAVEN_PROXY_USER}",
+			Password:      "${env.AGENTIC_MAVEN_PROXY_PASSWORD}",
 			NonProxyHosts: "localhost|127.0.0.1",
 		},
 	}, settings.Proxies)
+}
+
+func Test_mavenSettingsBlock(t *testing.T) {
+	// Act
+	block := mavenSettingsBlock()
+
+	// Assert
+	assert.Equal(t, []string{
+		`if [[ -n "${AGENTIC_MAVEN_PROXY_PORT:-}" && -f /etc/agentic/maven/settings.xml ]]; then`,
+		`  sed "s/@AGENTIC_MAVEN_PROXY_PORT@/${AGENTIC_MAVEN_PROXY_PORT}/" /etc/agentic/maven/settings.xml > /tmp/agentic-maven-settings.xml`,
+		"fi",
+	}, block.Lines)
 }

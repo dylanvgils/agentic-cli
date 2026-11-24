@@ -73,6 +73,7 @@ func claudeStage(prevStage string) df.Stage {
 					},
 				},
 				proxyTrustBlock(),
+				mavenSettingsBlock(),
 				{Lines: []string{`exec claude "$@"`}},
 			},
 		}).

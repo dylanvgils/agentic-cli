@@ -18,8 +18,12 @@ const (
 	ProxyHostAlias = "agentic-proxy"
 	ProxyPort      = "3128"
 
-	// MavenSettingsPath is the Maven proxy settings file in java images.
-	MavenSettingsPath = "/etc/agentic/maven/settings.xml"
+	// mavenSettingsTemplatePath is the Maven proxy settings template in java images, which the entrypoint renders to
+	// mavenSettingsPath.
+	mavenSettingsTemplatePath = "/etc/agentic/maven/settings.xml"
+
+	// mavenSettingsPath is the tmpfs file the entrypoint renders the Maven proxy settings to.
+	mavenSettingsPath = "/tmp/agentic-maven-settings.xml"
 
 	// ProxyModulePath is the module containing the proxy entrypoint (cmd/proxy); must match go.mod's
 	// module line exactly, since buildinfo.DevSourceDir also uses it to locate the dev build context.

@@ -67,6 +67,7 @@ func (c *Client) Capabilities(agenticProxy bool) sandbox.Capabilities {
 		caps.PathRules = true
 		caps.CredentialsViaProxy = true
 		caps.EgressViaProxy = true
+		caps.ProxyIntegrations = true
 	}
 	return caps
 }

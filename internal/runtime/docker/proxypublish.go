@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -33,7 +32,7 @@ type PublishedProxy struct {
 	Token string
 	// CAPEM is the CA cert the tool must trust, nil when the proxy doesn't decrypt.
 	CAPEM []byte
-	// Env is the tool's KEY=VALUE credential placeholders and proxy integration env.
+	// Env is the tool's KEY=VALUE credential placeholders; the runtime sets the integrations' env for its own endpoint.
 	Env []string
 
 	// guard tears the run down; nil when only printed
@@ -124,13 +123,13 @@ func (h proxyHandle) printedProxy() PublishedProxy {
 	return published
 }
 
-// publishedProxy returns h as a PublishedProxy on port.
+// publishedProxy returns h as a PublishedProxy on port, without the integration env, which names the sidecar alias.
 func (h proxyHandle) publishedProxy(port string) PublishedProxy {
 	return PublishedProxy{
 		Port:  port,
 		Token: h.token,
 		CAPEM: h.caPEM,
-		Env:   slices.Concat(h.placeholderEnv, h.integrationEnv),
+		Env:   h.placeholderEnv,
 	}
 }
 
