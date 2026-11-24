@@ -1,6 +1,9 @@
 package sandbox
 
 import (
+	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -24,6 +27,21 @@ type ProxyEndpoint struct {
 var integrationEnv = map[string]func(ProxyEndpoint) []string{
 	"gradle": gradleEnv,
 	"maven":  mavenEnv,
+}
+
+// EgressIntegrations returns the known egress integration names, sorted.
+func EgressIntegrations() []string {
+	return slices.Sorted(maps.Keys(integrationEnv))
+}
+
+// CheckEgressIntegrations refuses the first name that isn't a known egress integration.
+func CheckEgressIntegrations(names []string) error {
+	for _, name := range names {
+		if _, ok := integrationEnv[name]; !ok {
+			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(EgressIntegrations(), ", "))
+		}
+	}
+	return nil
 }
 
 // IntegrationEnv returns the env the named integrations set for the proxy at ep.

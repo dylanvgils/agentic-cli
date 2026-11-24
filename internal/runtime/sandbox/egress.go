@@ -1,10 +1,7 @@
 package sandbox
 
 import (
-	"fmt"
-	"maps"
 	"slices"
-	"strings"
 )
 
 // Egress modes; EgressOff is the zero value, so a RunSpec without one leaves egress unfiltered.
@@ -61,19 +58,4 @@ func AllowWhole(rules []AllowRule) []AllowRule {
 		whole[i] = AllowRule{Host: rule.Host}
 	}
 	return whole
-}
-
-// EgressIntegrations returns the known egress integration names, sorted.
-func EgressIntegrations() []string {
-	return slices.Sorted(maps.Keys(integrationEnv))
-}
-
-// CheckEgressIntegrations refuses the first name that isn't a known egress integration.
-func CheckEgressIntegrations(names []string) error {
-	for _, name := range names {
-		if _, ok := integrationEnv[name]; !ok {
-			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(EgressIntegrations(), ", "))
-		}
-	}
-	return nil
 }

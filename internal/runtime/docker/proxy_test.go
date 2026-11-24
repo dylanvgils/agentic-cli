@@ -245,6 +245,18 @@ func TestNewProxyHandle(t *testing.T) {
 		assert.Equal(t, rs.proxyLog, handle.logPath)
 	})
 
+	t.Run("points the integrations at the sidecar", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Integrations: []string{"maven"}}}}
+
+		// Act
+		handle, err := client.newProxyHandle(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, handle.integrationEnv, "AGENTIC_MAVEN_PROXY_HOST=agentic-proxy")
+	})
+
 	for _, tc := range []struct {
 		name        string
 		mode        sandbox.EgressMode

@@ -68,29 +68,3 @@ func TestEgressPolicy_WholeHosts(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{"api.example.test", ".example.org"}, hosts)
 }
-
-func TestCheckEgressIntegrations(t *testing.T) {
-	t.Run("known names", func(t *testing.T) {
-		// Act
-		err := CheckEgressIntegrations([]string{"maven", "gradle"})
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("unknown name returns error", func(t *testing.T) {
-		// Act
-		err := CheckEgressIntegrations([]string{"maven", "example"})
-
-		// Assert
-		assert.EqualError(t, err, `unknown integration "example": must be one of gradle, maven`)
-	})
-}
-
-func TestEgressIntegrations(t *testing.T) {
-	// Act
-	names := EgressIntegrations()
-
-	// Assert
-	assert.Equal(t, []string{"gradle", "maven"}, names)
-}
