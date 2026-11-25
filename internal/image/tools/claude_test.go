@@ -65,7 +65,7 @@ func TestSetupClaude(t *testing.T) {
 }
 
 func TestClaudeStage(t *testing.T) {
-	stage := claudeStage("base")
+	stage := claudeStage("base", ImageInfo{})
 	result := renderStage(stage)
 
 	t.Run("contains entrypoint", func(t *testing.T) {

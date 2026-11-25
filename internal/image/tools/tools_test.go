@@ -143,7 +143,7 @@ func TestConfigs_stage(t *testing.T) {
 	for _, name := range Names() {
 		t.Run(name+" builds the tool stage as its own user", func(t *testing.T) {
 			// Act
-			stage := Configs[name].Build.Stage("prev")
+			stage := Configs[name].Build.Stage("prev", ImageInfo{})
 
 			// Assert
 			assert.Equal(t, "prev", stage.From.Image)

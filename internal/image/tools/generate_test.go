@@ -136,7 +136,7 @@ func TestBuildExtraStages(t *testing.T) {
 func TestResolveToolStage(t *testing.T) {
 	t.Run("known tool builds from prev with cache-bust and skip-checksum args first", func(t *testing.T) {
 		// Act
-		stage, err := resolveToolStage("claude", "base")
+		stage, err := resolveToolStage("claude", "base", ImageInfo{})
 
 		// Assert
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestResolveToolStage(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := resolveToolStage("unknown", "base")
+		_, err := resolveToolStage("unknown", "base", ImageInfo{})
 
 		// Assert
 		assert.ErrorContains(t, err, "unknown")

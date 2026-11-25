@@ -72,7 +72,7 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 		prev = customStage.From.As
 	}
 
-	toolStage, err := resolveToolStage(tool, prev)
+	toolStage, err := resolveToolStage(tool, prev, ImageInfo{Extras: extras})
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +99,14 @@ func buildExtraStages(extras []string, versions map[string]string) ([]dockerfile
 	return stages, prev, nil
 }
 
-// resolveToolStage returns tool's Dockerfile stage with cache-busting instructions prepended right after FROM.
-func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
+// resolveToolStage returns tool's Dockerfile stage on prevStage for img with cache-busting instructions prepended right after FROM.
+func resolveToolStage(tool, prevStage string, img ImageInfo) (dockerfile.Stage, error) {
 	cfg, ok := Configs[tool]
 	if !ok {
 		return dockerfile.Stage{}, fmt.Errorf("unknown tool %q", tool)
 	}
 
-	stage := cfg.Build.Stage(prevStage)
+	stage := cfg.Build.Stage(prevStage, img)
 	prepend := append(cacheBustInstructions(), skipInstallChecksumArg())
 	stage.Instructions = append(prepend, stage.Instructions...)
 	return stage, nil

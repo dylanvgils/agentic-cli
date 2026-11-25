@@ -73,9 +73,15 @@ var Configs = map[string]ToolConfig{
 	},
 }
 
+// ImageInfo is the image metadata a tool stage is built with.
+type ImageInfo struct {
+	// Extras are the image's extra layers, e.g. java.
+	Extras []string
+}
+
 // BuildConfig holds the build-time configuration for a tool container.
 type BuildConfig struct {
-	Stage func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
+	Stage func(prevStage string, img ImageInfo) dockerfile.Stage // returns the tool's Dockerfile stage built FROM prevStage
 	// LatestVersion fetches the latest version available upstream.
 	LatestVersion func() (string, error)
 }
@@ -103,6 +109,11 @@ type RuntimeConfig struct {
 type ToolConfig struct {
 	Build   BuildConfig
 	Runtime RuntimeConfig
+}
+
+// HasExtra reports whether the image has extra layer name.
+func (c ImageInfo) HasExtra(name string) bool {
+	return slices.Contains(c.Extras, name)
 }
 
 // InstructionsHostPath returns the persistent host-side path to the tool's global instructions file.

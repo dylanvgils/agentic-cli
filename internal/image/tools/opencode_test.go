@@ -34,7 +34,7 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 
 func TestOpencodeStage(t *testing.T) {
 	// Act
-	result := renderStage(opencodeStage("base"))
+	result := renderStage(opencodeStage("base", ImageInfo{}))
 
 	// Assert - verifies the install script checksum before running it
 	assert.Contains(t, result, "OPENCODE_INSTALL_CHECKSUM="+DefaultChecksums.OpencodeInstall)

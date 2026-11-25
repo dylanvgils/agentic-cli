@@ -3,6 +3,7 @@ package tools
 import (
 	"path"
 	"path/filepath"
+	"slices"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
@@ -40,18 +41,22 @@ func opencodeMounts() []string {
 	}
 }
 
-func opencodeStage(prevStage string) df.Stage {
+func opencodeStage(prevStage string, img ImageInfo) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(pipefailShell).
 		Add(createContainerUser("opencode")...).
 		Add(df.Heredoc{
 			Dest: entrypointPath,
-			Blocks: []df.Block{
-				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
-				proxyTrustBlock(),
-				mavenSettingsBlock(),
-				{Lines: []string{`exec opencode "$@"`}},
-			},
+			Blocks: slices.Concat(
+				[]df.Block{
+					{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+				},
+				trustBlocks(img),
+				integrationBlocks(img),
+				[]df.Block{
+					{Lines: []string{`exec opencode "$@"`}},
+				},
+			),
 		}).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(installScriptRun(installScript{
