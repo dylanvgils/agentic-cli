@@ -202,3 +202,11 @@ func Test_marketplaceMount(t *testing.T) {
 	// Assert
 	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
+
+// heredocBody returns the file h writes, without the COPY line and the EOF marker.
+func heredocBody(h df.Heredoc) string {
+	rendered := h.Render()
+	_, body, _ := strings.Cut(rendered, "\n")
+
+	return strings.TrimSuffix(body, "EOF")
+}

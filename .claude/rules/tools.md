@@ -18,3 +18,4 @@ paths:
   - One `df.Block` per logical phase; independent commands get their own block.
   - A multi-line command is several `Lines` in one block; `Chain: true` for `&&`-chained lines.
   - Pipelines need `pipefailShell` first.
+  - Multi-line entrypoint or heredoc shell goes in `scripts/*.sh`, rendered by `renderScript`/`scriptBlock` with `scriptVars` (consts as `{{.X}}`, `${ {{- .X}}:-}` for a default); one-liners stay Go strings.

@@ -48,6 +48,7 @@ func Test_mavenSettingsBlock(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{
+		"# Render the Maven proxy settings for the maven integration",
 		`if [[ -n "${AGENTIC_MAVEN_PROXY_PORT:-}" && -f /etc/agentic/maven/settings.xml ]]; then`,
 		`  sed "s/@AGENTIC_MAVEN_PROXY_PORT@/${AGENTIC_MAVEN_PROXY_PORT}/" /etc/agentic/maven/settings.xml > /tmp/agentic-maven-settings.xml`,
 		`  export MAVEN_ARGS="--global-settings /tmp/agentic-maven-settings.xml${MAVEN_ARGS:+ $MAVEN_ARGS}"`,

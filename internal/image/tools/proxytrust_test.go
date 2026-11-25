@@ -19,9 +19,10 @@ func Test_proxyTrustBlock(t *testing.T) {
 	systemBundle := filepath.Join(dir, "system.crt")
 	bundle := filepath.Join(dir, "bundle.crt")
 	require.NoError(t, os.WriteFile(systemBundle, []byte("test-system-cert\n"), 0o644))
-	script := strings.Join(proxyTrustBlock().Lines, "\n")
-	script = strings.ReplaceAll(script, systemCABundlePath, systemBundle)
-	script = strings.ReplaceAll(script, proxyCABundlePath, bundle)
+	vars := defaultScriptVars()
+	vars.SystemCABundle = systemBundle
+	vars.ProxyCABundle = bundle
+	script := strings.Join(renderScript("proxytrust.sh", vars), "\n")
 
 	t.Run("appends the CA to the system bundle and points every trust var at it", func(t *testing.T) {
 		// Arrange
@@ -71,9 +72,10 @@ func Test_javaTrustBlock(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(jdkBin, "keytool"), []byte(fakeKeytoolScript(keytoolLog)), 0o755))
 	store := filepath.Join(dir, "store")
 	msbCA := filepath.Join(dir, "msb-ca.pem")
-	script := strings.Join(javaTrustBlock().Lines, "\n")
-	script = strings.ReplaceAll(script, javaTrustStorePath, store)
-	script = strings.ReplaceAll(script, msbCAPath, msbCA)
+	vars := defaultScriptVars()
+	vars.JavaTrustStore = store
+	vars.MsbCA = msbCA
+	script := strings.Join(renderScript("javatrust.sh", vars), "\n")
 	withKeytool := "PATH=" + jdkBin + ":/usr/bin:/bin"
 	run := func(t *testing.T, env ...string) (string, string, error) {
 		t.Helper()

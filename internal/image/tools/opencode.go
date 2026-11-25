@@ -45,19 +45,7 @@ func opencodeStage(prevStage string, img ImageInfo) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(pipefailShell).
 		Add(createContainerUser("opencode")...).
-		Add(df.Heredoc{
-			Dest: entrypointPath,
-			Blocks: slices.Concat(
-				[]df.Block{
-					{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
-				},
-				trustBlocks(img),
-				integrationBlocks(img),
-				[]df.Block{
-					{Lines: []string{`exec opencode "$@"`}},
-				},
-			),
-		}).
+		Add(opencodeEntrypoint(img)).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(installScriptRun(installScript{
 			Tool:        "opencode",
@@ -77,6 +65,23 @@ func opencodeStage(prevStage string, img ImageInfo) df.Stage {
 		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{entrypointPath}}).
 		Build()
+}
+
+// opencodeEntrypoint is the image's entrypoint script: it trusts the proxy CA and runs OpenCode.
+func opencodeEntrypoint(img ImageInfo) df.Heredoc {
+	return df.Heredoc{
+		Dest: entrypointPath,
+		Blocks: slices.Concat(
+			[]df.Block{
+				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+			},
+			trustBlocks(img),
+			integrationBlocks(img),
+			[]df.Block{
+				{Lines: []string{`exec opencode "$@"`}},
+			},
+		),
+	}
 }
 
 // opencodeLatestVersion fetches the latest OpenCode version available upstream.

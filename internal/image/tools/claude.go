@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/infra/hostfs"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -46,42 +45,7 @@ func claudeStage(prevStage string, img ImageInfo) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(pipefailShell).
 		Add(createContainerUser("claude")...).
-		Add(df.Heredoc{
-			Dest: entrypointPath,
-			Blocks: slices.Concat(
-				[]df.Block{
-					{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
-					{
-						Comment: "Register AGENTIC_MARKETPLACES into the Claude container",
-						Lines: []string{
-							`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
-							`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
-							`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
-							`  for name in "${marketplace_names[@]}"; do`,
-							`    dir="$marketplaces_dir/$name"`,
-							`    [[ -d "$dir" ]] || continue`,
-							`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
-							"  done",
-							"fi",
-						},
-					},
-					{
-						Comment: "Deregister marketplaces this container no longer mounts, e.g. removed from .agenticrc.toml",
-						Lines: []string{
-							`while IFS=$'\t' read -r name loc; do`,
-							`  [[ -n "$name" && "$(dirname -- "$loc")" == "$marketplaces_dir" && ! -d "$loc" ]] || continue`,
-							`  claude plugin marketplace remove "$name" --scope user || echo "warning: failed to deregister marketplace $name" >&2`,
-							`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
-						},
-					},
-				},
-				trustBlocks(img),
-				integrationBlocks(img),
-				[]df.Block{
-					{Lines: []string{`exec claude "$@"`}},
-				},
-			),
-		}).
+		Add(claudeEntrypoint(img)).
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).
 		Add(df.Arg{Key: "CLAUDE_INSTALL_CHECKSUM", Default: DefaultChecksums.ClaudeInstall}).
@@ -100,6 +64,24 @@ func claudeStage(prevStage string, img ImageInfo) df.Stage {
 		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{entrypointPath}}).
 		Build()
+}
+
+// claudeEntrypoint is the image's entrypoint script: it registers the mounted marketplaces, trusts the proxy CA and runs Claude Code.
+func claudeEntrypoint(img ImageInfo) df.Heredoc {
+	return df.Heredoc{
+		Dest: entrypointPath,
+		Blocks: slices.Concat(
+			[]df.Block{
+				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+				scriptBlock("claude-marketplaces.sh"),
+			},
+			trustBlocks(img),
+			integrationBlocks(img),
+			[]df.Block{
+				{Lines: []string{`exec claude "$@"`}},
+			},
+		),
+	}
 }
 
 // claudeLatestVersion fetches the latest Claude Code version available upstream.
