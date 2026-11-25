@@ -37,7 +37,8 @@ func Test_renderScript(t *testing.T) {
 		lines := renderScript("mavensettings.sh", vars)
 
 		// Assert
-		assert.Equal(t, `if [[ -n "${TEST_PORT:-}" && -f /test/template.xml ]]; then`, lines[1])
+		assert.Equal(t, `maven_port="${TEST_PORT:-}"`, lines[1])
+		assert.Equal(t, "maven_template=/test/template.xml", lines[3])
 		assert.Equal(t, "fi", lines[len(lines)-1])
 	})
 

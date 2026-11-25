@@ -63,7 +63,10 @@ func scriptBlock(name string) df.Block {
 // renderScript renders script name from scriptFS as lines. It panics on error, as the scripts are embedded and a test
 // renders each one.
 func renderScript(name string, vars scriptVars) []string {
-	tmpl := template.Must(template.New(name).Option("missingkey=error").ParseFS(scriptFS, "scripts/"+name))
+	tmpl := template.Must(template.New(name).
+		Option("missingkey=error").
+		Funcs(template.FuncMap{"join": strings.Join}).
+		ParseFS(scriptFS, "scripts/"+name))
 	var sb strings.Builder
 	if err := tmpl.Execute(&sb, vars); err != nil {
 		panic(err)
