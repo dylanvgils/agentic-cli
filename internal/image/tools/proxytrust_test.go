@@ -2,7 +2,6 @@ package tools
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,127 +11,90 @@ import (
 )
 
 func Test_proxyTrustBlock(t *testing.T) {
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("bash not available")
-	}
 	dir := t.TempDir()
-	systemBundle := filepath.Join(dir, "system.crt")
-	bundle := filepath.Join(dir, "bundle.crt")
-	require.NoError(t, os.WriteFile(systemBundle, []byte("test-system-cert\n"), 0o644))
-	script := strings.Join(proxyTrustBlock().Lines, "\n")
-	script = strings.ReplaceAll(script, systemCABundlePath, systemBundle)
-	script = strings.ReplaceAll(script, proxyCABundlePath, bundle)
+	vars := defaultScriptVars()
+	vars.SystemCABundle = filepath.Join(dir, "system.crt")
+	vars.ProxyCABundle = filepath.Join(dir, "bundle.crt")
+	require.NoError(t, os.WriteFile(vars.SystemCABundle, []byte("test-system-cert\n"), 0o644))
+	probe := printVars(ProxyCAEnvName, "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
 
 	t.Run("appends the CA to the system bundle and points every trust var at it", func(t *testing.T) {
-		// Arrange
-		cmd := exec.Command("bash", "-euo", "pipefail", "-c", script+"\nenv")
-		cmd.Env = []string{ProxyCAEnvName + "=test-proxy-ca"}
-
 		// Act
-		out, err := cmd.Output()
+		out, _ := runScript(t, "proxytrust.sh", vars, probe, ProxyCAEnvName+"=test-proxy-ca")
 
 		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(bundle)
-		require.NoError(t, err)
-		assert.Equal(t, "test-system-cert\n\ntest-proxy-ca\n", string(got))
-		for _, name := range ProxyTrustEnvNames {
-			assert.Contains(t, string(out), name+"="+bundle+"\n")
-		}
-		assert.NotContains(t, string(out), ProxyCAEnvName+"=", "the PEM is not needed once in the bundle")
+		assert.Equal(t, "AGENTIC_PROXY_CA=\nSSL_CERT_FILE="+vars.ProxyCABundle+"\nNODE_EXTRA_CA_CERTS="+vars.ProxyCABundle+"\n", out)
+		assert.Equal(t, "test-system-cert\n\ntest-proxy-ca\n", readFile(t, vars.ProxyCABundle))
 	})
 
 	t.Run("without the CA writes nothing and sets nothing", func(t *testing.T) {
 		// Arrange
-		require.NoError(t, os.RemoveAll(bundle))
-		cmd := exec.Command("bash", "-euo", "pipefail", "-c", script+"\nenv")
-		cmd.Env = []string{}
+		require.NoError(t, os.RemoveAll(vars.ProxyCABundle))
 
 		// Act
-		out, err := cmd.Output()
+		out, _ := runScript(t, "proxytrust.sh", vars, probe)
 
 		// Assert
-		require.NoError(t, err)
-		assert.NoFileExists(t, bundle)
-		assert.NotContains(t, string(out), "SSL_CERT_FILE")
+		assert.Equal(t, "AGENTIC_PROXY_CA=\nSSL_CERT_FILE=\nNODE_EXTRA_CA_CERTS=\n", out)
+		assert.NoFileExists(t, vars.ProxyCABundle)
 	})
 }
 
 func Test_javaTrustBlock(t *testing.T) {
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("bash not available")
-	}
 	dir := t.TempDir()
-	jdkBin := filepath.Join(dir, "jdk", "bin")
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "jdk", "lib", "security"), 0o755))
-	require.NoError(t, os.MkdirAll(jdkBin, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "jdk", "lib", "security", "cacerts"), []byte("test-jdk-roots"), 0o444))
-	keytoolLog := filepath.Join(dir, "keytool.log")
-	require.NoError(t, os.WriteFile(filepath.Join(jdkBin, "keytool"), []byte(fakeKeytoolScript(keytoolLog)), 0o755))
-	store := filepath.Join(dir, "store")
-	msbCA := filepath.Join(dir, "msb-ca.pem")
-	script := strings.Join(javaTrustBlock().Lines, "\n")
-	script = strings.ReplaceAll(script, javaTrustStorePath, store)
-	script = strings.ReplaceAll(script, msbCAPath, msbCA)
-	withKeytool := "PATH=" + jdkBin + ":/usr/bin:/bin"
-	run := func(t *testing.T, env ...string) (string, string, error) {
-		t.Helper()
-		require.NoError(t, os.RemoveAll(store))
-		require.NoError(t, os.RemoveAll(keytoolLog))
-		cmd := exec.Command("bash", "-euo", "pipefail", "-c", script+"\necho \"JDK_JAVA_OPTIONS=${JDK_JAVA_OPTIONS:-}\"")
-		cmd.Env = env
-		var stderr strings.Builder
-		cmd.Stderr = &stderr
-		out, err := cmd.Output()
-		return string(out), stderr.String(), err
-	}
-	wantOptions := "JDK_JAVA_OPTIONS=-Djavax.net.ssl.trustStore=" + store + " -Djavax.net.ssl.trustStorePassword=changeit"
+	vars := defaultScriptVars()
+	vars.JavaTrustStore = filepath.Join(dir, "store")
+	vars.MsbCA = filepath.Join(dir, "msb-ca.pem")
+	jdk := filepath.Join(dir, "jdk")
+	path := stubCommand(t, filepath.Join(jdk, "bin"), "keytool")
+	require.NoError(t, os.MkdirAll(filepath.Join(jdk, "lib", "security"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(jdk, "lib", "security", "cacerts"), []byte("test-jdk-roots"), 0o444))
+	log := filepath.Join(dir, "keytool.log")
+	env := []string{path, "TEST_LOG=" + log}
+	probe := printVars("JDK_JAVA_OPTIONS")
+	options := "JDK_JAVA_OPTIONS=-Djavax.net.ssl.trustStore=" + vars.JavaTrustStore + " -Djavax.net.ssl.trustStorePassword=changeit"
+	importCert := "-importcert -noprompt -keystore " + vars.JavaTrustStore + " -storepass changeit"
 
 	t.Run("imports the proxy CA from stdin and keeps the user's options", func(t *testing.T) {
 		// Act
-		out, _, err := run(t, withKeytool, ProxyCAEnvName+"=test-proxy-ca", "JDK_JAVA_OPTIONS=-Dtest=1")
+		out, _ := runScript(t, "javatrust.sh", vars, probe, append(env, ProxyCAEnvName+"=test-proxy-ca", "JDK_JAVA_OPTIONS=-Dtest=1")...)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, wantOptions+" -Dtest=1\n", out)
-		assert.FileExists(t, store)
-		got, err := os.ReadFile(keytoolLog)
-		require.NoError(t, err)
-		assert.Equal(t, "-importcert -noprompt -keystore "+store+" -storepass changeit -alias agentic-proxy\ntest-proxy-ca\n", string(got))
+		assert.Equal(t, options+" -Dtest=1\n", out)
+		assert.Equal(t, importCert+" -alias agentic-proxy\ntest-proxy-ca\n", readFile(t, log))
 	})
 
 	t.Run("imports the msb CA from its file", func(t *testing.T) {
 		// Arrange
-		require.NoError(t, os.WriteFile(msbCA, []byte("test-msb-ca"), 0o644))
-		t.Cleanup(func() { _ = os.Remove(msbCA) })
+		resetFiles(t, vars.JavaTrustStore, log)
+		require.NoError(t, os.WriteFile(vars.MsbCA, []byte("test-msb-ca"), 0o644))
+		t.Cleanup(func() { _ = os.Remove(vars.MsbCA) })
 
 		// Act
-		out, _, err := run(t, withKeytool)
+		out, _ := runScript(t, "javatrust.sh", vars, probe, env...)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, wantOptions+"\n", out)
-		got, err := os.ReadFile(keytoolLog)
-		require.NoError(t, err)
-		assert.Equal(t, "-importcert -noprompt -keystore "+store+" -storepass changeit -alias agentic-msb -file "+msbCA+"\n", string(got))
+		assert.Equal(t, options+"\n", out)
+		assert.Equal(t, importCert+" -alias agentic-msb -file "+vars.MsbCA+"\n", readFile(t, log))
 	})
 
 	t.Run("without a CA changes nothing", func(t *testing.T) {
+		// Arrange
+		resetFiles(t, vars.JavaTrustStore, log)
+
 		// Act
-		out, _, err := run(t, withKeytool)
+		out, _ := runScript(t, "javatrust.sh", vars, probe, env...)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Equal(t, "JDK_JAVA_OPTIONS=\n", out)
-		assert.NoFileExists(t, store)
+		assert.NoFileExists(t, vars.JavaTrustStore)
 	})
 
 	t.Run("warns and starts anyway when keytool fails", func(t *testing.T) {
 		// Act
-		out, stderr, err := run(t, withKeytool, ProxyCAEnvName+"=test-proxy-ca", "TEST_KEYTOOL_FAIL=1")
+		out, stderr := runScript(t, "javatrust.sh", vars, probe, append(env, ProxyCAEnvName+"=test-proxy-ca", "TEST_KEYTOOL_FAIL=1")...)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Equal(t, "JDK_JAVA_OPTIONS=\n", out)
 		assert.Equal(t, "warning: Java won't trust the proxy CA\n", stderr)
 	})
@@ -164,12 +126,4 @@ func TestToolEntrypoints_trustProxyCA(t *testing.T) {
 			assert.Contains(t, result, "unset "+ProxyCAEnvName)
 		})
 	}
-}
-
-// fakeKeytoolScript logs its args and stdin to log, failing when TEST_KEYTOOL_FAIL is set.
-func fakeKeytoolScript(log string) string {
-	return "#!/bin/bash\n" +
-		"[[ -z \"${TEST_KEYTOOL_FAIL:-}\" ]] || exit 1\n" +
-		"echo \"$*\" >> " + log + "\n" +
-		"[[ \" $* \" == *\" -file \"* ]] || cat >> " + log + "\n"
 }

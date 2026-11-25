@@ -62,52 +62,11 @@ func dockerdStage(parent, user string) df.Stage {
 // dockerdEntrypointScript points inner containers and builds at the proxy in HTTPS_PROXY, like the Docker runtime's
 // DinD client config. They resolve names through dockerd, not the guest's /etc/hosts, so they get the alias's IP.
 func dockerdEntrypointScript() df.Heredoc {
-	return df.Heredoc{Dest: dockerdEntrypoint, Blocks: []df.Block{
-		{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
-		{Lines: []string{
-			"entrypoint=" + entrypointPath,
-			"host_alias=" + MicrosandboxHostAlias,
-			"config_dir=" + dockerdConfigDir,
-		}},
-		{Comment: "Only a run through the proxy sets HTTPS_PROXY", Lines: []string{
-			`[[ -n "${HTTPS_PROXY:-}" ]] || exec "$entrypoint" "$@"`,
-		}},
-		{Comment: "Inner containers resolve names through dockerd, not this VM's /etc/hosts, so they need the IP", Lines: []string{
-			`host_ip="$(getent ahostsv4 "$host_alias" | awk 'NR == 1 { print $1 }' || true)"`,
-			`if [[ -z "$host_ip" ]]; then`,
-			`  echo "warning: can't resolve $host_alias, so inner containers get no proxy" >&2`,
-			`  exec "$entrypoint" "$@"`,
-			"fi",
-		}},
-		{Comment: "Point inner containers and builds at the proxy", Lines: []string{
-			`proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`,
-			`install -d -m 0700 "$config_dir"`,
-			`jq -n --arg proxy "$proxy" --arg no_proxy "${NO_PROXY:-}" \`,
-			`  '{proxies: {default: {httpProxy: $proxy, httpsProxy: $proxy, noProxy: $no_proxy}}}' \`,
-			`  > "$config_dir/config.json"`,
-			`export DOCKER_CONFIG="$config_dir"`,
-		}},
-		{Lines: []string{`exec "$entrypoint" "$@"`}},
-	}}
+	return df.Heredoc{Dest: dockerdEntrypoint, Lines: renderScript("dockerd-entrypoint.sh", defaultScriptVars())}
 }
 
 // dockerdInitScript is the VM's PID 1: msb asks it to power off with a signal dockerd may ignore (e.g. SIGRTMIN+4) and
 // then waits for the guest to power off, so it passes any shutdown signal on as SIGTERM and powers off once dockerd exits.
 func dockerdInitScript() df.Heredoc {
-	return df.Heredoc{Dest: DockerdInit, Blocks: []df.Block{
-		{Lines: []string{"#!/bin/sh"}},
-		{Comment: "msb passes the init its own args, so start dockerd without them", Lines: []string{
-			"dockerd &",
-			"pid=$!",
-		}},
-		{Comment: "Pass any shutdown signal msb may send (e.g. SIGRTMIN+4, which dockerd ignores) on as SIGTERM", Lines: []string{
-			`trap 'kill "$pid"' TERM INT PWR $(seq 34 64)`,
-		}},
-		{Comment: "wait returns on each signal and reaps orphans too", Lines: []string{
-			`while kill -0 "$pid" 2>/dev/null; do wait; done`,
-		}},
-		{Comment: "msb waits for the guest to power off; PID 1 exiting would panic the kernel instead", Lines: []string{
-			"exec busybox poweroff -f",
-		}},
-	}}
+	return df.Heredoc{Dest: DockerdInit, Lines: renderScript("dockerd-init.sh", defaultScriptVars())}
 }

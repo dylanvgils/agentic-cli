@@ -2,7 +2,6 @@ package tools
 
 import (
 	"encoding/xml"
-	"fmt"
 	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
@@ -65,20 +64,7 @@ func integrationBlocks(img ImageInfo) []df.Block {
 
 // mavenSettingsBlock renders the Maven settings with the proxy port and points Maven at them.
 func mavenSettingsBlock() df.Block {
-	return df.Block{
-		Comment: "Render the Maven proxy settings for the maven integration",
-		Lines: []string{
-			fmt.Sprintf(`if [[ -n "${%s:-}" && -f %s ]]; then`, sandbox.MavenProxyPortEnv, mavenSettingsTemplatePath),
-			fmt.Sprintf(`  sed "s/%s/${%s}/" %s > %s`,
-				mavenPortPlaceholder,
-				sandbox.MavenProxyPortEnv,
-				mavenSettingsTemplatePath,
-				mavenSettingsPath,
-			),
-			fmt.Sprintf(`  export MAVEN_ARGS="--global-settings %s${MAVEN_ARGS:+ $MAVEN_ARGS}"`, mavenSettingsPath),
-			"fi",
-		},
-	}
+	return scriptBlock("mavensettings.sh")
 }
 
 // mavenEnvRef returns Maven's reference to env var name.

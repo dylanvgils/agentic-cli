@@ -1,7 +1,9 @@
 package tools
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -45,7 +47,6 @@ func TestCopilotStage(t *testing.T) {
 	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, `copilot plugin marketplace list 2>/dev/null | awk`)
-		assert.Contains(t, result, `index($0,"(Local: ")`)
 		assert.Contains(t, result, `copilot plugin marketplace remove --force "$name"`)
 	})
 
@@ -54,6 +55,33 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, "COPILOT_INSTALL_CHECKSUM="+DefaultChecksums.CopilotInstall)
 		assert.Contains(t, result, "curl -fsSL https://gh.io/copilot-install -o /tmp/copilot_install.sh")
 	})
+}
+
+func Test_copilotMarketplaces(t *testing.T) {
+	// Arrange
+	home := t.TempDir()
+	marketplaces := filepath.Join(home, "marketplaces")
+	require.NoError(t, os.MkdirAll(filepath.Join(marketplaces, "test-kept"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(marketplaces, "test-new"), 0o755))
+	log := filepath.Join(home, "copilot.log")
+	list := strings.Join([]string{
+		"Marketplaces:",
+		"  test-kept (Local: " + marketplaces + "/test-kept)",
+		"  test-gone (Local: " + marketplaces + "/test-gone)",
+		"  test-other (Local: /test-elsewhere/test-other)",
+	}, "\n")
+
+	// Act
+	runScript(t, "copilot-marketplaces.sh", defaultScriptVars(), "",
+		stubCommand(t, t.TempDir(), "copilot"),
+		"HOME="+home,
+		"TEST_LOG="+log,
+		"TEST_LIST="+list,
+		"AGENTIC_MARKETPLACES=test-kept,test-new,test-missing",
+	)
+
+	// Assert
+	assert.Equal(t, "plugin marketplace add "+marketplaces+"/test-new\nplugin marketplace remove --force test-gone\n", readFile(t, log))
 }
 
 func TestSetupCopilot_createsDir(t *testing.T) {
