@@ -15,23 +15,38 @@ import (
 //go:embed scripts/*.sh
 var scriptFS embed.FS
 
-// scriptVars are the values the scripts in scriptFS reference.
+// scriptVars are the values the scripts in scriptFS reference; tests override the paths with temp files.
 type scriptVars struct {
-	ProxyCAEnv             string
-	ProxyCABundle          string
-	SystemCABundle         string
-	TrustEnvNames          []string
-	JavaTrustStore         string
+	// ProxyCAEnv is the env var carrying the proxy CA PEM (proxytrust.sh, javatrust.sh).
+	ProxyCAEnv string
+	// ProxyCABundle is the bundle proxytrust.sh writes: SystemCABundle plus the proxy CA.
+	ProxyCABundle string
+	// SystemCABundle is the Debian trust bundle proxytrust.sh copies.
+	SystemCABundle string
+	// TrustEnvNames are the vars proxytrust.sh points at ProxyCABundle.
+	TrustEnvNames []string
+	// JavaTrustStore is the cacerts copy javatrust.sh adds the CAs to.
+	JavaTrustStore string
+	// JavaTrustStorePassword is JavaTrustStore's password (javatrust.sh).
 	JavaTrustStorePassword string
-	MsbCA                  string
-	MavenPortEnv           string
-	MavenPortPlaceholder   string
-	MavenSettingsTemplate  string
-	MavenSettings          string
-	MarketplacesDir        string
-	Entrypoint             string
-	HostAlias              string
-	DockerdConfigDir       string
+	// MsbCA is msb's TLS inspection CA in the guest (javatrust.sh).
+	MsbCA string
+	// MavenPortEnv is the env var with the proxy port for Maven (mavensettings.sh).
+	MavenPortEnv string
+	// MavenPortPlaceholder is the token in MavenSettingsTemplate replaced with the port (mavensettings.sh).
+	MavenPortPlaceholder string
+	// MavenSettingsTemplate is the baked-in Maven settings template (mavensettings.sh).
+	MavenSettingsTemplate string
+	// MavenSettings is where mavensettings.sh renders the template.
+	MavenSettings string
+	// MarketplacesDir is the marketplaces dir under $HOME (claude- and copilot-marketplaces.sh).
+	MarketplacesDir string
+	// Entrypoint is the tool's entrypoint that dockerd-entrypoint.sh execs.
+	Entrypoint string
+	// HostAlias is the host's name in a microsandbox guest (dockerd-entrypoint.sh).
+	HostAlias string
+	// DockerdConfigDir is the DOCKER_CONFIG dockerd-entrypoint.sh writes the proxy config to.
+	DockerdConfigDir string
 }
 
 // defaultScriptVars returns the scriptVars the images bake in.

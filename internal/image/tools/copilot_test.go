@@ -2,7 +2,6 @@ package tools
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -59,38 +58,30 @@ func TestCopilotStage(t *testing.T) {
 }
 
 func Test_copilotMarketplaces(t *testing.T) {
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("bash not available")
-	}
 	// Arrange
 	home := t.TempDir()
-	bin := t.TempDir()
-	log := filepath.Join(t.TempDir(), "copilot.log")
 	marketplaces := filepath.Join(home, "marketplaces")
 	require.NoError(t, os.MkdirAll(filepath.Join(marketplaces, "test-kept"), 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(marketplaces, "test-new"), 0o755))
+	log := filepath.Join(home, "copilot.log")
 	list := strings.Join([]string{
 		"Marketplaces:",
-		"  test-kept (Local: " + filepath.Join(marketplaces, "test-kept") + ")",
-		"  test-gone (Local: " + filepath.Join(marketplaces, "test-gone") + ")",
+		"  test-kept (Local: " + marketplaces + "/test-kept)",
+		"  test-gone (Local: " + marketplaces + "/test-gone)",
 		"  test-other (Local: /test-elsewhere/test-other)",
 	}, "\n")
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "copilot"), []byte(fakeCopilotScript(list, log)), 0o755))
-	cmd := exec.Command("bash", "-euo", "pipefail", "-c", strings.Join(renderScript("copilot-marketplaces.sh", defaultScriptVars()), "\n"))
-	cmd.Env = []string{
-		"HOME=" + home,
-		"PATH=" + bin + ":/usr/bin:/bin",
-		"AGENTIC_MARKETPLACES=test-kept,test-new,test-missing",
-	}
 
 	// Act
-	out, err := cmd.CombinedOutput()
+	runScript(t, "copilot-marketplaces.sh", defaultScriptVars(), "",
+		stubCommand(t, t.TempDir(), "copilot"),
+		"HOME="+home,
+		"TEST_LOG="+log,
+		"TEST_LIST="+list,
+		"AGENTIC_MARKETPLACES=test-kept,test-new,test-missing",
+	)
 
 	// Assert
-	require.NoError(t, err, string(out))
-	got, err := os.ReadFile(log)
-	require.NoError(t, err)
-	assert.Equal(t, "plugin marketplace add "+filepath.Join(marketplaces, "test-new")+"\nplugin marketplace remove --force test-gone\n", string(got))
+	assert.Equal(t, "plugin marketplace add "+marketplaces+"/test-new\nplugin marketplace remove --force test-gone\n", readFile(t, log))
 }
 
 func TestSetupCopilot_createsDir(t *testing.T) {
@@ -103,11 +94,4 @@ func TestSetupCopilot_createsDir(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.DirExists(t, filepath.Join(dir, ToolsDirName, "copilot"))
-}
-
-// fakeCopilotScript prints list for "plugin marketplace list" and logs any other call's args to log.
-func fakeCopilotScript(list, log string) string {
-	return "#!/bin/bash\n" +
-		"if [[ \"$*\" == \"plugin marketplace list\" ]]; then printf '%s\\n' '" + list + "'; exit; fi\n" +
-		"echo \"$*\" >> " + log + "\n"
 }

@@ -210,3 +210,53 @@ func heredocBody(h df.Heredoc) string {
 
 	return strings.TrimSuffix(body, "EOF")
 }
+
+// runScript runs script name, rendered with vars, in bash with only env set, then probe; it returns stdout and stderr.
+func runScript(t *testing.T, name string, vars scriptVars, probe string, env ...string) (string, string) {
+	t.Helper()
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not available")
+	}
+	script := strings.Join(renderScript(name, vars), "\n") + "\n" + probe
+	cmd := exec.Command("bash", "-euo", "pipefail", "-c", script)
+	cmd.Env = env
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	require.NoError(t, cmd.Run(), stderr.String())
+
+	return stdout.String(), stderr.String()
+}
+
+// printVars is a runScript probe that prints NAME=value for each var.
+func printVars(names ...string) string {
+	return `for name in ` + strings.Join(names, " ") + `; do echo "$name=${!name:-}"; done`
+}
+
+// stubCommand installs testdata/fake-<name>.sh as name in dir and returns a PATH env entry with dir first.
+func stubCommand(t *testing.T, dir, name string) string {
+	t.Helper()
+	fake, err := os.ReadFile(filepath.Join("testdata", "fake-"+name+".sh"))
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), fake, 0o755))
+
+	return "PATH=" + dir + ":/usr/bin:/bin"
+}
+
+// readFile returns path's content.
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	return string(data)
+}
+
+// resetFiles removes paths a previous subtest left behind.
+func resetFiles(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, path := range paths {
+		require.NoError(t, os.RemoveAll(path))
+	}
+}
