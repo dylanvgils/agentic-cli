@@ -32,7 +32,7 @@ func TestCopilotMounts(t *testing.T) {
 }
 
 func TestCopilotStage(t *testing.T) {
-	result := renderStage(copilotStage("base"))
+	result := renderStage(copilotStage("base", ImageInfo{}))
 
 	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
 		// Assert

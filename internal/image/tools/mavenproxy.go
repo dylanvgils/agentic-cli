@@ -55,6 +55,14 @@ func mavenSettingsFile() df.Heredoc {
 	}
 }
 
+// integrationBlocks are the entrypoint blocks for the proxy integrations, adding Maven's settings only on the java extra.
+func integrationBlocks(img ImageInfo) []df.Block {
+	if img.HasExtra("java") {
+		return []df.Block{mavenSettingsBlock()}
+	}
+	return nil
+}
+
 // mavenSettingsBlock renders the Maven settings with the proxy port and points Maven at them.
 func mavenSettingsBlock() df.Block {
 	return df.Block{

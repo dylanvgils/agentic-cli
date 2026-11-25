@@ -54,3 +54,26 @@ func Test_mavenSettingsBlock(t *testing.T) {
 		"fi",
 	}, block.Lines)
 }
+
+func TestToolEntrypoints_mavenSettings(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name+" renders the Maven settings before exec on the java extra", func(t *testing.T) {
+			// Act
+			result := renderStage(Configs[name].Build.Stage("base", ImageInfo{Extras: []string{"java"}}))
+
+			// Assert
+			settings := strings.Index(result, "export MAVEN_ARGS=")
+			execAt := strings.Index(result, "exec "+name)
+			require.NotEqual(t, -1, settings)
+			assert.Less(t, settings, execAt)
+		})
+
+		t.Run(name+" leaves Maven out without the java extra", func(t *testing.T) {
+			// Act
+			result := renderStage(Configs[name].Build.Stage("base", ImageInfo{}))
+
+			// Assert
+			assert.NotContains(t, result, "MAVEN_ARGS")
+		})
+	}
+}
